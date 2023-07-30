@@ -1,5 +1,9 @@
-use crate::frontend::llvm::{function::Function, instr::{*, self}, llvm_module::LLVMModule};
-use std::collections::{HashMap,HashSet};
+use crate::frontend::llvm::{
+    function::Function,
+    instr::{self, *},
+    llvm_module::LLVMModule,
+};
+use std::collections::{HashMap, HashSet};
 
 pub fn build_defs(f: &Function) -> HashMap<i32, i32> {
     let mut defs = HashMap::new();
@@ -19,7 +23,6 @@ pub fn build_defs(f: &Function) -> HashMap<i32, i32> {
     defs
 }
 
-
 pub fn check_ir(f: &Function) {
     let defs = build_defs(f);
     for bb_id in f.layout().block_iter() {
@@ -31,7 +34,7 @@ pub fn check_ir(f: &Function) {
                 let mut flag = false;
                 let mut flag1 = false;
                 let mut set: HashSet<_> = HashSet::new();
-                for (_ , v) in phi_instr.uses() {
+                for (_, v) in phi_instr.uses() {
                     if !prev.contains(v) {
                         flag = true;
                     }
@@ -41,7 +44,7 @@ pub fn check_ir(f: &Function) {
                 }
                 if flag || flag1 || phi_instr.uses().len() != prev.len() {
                     for bb0 in prev {
-                        log::debug!("{}",bb0);
+                        log::debug!("{}", bb0);
                     }
                     log::debug!("bb:{}", bb_id);
                     panic!("phi instruction {} is not valid", instr_id);
@@ -55,7 +58,7 @@ pub fn check_ir(f: &Function) {
                     assert!(defs[regwr_ir.des_register().unwrap().id()] == instr_id);
                 }
             }
-            
+
             if let Some(reg_use_instr) = instr.instr().try_as_reg_use_instr() {
                 for reg in reg_use_instr.uses() {
                     if reg.is_immediate() || reg.is_global() {
@@ -69,7 +72,13 @@ pub fn check_ir(f: &Function) {
         }
         if f.name() != "_init" {
             assert!(f.layout().inst_iter(bb_id).next() != None);
-            let last_instr_id = f.layout().basic_blocks().get(&bb_id).unwrap().last_inst().unwrap();
+            let last_instr_id = f
+                .layout()
+                .basic_blocks()
+                .get(&bb_id)
+                .unwrap()
+                .last_inst()
+                .unwrap();
             let last_instr = f.instructions().get(&last_instr_id).unwrap();
             if last_instr.is_branch() || last_instr.is_ret() {
                 continue;
