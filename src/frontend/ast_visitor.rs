@@ -1007,6 +1007,12 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             } else {
                 let ret = Instruction::new(Box::new(Ret::new(None)), ret_bb);
                 self.cur_function().add_inst2bb(ret);
+                let cur_bb_id = self.cur_bb.unwrap();
+                let cur_bb = self.cur_function().bb(cur_bb_id).unwrap();
+                if !cur_bb.have_exit() {
+                    let br = Instruction::new(Box::new(Branch::new_label(ret_bb)), cur_bb_id);
+                    self.cur_function().add_inst2bb(br);
+                }
             }
         } else {
             if !self.has_return {
@@ -1198,7 +1204,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .bb_mut(self.cur_bb.unwrap())
             .unwrap()
             .set_alias("if.then".to_string());
+        self.depth += 1;
         ctx.stmt().unwrap().accept(self);
+        self.depth -= 1;
         let cur_func = self
             .module
             .functions_mut()
@@ -1244,7 +1252,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .bb_mut(self.cur_bb.unwrap())
             .unwrap()
             .set_alias("if.then".to_string());
+        self.depth += 1;
         ctx.stmt(0).unwrap().accept(self);
+        self.depth -= 1;
         let true_branch_last_bb = self.cur_bb;
         let false_branch_bb = Some(*self.false_bb_stack.last().unwrap());
         self.cur_bb = false_branch_bb;
@@ -1255,7 +1265,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .bb_mut(self.cur_bb.unwrap())
             .unwrap()
             .set_alias("if.else".to_string());
+        self.depth += 1;
         ctx.stmt(1).unwrap().accept(self);
+        self.depth -= 1;
         let false_branch_last_bb = self.cur_bb;
         self.true_bb_stack.pop();
         self.false_bb_stack.pop();
