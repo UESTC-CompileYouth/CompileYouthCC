@@ -45,6 +45,5 @@ path = "./src/compiler.rs"
 
 
 [profile.release]
-opt-level = 3
+opt-level = 2
 debug = true
-lto = true
