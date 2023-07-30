@@ -597,7 +597,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("../../test/functional/62_percolation.sy")
+        let contents = std::fs::read_to_string("test/functional/62_percolation.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
