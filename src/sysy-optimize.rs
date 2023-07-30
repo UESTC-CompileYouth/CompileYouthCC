@@ -12,9 +12,9 @@ use sysycc_compiler::frontend::{
     error_listener::SysYErrorListener, llvm::llvm_module::LLVMModule,
 };
 use sysycc_compiler::optimize::passes::{
+    check_ir::check_module,
     dce::remove_unused_def,
     mem2reg::{mem2reg, remove_unreachable_bb_module},
-    check_ir::check_module,
 };
 
 /// Command Line Options Parser
