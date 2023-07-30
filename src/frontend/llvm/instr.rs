@@ -784,6 +784,10 @@ impl Instr for FSub {
         Some(self)
     }
 
+    fn try_as_reg_write_instr(&self) -> Option<&dyn RegWriteInstr> {
+        Some(self)
+    }
+
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
     }
