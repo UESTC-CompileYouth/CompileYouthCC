@@ -1,0 +1,15 @@
+target
+test/functional/*.c
+test/functional/*.ll
+autotest.sh
+comp.sh
+output
+compare
+Cargo.lock
+.vscode
+.docker
+.cache
+.cargo
+.github
+.git
+/llvm
