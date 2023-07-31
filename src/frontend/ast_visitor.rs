@@ -285,7 +285,7 @@ impl SysYAstVisitor<'_> {
                         bb_id,
                     ));
                     ir_vec.push(Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                        Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                         bb_id,
                     ));
                 } else if lvalue.get_type() == Type::Float && rvalue_vec[0].get_type() == Type::Int
@@ -296,12 +296,12 @@ impl SysYAstVisitor<'_> {
                         bb_id,
                     ));
                     ir_vec.push(Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                        Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                         bb_id,
                     ));
                 } else {
                     ir_vec.push(Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), rvalue_vec[0].clone())),
+                        Box::new(Store::new(lvalue.to_address(), rvalue_vec[0].clone())),
                         bb_id,
                     ));
                 }
@@ -315,15 +315,15 @@ impl SysYAstVisitor<'_> {
                 child_size *= new_shape[i];
             }
             for index in 0..shape[0] {
-                let new_lvalue = SSALeftValue::new_shape(
+                let new_lvalue = SSALeftValue::new_addr(
                     self.cur_function().alloc_ssa_id(),
                     lvalue.get_type(),
                     new_shape.to_vec(),
                 );
                 ir_vec.push(Instruction::new(
                     Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        new_lvalue.to_rvalue(),
+                        lvalue.to_address(),
+                        new_lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Int(index as i32)),
                     )),
                     bb_id,
@@ -349,13 +349,13 @@ impl SysYAstVisitor<'_> {
             if lvalue.get_type() == Type::Int {
                 let new_rvalue = SSARightValue::new_imme(Immediate::Int(0));
                 ir_vec.push(Instruction::new(
-                    Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                    Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                     bb_id,
                 ));
             } else if lvalue.get_type() == Type::Float {
                 let new_rvalue = SSARightValue::new_imme(Immediate::Float(0.0));
                 ir_vec.push(Instruction::new(
-                    Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                    Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                     bb_id,
                 ));
             } else {
@@ -365,15 +365,15 @@ impl SysYAstVisitor<'_> {
             // array
             let new_shape = shape[1..].to_vec();
             for index in 0..shape[0] {
-                let new_lvalue = SSALeftValue::new_shape(
+                let new_lvalue = SSALeftValue::new_addr(
                     self.cur_function().alloc_ssa_id(),
                     lvalue.get_type(),
                     new_shape.to_vec(),
                 );
                 ir_vec.push(Instruction::new(
                     Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        new_lvalue.to_rvalue(),
+                        lvalue.to_address(),
+                        new_lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Int(index as i32)),
                     )),
                     bb_id,
@@ -632,7 +632,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             let mut instrs: Vec<Instruction> = vec![];
             if cur_bb_id != entry_bb_id {
                 instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
+                    Box::new(Alloca::new(entry.to_address())),
                     entry_bb_id,
                 ));
                 self.generate_lvalue_zero_init_ir(entry_bb_id, entry.clone(), &mut instrs);
@@ -944,14 +944,14 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                     let id = func_entry.alloc_ssa_id();
                     let lvalue = SSALeftValue::new_arg(id, arg_lvalue.get_type());
                     let alloca_ir = Instruction::new(
-                        Box::new(Alloca::new(lvalue.to_rvalue())),
+                        Box::new(Alloca::new(lvalue.to_address())),
                         self.cur_bb.unwrap(),
                     );
                     // func_entry.mem_scope_mut().new_mem_object(lvalue.clone());
                     func_entry.add_inst2bb(alloca_ir);
                     let rvalue = SSARightValue::new_reg(*arg_lvalue.id(), arg_lvalue.get_type());
                     let store_ir = Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), rvalue)),
+                        Box::new(Store::new(lvalue.to_address(), rvalue)),
                         self.cur_bb.unwrap(),
                     );
                     func_entry.add_inst2bb(store_ir);
@@ -970,19 +970,19 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         if func_type != Type::Void {
             let id = self.cur_function().alloc_ssa_id();
             let lvalue = SSALeftValue::new(id, func_type);
-            self.ret_value_opt = Some(lvalue.clone());
             let alloca = Instruction::new(
-                Box::new(Alloca::new(lvalue.to_rvalue())),
+                Box::new(Alloca::new(lvalue.to_address())),
                 self.cur_bb.unwrap(),
             );
             self.cur_function().add_inst2bb(alloca);
+            self.ret_value_opt = Some(lvalue.clone());
             self.cur_function()
                 .mem_scope_mut()
                 .new_mem_object(lvalue.clone());
             let store = if func_type == Type::Int {
                 Instruction::new(
                     Box::new(Store::new(
-                        lvalue.to_rvalue(),
+                        lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Int(0)),
                     )),
                     self.cur_bb.unwrap(),
@@ -990,7 +990,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             } else {
                 Instruction::new(
                     Box::new(Store::new(
-                        lvalue.to_rvalue(),
+                        lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Float(0.0)),
                     )),
                     self.cur_bb.unwrap(),
@@ -1008,7 +1008,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
 
                 let load = Instruction::new(
                     Box::new(Load::new(
-                        self.ret_value_opt.clone().unwrap().to_rvalue(),
+                        self.ret_value_opt.clone().unwrap().to_address(),
                         ret_rvalue.clone(),
                     )),
                     ret_bb,
@@ -1167,7 +1167,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         }
         let rvalue = self.convert_type(rvalue, lvalue.get_type());
         let store = Instruction::new(
-            Box::new(Store::new(lvalue.to_rvalue(), rvalue)),
+            Box::new(Store::new(lvalue.to_address(), rvalue)),
             self.cur_bb.unwrap(),
         );
         self.cur_function().add_inst2bb(store);
@@ -1512,7 +1512,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                             .convert_type(rvalue, self.ret_value_opt.as_ref().unwrap().get_type());
                         let store = Instruction::new(
                             Box::new(Store::new(
-                                self.ret_value_opt.clone().unwrap().to_rvalue(),
+                                self.ret_value_opt.clone().unwrap().to_address(),
                                 rvalue,
                             )),
                             self.cur_bb.unwrap(),
@@ -1551,7 +1551,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                         self.convert_type(rvalue, self.ret_value_opt.as_ref().unwrap().get_type());
                     let store_ir = Instruction::new(
                         Box::new(Store::new(
-                            self.ret_value_opt.clone().unwrap().to_rvalue(),
+                            self.ret_value_opt.clone().unwrap().to_address(),
                             rvalue,
                         )),
                         self.cur_bb.unwrap(),
@@ -1753,12 +1753,12 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             for i in indexs.iter() {
                 let new_shape = lvalue.get_shape()[1..].to_vec();
                 let new_lvalue =
-                    SSALeftValue::new_shape(cur_func.alloc_ssa_id(), ty.clone(), new_shape);
+                    SSALeftValue::new_addr(cur_func.alloc_ssa_id(), ty.clone(), new_shape);
 
                 let gepir = Instruction::new(
                     Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        new_lvalue.to_rvalue(),
+                        lvalue.to_address(),
+                        new_lvalue.to_address(),
                         i.clone(),
                     )),
                     cur_bb,
@@ -1809,28 +1809,28 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 // address pointer
                 let new_shape = lvalue.get_shape();
                 let new_shape = new_shape[1..].to_vec();
-                let d1 = SSALeftValue::new_shape(self.new_id(), lvalue.get_type(), new_shape);
+                let d1 = SSALeftValue::new_addr(self.new_id(), lvalue.get_type(), new_shape);
 
                 let gepir = Instruction::new(
                     Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        d1.to_rvalue(),
+                        lvalue.to_address(),
+                        d1.to_address(),
                         SSARightValue::new_imme(Immediate::Int(0)),
                     )),
                     self.cur_bb.unwrap(),
                 );
                 self.cur_function().add_inst2bb(gepir);
                 log::trace!("leavePrimaryExp2_0");
-                return AstReturnContent::Exp(AstExp::SSAValue(d1.to_rvalue())).into();
+                return AstReturnContent::Exp(AstExp::SSAValue(d1.to_address())).into();
             } else {
                 // if *lvalue.is_arg() {
                 //     log::trace!("leavePrimaryExp2_1");
-                //     return AstReturnContent::Exp(AstExp::SSAValue(lvalue.to_rvalue())).into();
+                //     return AstReturnContent::Exp(AstExp::SSAValue(lvalue.to_address())).into();
                 // } else {
                 // scalar value
                 let d1 = self.cur_function().new_reg(lvalue.get_type());
                 let loadir = Instruction::new(
-                    Box::new(Load::new(lvalue.to_rvalue(), d1.clone())),
+                    Box::new(Load::new(lvalue.to_address(), d1.clone())),
                     self.cur_bb.unwrap(),
                 );
                 self.cur_function().add_inst2bb(loadir);

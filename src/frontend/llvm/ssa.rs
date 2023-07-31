@@ -370,7 +370,7 @@ impl SSALeftValue {
         *self = value;
     }
 
-    pub fn to_rvalue(&self) -> SSARightValue {
+    pub fn to_address(&self) -> SSARightValue {
         if self.is_global {
             SSARightValue {
                 inner: SSARightValueInner::Address(
