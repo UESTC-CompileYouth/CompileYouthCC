@@ -611,13 +611,12 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .map(|i| SSARightValue::new_imme(*i))
             .collect();
         let left_id = self.new_id();
-        let mut entry = VariableEntry::new_name_shape_value_const(
+        let mut entry = VariableEntry::new_const_array(
             left_id,
             self.cur_type.clone(),
             ident_name.clone(),
             shape,
             init_value,
-            true,
         );
 
         if self.cur_func_name == "_init" {
@@ -745,7 +744,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             self.value_mode = ValueMode::Normal;
         }
         let mut entry =
-            VariableEntry::new_name_shape(self.new_id(), self.cur_type, ident_name.clone(), shape);
+            VariableEntry::new_normal(self.new_id(), self.cur_type, ident_name.clone(), shape);
 
         if self.cur_func_name != "_init" {
             let cur_bb_id = self.cur_bb.unwrap();
@@ -827,7 +826,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let init_vals = self.parse_var_init(ctx.initVal().unwrap().as_ref(), &mut shape);
 
         let mut entry: SSALeftValue =
-            VariableEntry::new_name_shape(self.new_id(), self.cur_type, ident_name.clone(), shape);
+            VariableEntry::new_normal(self.new_id(), self.cur_type, ident_name.clone(), shape);
 
         if self.cur_func_name == "_init" {
             entry.set_global();

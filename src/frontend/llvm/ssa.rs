@@ -230,10 +230,26 @@ impl SSALeftValue {
             init_value: None,
             offset: 0,
             is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
-
-    pub fn new_arg(id: i32, ty: Type) -> Self {
+    // normal variable with name and shape, not arg or global or const
+    pub fn new_normal(id: i32, ty: Type, name: String, shape: Vec<i32>) -> Self {
+        Self {
+            name,
+            is_arg: false,
+            is_const: false,
+            is_global: false,
+            shape,
+            id,
+            ty,
+            init_value: None,
+            offset: 0,
+            is_volatile: false,
+            is_omit_first_dim: false,
+        }
+    }
+    pub fn new_arg_scalar(id: i32, ty: Type) -> Self {
         Self {
             name: String::new(),
             is_arg: true,
@@ -245,10 +261,41 @@ impl SSALeftValue {
             init_value: None,
             offset: 0,
             is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
-
-    pub fn new_shape(id: i32, ty: Type, shape: Vec<i32>) -> Self {
+    pub fn new_arg_array(id: i32, ty: Type, shape: Vec<i32>) -> Self {
+        Self {
+            name: String::new(),
+            is_arg: true,
+            is_const: false,
+            is_global: false,
+            shape,
+            id,
+            ty,
+            init_value: None,
+            offset: 0,
+            is_volatile: false,
+            is_omit_first_dim: true,
+        }
+    }
+    pub fn new_arg_unknown_length_array(id: i32, ty: Type) -> Self {
+        Self {
+            name: String::new(),
+            is_arg: true,
+            is_const: false,
+            is_global: false,
+            shape: vec![-1],
+            ty,
+            id,
+            init_value: None,
+            offset: 0,
+            is_volatile: false,
+            is_omit_first_dim: true,
+        }
+    }
+    ///
+    pub fn new_addr(id: i32, ty: Type, shape: Vec<i32>) -> Self {
         Self {
             name: String::new(),
             is_arg: false,
@@ -260,25 +307,11 @@ impl SSALeftValue {
             init_value: None,
             offset: 0,
             is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
 
-    pub fn new_name_shape(id: i32, ty: Type, name: String, shape: Vec<i32>) -> Self {
-        Self {
-            name,
-            is_arg: false,
-            is_const: false,
-            is_global: false,
-            shape,
-            id,
-            ty,
-            init_value: None,
-            offset: 0,
-            is_volatile: false,
-        }
-    }
-
-    pub fn new_name_shape_init_value(
+    pub fn new_const_array(
         id: i32,
         ty: Type,
         name: String,
@@ -288,7 +321,7 @@ impl SSALeftValue {
         Self {
             name,
             is_arg: false,
-            is_const: false,
+            is_const: true,
             is_global: false,
             shape,
             id,
@@ -296,49 +329,7 @@ impl SSALeftValue {
             init_value: Some(init_value),
             offset: 0,
             is_volatile: false,
-        }
-    }
-
-    pub fn new_name_shape_arg(
-        id: i32,
-        ty: Type,
-        name: String,
-        shape: Vec<i32>,
-        is_arg: bool,
-    ) -> Self {
-        Self {
-            name,
-            is_arg,
-            is_const: false,
-            is_global: false,
-            shape,
-            id,
-            ty,
-            init_value: None,
-            offset: 0,
-            is_volatile: false,
-        }
-    }
-
-    pub fn new_name_shape_value_const(
-        id: i32,
-        ty: Type,
-        name: String,
-        shape: Vec<i32>,
-        init_value: Vec<Immediate>,
-        is_const: bool,
-    ) -> Self {
-        Self {
-            name,
-            is_arg: false,
-            is_const,
-            is_global: false,
-            shape,
-            id,
-            ty,
-            init_value: Some(init_value),
-            offset: 0,
-            is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
 
@@ -346,7 +337,7 @@ impl SSALeftValue {
         !self.is_global && !self.is_arg && self.shape.is_empty() // && self.size == bitwidth 32
     }
 
-    pub fn is_init(&self) -> bool {
+    pub fn is_const(&self) -> bool {
         self.init_value.is_some()
     }
 
