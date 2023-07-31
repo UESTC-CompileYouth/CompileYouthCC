@@ -1,8 +1,4 @@
-use crate::frontend::llvm::{
-    function::Function,
-    instr::{self, *},
-    llvm_module::LLVMModule,
-};
+use crate::frontend::llvm::{function::Function, instr::*, llvm_module::LLVMModule};
 use std::collections::{HashMap, HashSet};
 
 pub fn build_defs(f: &Function) -> HashMap<i32, i32> {
