@@ -1,4 +1,7 @@
-use super::{function::Function, mem_scope::MemScope};
+use super::{
+    function::{ArgumentList, Function},
+    mem_scope::MemScope,
+};
 use crate::common::r#type::Type;
 use getset::{Getters, MutGetters};
 use std::{
@@ -36,8 +39,13 @@ impl LLVMModule {
         self.functions.insert(func.name().to_string(), func);
     }
 
-    pub fn register_lib_func(&mut self, name: &str, ty: Type) -> &mut Function {
-        let entry = Function::new_lib_func(name.to_string(), ty);
+    pub fn register_lib_func(
+        &mut self,
+        name: &str,
+        ret_type: Type,
+        arg_list: ArgumentList,
+    ) -> &mut Function {
+        let entry = Function::new_lib_func(name.to_string(), ret_type, arg_list);
         self.functions.insert(name.to_string(), entry);
         self.functions.get_mut(name).unwrap()
     }

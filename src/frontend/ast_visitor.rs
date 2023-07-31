@@ -6,7 +6,7 @@ use super::{
 };
 use crate::common::{error::SemanticError, immediate::Immediate, r#type::Type};
 use crate::frontend::{
-    llvm::{function::Function, instr::*, llvm_module::*, ssa::*},
+    llvm::{function::{Argument, ArgumentList, Function}, instr::*, llvm_module::*, ssa::*},
     return_content::AstExp,
 };
 use antlr_rust::tree::{ParseTree, ParseTreeVisitorCompat, Tree, Visitable};
@@ -410,35 +410,51 @@ impl SysYAstVisitor<'_> {
 
     fn register_lib_func(&mut self) {
         // get from i/o
-        self.module.register_lib_func("getint", Type::Int);
-        self.module.register_lib_func("getch", Type::Int);
-        self.module.register_lib_func("getfloat", Type::Int);
-
-        // time
-        self.module.register_lib_func("starttime", Type::Void);
-        self.module.register_lib_func("stoptime", Type::Void);
-
-        // todo: arg list
-        self.module.register_lib_func("getarray", Type::Int);
-        self.module.register_lib_func("getfarray", Type::Int);
+        self.module
+            .register_lib_func("getint", Type::Int, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("getch", Type::Int, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("getfloat", Type::Float, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("getarray", Type::Int, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("getfarray", Type::Int, ArgumentList::Normal(vec![]));
 
         // put to i/o
-        let putint = self.module.register_lib_func("putint", Type::Void);
-        let putint_arg_list = vec![Type::Int];
-        putint.set_lib_func_arg_list(putint_arg_list);
+        let putint = self.module.register_lib_func(
+            "putint",
+            Type::Void,
+            ArgumentList::Normal(vec![Argument::int()]),
+        );
+        let putch = self.module.register_lib_func(
+            "putch",
+            Type::Void,
+            ArgumentList::Normal(vec![Argument::int()]),
+        );
+        let putfloat = self.module.register_lib_func(
+            "putfloat",
+            Type::Void,
+            ArgumentList::Normal(vec![Argument::float()]),
+        );
+        self.module.register_lib_func(
+            "putarray",
+            Type::Void,
+            ArgumentList::Normal(vec![Argument::unknown_length_int_array()]),
+        );
+        self.module.register_lib_func(
+            "putfarray",
+            Type::Void,
+            ArgumentList::Normal(vec![Argument::unknown_length_float_array()]),
+        );
+        self.module
+            .register_lib_func("putf", Type::Void, ArgumentList::Variadic);
 
-        let putch = self.module.register_lib_func("putch", Type::Void);
-        let putch_arg_list = vec![Type::Int];
-        putch.set_lib_func_arg_list(putch_arg_list);
-
-        let putfloat = self.module.register_lib_func("putfloat", Type::Void);
-        let putfloat_arg_list = vec![Type::Float];
-        putfloat.set_lib_func_arg_list(putfloat_arg_list);
-
-        // todo: arg list
-        self.module.register_lib_func("putarray", Type::Void);
-        self.module.register_lib_func("putfarray", Type::Void);
-        self.module.register_lib_func("putf", Type::Void);
+        // time
+        self.module
+            .register_lib_func("starttime", Type::Void, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("stoptime", Type::Void, ArgumentList::Normal(vec![]));
     }
 
     #[inline(always)]

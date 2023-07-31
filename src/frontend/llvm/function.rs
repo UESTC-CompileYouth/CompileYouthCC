@@ -5,6 +5,76 @@ use getset::{Getters, MutGetters, Setters};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 
+#[derive(Debug, Default, Getters, MutGetters, Setters)]
+pub struct Argument {
+    #[getset(get = "pub")]
+    name: String,
+    #[getset(get = "pub")]
+    ty: Type,
+    #[getset(get = "pub")]
+    shape: Vec<i32>,
+    #[getset(get = "pub")]
+    is_omit_first_dim: bool,
+}
+
+impl Argument {
+    pub fn unknown_length_int_array() -> Self {
+        Self {
+            name: String::new(),
+            ty: Type::Int,
+            shape: vec![-1],
+            is_omit_first_dim: true,
+        }
+    }
+    pub fn unknown_length_float_array() -> Self {
+        Self {
+            name: String::new(),
+            ty: Type::Float,
+            shape: vec![-1],
+            is_omit_first_dim: true,
+        }
+    }
+    pub fn int() -> Self {
+        Self {
+            name: String::new(),
+            ty: Type::Int,
+            shape: vec![],
+            is_omit_first_dim: false,
+        }
+    }
+    pub fn float() -> Self {
+        Self {
+            name: String::new(),
+            ty: Type::Float,
+            shape: vec![],
+            is_omit_first_dim: false,
+        }
+    }
+    pub fn int_array(shape: Vec<i32>) -> Self {
+        Self {
+            name: String::new(),
+            ty: Type::Int,
+            shape,
+            is_omit_first_dim: false,
+        }
+    }
+    pub fn float_array(shape: Vec<i32>) -> Self {
+        Self {
+            name: String::new(),
+            ty: Type::Float,
+            shape,
+            is_omit_first_dim: false,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub enum ArgumentList {
+    #[default]
+    Variadic,
+    Normal(Vec<Argument>),
+}
+
 #[derive(Debug, Default, Getters, Setters, MutGetters)]
 pub struct Function {
     #[getset(get = "pub")]
@@ -14,7 +84,7 @@ pub struct Function {
     #[getset(get = "pub")]
     is_lib_func: bool,
     #[getset(get = "pub", get_mut = "pub", set = "pub")]
-    arg_list: Vec<(String, SSALeftValue)>,
+    arg_list: ArgumentList,
     #[getset(get = "pub", get_mut = "pub", set = "pub")]
     mem_scope: MemScope,
     #[getset(get = "pub")]
@@ -34,7 +104,7 @@ impl Function {
             ret_type: ret_type,
             layout: Layout::new(),
             is_lib_func: false,
-            arg_list: Vec::new(),
+            arg_list: ArgumentList::default(),
             mem_scope: MemScope::new(name.clone(), false),
             cur_inst_id: 1,
             cur_ssa_id: 0,
@@ -43,13 +113,13 @@ impl Function {
         }
     }
 
-    pub fn new_lib_func(name: String, ret_type: Type) -> Function {
+    pub fn new_lib_func(name: String, ret_type: Type, arg_list: ArgumentList) -> Function {
         Function {
-            name: name.clone(),
-            ret_type: ret_type,
+            name,
+            ret_type,
             layout: Layout::new(),
             is_lib_func: true,
-            arg_list: Vec::new(),
+            arg_list,
             mem_scope: MemScope::default(),
             cur_inst_id: 1,
             cur_ssa_id: 0,
@@ -62,25 +132,15 @@ impl Function {
         self.cur_ssa_id
     }
 
-    pub fn set_lib_func_arg_list(&mut self, type_list: Vec<Type>) {
-        let mut list: Vec<(String, SSALeftValue)> = vec![];
-        for ty in type_list {
-            if ty == Type::Void {
-                panic!("lib function {} cannot have void arg", self.name);
-            }
-            let id = self.alloc_ssa_id();
-            let arg_entry = SSALeftValue::new(id, ty);
-            list.push(("arg_".to_string() + &id.to_string(), arg_entry));
-        }
-        self.arg_list = list;
-    }
-
     pub fn inst_len(&self) -> i32 {
         self.cur_inst_id - 1
     }
 
-    pub fn append_arg(&mut self, arg: (String, SSALeftValue)) {
-        self.arg_list.push(arg);
+    pub fn append_arg(&mut self, arg: Argument) {
+        match &mut self.arg_list {
+            ArgumentList::Variadic => panic!("append_arg on variadic"),
+            ArgumentList::Normal(arg_list) => arg_list.push(arg),
+        }
     }
 
     pub fn alloc_ssa_id(&mut self) -> i32 {
