@@ -642,10 +642,10 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 self.cur_function().add_insts2bb(instrs);
             } else {
                 instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    cur_bb_id,
+                    Box::new(Alloca::new(entry.to_address())),
+                    entry_bb_id,
                 ));
-                self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), rvalue_vec, &mut instrs);
+                self.generate_lvalue_init_ir(entry_bb_id, entry.clone(), rvalue_vec, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             }
             let func = self.cur_function();
@@ -748,23 +748,14 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             VariableEntry::new_name_shape(self.new_id(), self.cur_type, ident_name.clone(), shape);
 
         if self.cur_func_name != "_init" {
-            let entry_bb_id = self.cur_function().entry_bb_id();
             let cur_bb_id = self.cur_bb.unwrap();
-            let mut instrs: Vec<Instruction> = vec![];
+            let entry_bb_id = self.cur_function().entry_bb_id();
+            let mut instr =
+                Instruction::new(Box::new(Alloca::new(entry.to_address())), entry_bb_id);
             if cur_bb_id != entry_bb_id {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    entry_bb_id,
-                ));
-                // self.generate_lvalue_zero_init_ir(entry_bb_id, entry.clone(), &mut instrs);
-                self.cur_function().add_instrs2bb_at_front(instrs);
+                self.cur_function().add_instr2bb_at_front(instr);
             } else {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    cur_bb_id,
-                ));
-                // self.generate_lvalue_zero_init_ir(cur_bb_id, entry.clone(), &mut instrs);
-                self.cur_function().add_insts2bb(instrs);
+                self.cur_function().add_instbb(instr);
             }
             self.cur_function()
                 .mem_scope_mut()
@@ -852,21 +843,16 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             let entry_bb_id = self.cur_function().entry_bb_id();
             let cur_bb_id = self.cur_bb.unwrap();
             let mut instrs: Vec<Instruction> = vec![];
+            instrs.push(Instruction::new(
+                Box::new(Alloca::new(entry.to_address())),
+                entry_bb_id,
+            ));
             if cur_bb_id != entry_bb_id {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    entry_bb_id,
-                ));
-                // self.generate_lvalue_zero_init_ir(entry_bb_id, entry.clone(), &mut instrs);
                 self.cur_function().add_instrs2bb_at_front(instrs);
-                let mut instrs: Vec<Instruction> = vec![];
+                instrs.clear();
                 self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), init_vals, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             } else {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    cur_bb_id,
-                ));
                 self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), init_vals, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             }
