@@ -876,7 +876,11 @@ impl InstrTrait for LoadStackInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rd.ty() == Type::Int);
         if self.offset == -1 {
-            format!("lw {}, {}(sp)\n", self.rd, *self.stack_object.borrow().position())
+            format!(
+                "lw {}, {}(sp)\n",
+                self.rd,
+                *self.stack_object.borrow().position()
+            )
         } else {
             assert!(self.offset >= -2048 && self.offset <= 2047);
             format!("lw {}, {}(sp)\n", self.rd, self.offset)

@@ -6,8 +6,7 @@ use std::{
     vec,
 };
 
-use crate::backend::{function::Function, instr::InstrTrait, block::Block};
-
+use crate::backend::{block::Block, function::Function, instr::InstrTrait};
 
 pub(crate) struct LivenessAnalysis {
     pub block_liveness_map: HashMap<i32, Rc<RefCell<BlockLiveness>>>,
