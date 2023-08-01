@@ -208,10 +208,7 @@ impl Function {
             mapping_info
                 .obj_mapping_mut()
                 .insert(*mem_object.id(), stack_object_rc_refcell.clone());
-            if *mem_object.is_arg() {
-                self.caller_stack_objects
-                    .push(stack_object_rc_refcell.clone());
-            } else {
+            if !*mem_object.is_arg() {
                 self.stack_objects.push(stack_object_rc_refcell);
             }
         }
