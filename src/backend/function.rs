@@ -244,7 +244,7 @@ impl Function {
             .block_mapping()
             .get(&llvm_function.entry_bb_id())
             .unwrap();
-        if real_entry_block_id != 1 {
+        if real_entry_block_id != 1 + entry_block_id {
             entry_block.push_back(Box::new(JumpInstr::new_jump(
                 BLOCK_LABEL_PREFIX.to_string() + real_entry_block_id.to_string().as_str(),
             )));
