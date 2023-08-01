@@ -1,4 +1,3 @@
-use crate::backend::{block::Block, function::Function, instr::InstrTrait};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -7,16 +6,17 @@ use std::{
     vec,
 };
 
-pub(crate) struct LivenessAnalysis<'a> {
+use crate::backend::{function::Function, instr::InstrTrait, block::Block};
+
+
+pub(crate) struct LivenessAnalysis {
     pub block_liveness_map: HashMap<i32, Rc<RefCell<BlockLiveness>>>,
-    pub function: &'a Function,
 }
 
-impl<'a> LivenessAnalysis<'a> {
-    pub fn new(function: &'a Function) -> LivenessAnalysis<'a> {
+impl LivenessAnalysis {
+    pub fn of(function: &Function) -> LivenessAnalysis {
         let mut res = LivenessAnalysis {
             block_liveness_map: HashMap::new(),
-            function,
         };
 
         for block in function.blocks().iter() {
@@ -52,7 +52,7 @@ impl<'a> LivenessAnalysis<'a> {
                 changed = changed
                     || block_liveness.clone().borrow_mut().update(
                         block,
-                        res.function,
+                        function,
                         &res.block_liveness_map,
                     );
             }

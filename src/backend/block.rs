@@ -22,7 +22,7 @@ use std::collections::HashMap;
 pub(crate) type BlockId = i32;
 #[derive(new, Getters, Setters, MutGetters)]
 pub struct Block {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     id: BlockId,
     // #[getset(get = "pub")]
     // idx: BlockId, // position in function block vec
@@ -40,7 +40,7 @@ pub struct Block {
     #[getset(get = "pub")]
     in_edges: Vec<BlockId>,
     #[new(default)]
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     out_edges: Vec<BlockId>,
     // context
     // def: Vec<Reg>,
@@ -549,7 +549,12 @@ impl Block {
                 }
                 if stack_passed % 2 == 1 {
                     stack_passed += 1;
-                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(INT_SIZE as i32 * -1)));
+                }
+
+                if stack_passed > 0 {
+                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(
+                        (stack_passed as i32) * (INT_SIZE as i32) * -1,
+                    )));
                 }
                 let arg_reg_vec = call_instr
                     .args()

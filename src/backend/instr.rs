@@ -113,10 +113,13 @@ pub(crate) enum ImmeType {
 }
 
 // x[rd] = op imme
-#[derive(Debug)]
+#[derive(Debug, Getters)]
 pub(crate) struct ImmeInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     ty: ImmeType,
+    #[getset(get = "pub")]
     imme: ImmeValueType,
     trunc: Option<TruncType>,
 }
@@ -190,10 +193,13 @@ pub(crate) enum RegType {
 }
 
 // x[rd] = op x[rs]
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct RegInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     rs: Reg,
+    #[getset(get = "pub")]
     ty: RegType,
 }
 
@@ -274,11 +280,15 @@ pub(crate) enum RegRegType {
 }
 
 // x[rd] = x[rs1] op x[rs2]
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct RegRegInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     rs1: Reg,
+    #[getset(get = "pub")]
     rs2: Reg,
+    #[getset(get = "pub")]
     ty: RegRegType,
 }
 
@@ -377,11 +387,15 @@ pub(crate) enum RegImmeType {
 }
 
 // x[rd] = x[rs1] op offset
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct RegImmeInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     rs1: Reg,
+    #[getset(get = "pub")]
     offset: ImmeValueType, // 12 bits
+    #[getset(get = "pub")]
     ty: RegImmeType,
     trunc: Option<TruncType>,
 }
@@ -583,10 +597,13 @@ pub(crate) enum BranchType {
 }
 
 // if (rs1 cond rs2) pc += sext(offset)
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters, Setters)]
 pub(crate) struct BranchInstr {
+    #[getset(get = "pub")]
     rs1: Reg,
+    #[getset(get = "pub")]
     rs2: Reg,
+    #[getset(get = "pub", set = "pub")]
     label: String,
     ty: BranchType,
 }
@@ -644,11 +661,14 @@ pub(crate) enum JumpType {
     Jr, // pc = x[rs1]; pesudo, equals jalr x0, 0(x[rs1])
 }
 
-#[derive(Debug)]
+#[derive(Debug, Getters, Setters)]
 // pc = x[rs] | imme
 pub(crate) struct JumpInstr {
+    #[getset(get = "pub")]
     rs1: Reg,
+    #[getset(get = "pub", set = "pub")]
     label: String,
+    #[getset(get = "pub")]
     ty: JumpType,
 }
 
@@ -855,8 +875,12 @@ impl InstrTrait for LoadStackInstr {
     }
     fn gen_asm(&self) -> String {
         assert!(*self.rd.ty() == Type::Int);
-        assert!(self.offset >= -2048 && self.offset <= 2047);
-        format!("lw {}, {}(sp)\n", self.rd, self.offset)
+        if self.offset == -1 {
+            format!("lw {}, {}(sp)\n", self.rd, *self.stack_object.borrow().position())
+        } else {
+            assert!(self.offset >= -2048 && self.offset <= 2047);
+            format!("lw {}, {}(sp)\n", self.rd, self.offset)
+        }
     }
     fn uses(&self) -> Vec<Reg> {
         vec![]
@@ -1028,10 +1052,13 @@ impl InstrTrait for ChangeSPInstr {
 }
 
 // Pesudo yet Real Instruction: Call
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct CallInstr {
+    #[getset(get = "pub")]
     label: String,
+    #[getset(get = "pub")]
     int_arg_cnt: usize,
+    #[getset(get = "pub")]
     float_arg_cnt: usize,
 }
 
@@ -1081,6 +1108,9 @@ impl InstrTrait for CallInstr {
     }
     fn regs_mut(&mut self) -> Vec<&mut Reg> {
         vec![] // todo!("regs use for call instr")
+    }
+    fn get_operands(&self) -> (i32, i32, i32) {
+        (0, 0, 0)
     }
 }
 

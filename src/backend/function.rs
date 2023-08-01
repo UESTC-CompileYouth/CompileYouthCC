@@ -85,6 +85,7 @@ pub struct Function {
     #[new(default)]
     stack_objects: Vec<Rc<RefCell<StackObject>>>,
     #[new(default)]
+    #[getset(get = "pub", get_mut = "pub")]
     caller_stack_objects: Vec<Rc<RefCell<StackObject>>>,
     // context
     #[new(default)]
@@ -143,7 +144,7 @@ impl Function {
                         Rc::new(RefCell::new(StackObject::new(-1, arg_data.size())));
                     entry_block.push_back(Box::new(LoadStackInstr::new(
                         cur_reg,
-                        0,
+                        -1,
                         caller_stack_object_rc_refcell.clone(),
                     )));
                     self.caller_stack_objects
@@ -161,7 +162,7 @@ impl Function {
                         Rc::new(RefCell::new(StackObject::new(-1, arg_data.size())));
                     entry_block.push_back(Box::new(LoadStackInstr::new(
                         cur_reg,
-                        0,
+                        -1,
                         caller_stack_object_rc_refcell.clone(),
                     )));
                     self.caller_stack_objects
