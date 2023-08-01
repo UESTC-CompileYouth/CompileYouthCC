@@ -6,7 +6,12 @@ use super::{
 };
 use crate::common::{error::SemanticError, immediate::Immediate, r#type::Type};
 use crate::frontend::{
-    llvm::{function::{Argument, ArgumentList, Function}, instr::*, llvm_module::*, ssa::*},
+    llvm::{
+        function::{ArgumentList, Function},
+        instr::*,
+        llvm_module::*,
+        ssa::*,
+    },
     return_content::AstExp,
 };
 use antlr_rust::tree::{ParseTree, ParseTreeVisitorCompat, Tree, Visitable};
@@ -416,36 +421,54 @@ impl SysYAstVisitor<'_> {
             .register_lib_func("getch", Type::Int, ArgumentList::Normal(vec![]));
         self.module
             .register_lib_func("getfloat", Type::Float, ArgumentList::Normal(vec![]));
-        self.module
-            .register_lib_func("getarray", Type::Int, ArgumentList::Normal(vec![]));
-        self.module
-            .register_lib_func("getfarray", Type::Int, ArgumentList::Normal(vec![]));
+        self.module.register_lib_func(
+            "getarray",
+            Type::Int,
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_unknown_length_array(
+                0,
+                Type::Int,
+            )]),
+        );
+        self.module.register_lib_func(
+            "getfarray",
+            Type::Int,
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_unknown_length_array(
+                0,
+                Type::Float,
+            )]),
+        );
 
         // put to i/o
-        let putint = self.module.register_lib_func(
+        self.module.register_lib_func(
             "putint",
             Type::Void,
-            ArgumentList::Normal(vec![Argument::int()]),
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(0, Type::Int)]),
         );
-        let putch = self.module.register_lib_func(
+        self.module.register_lib_func(
             "putch",
             Type::Void,
-            ArgumentList::Normal(vec![Argument::int()]),
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(0, Type::Int)]),
         );
-        let putfloat = self.module.register_lib_func(
+        self.module.register_lib_func(
             "putfloat",
             Type::Void,
-            ArgumentList::Normal(vec![Argument::float()]),
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(0, Type::Float)]),
         );
         self.module.register_lib_func(
             "putarray",
             Type::Void,
-            ArgumentList::Normal(vec![Argument::unknown_length_int_array()]),
+            ArgumentList::Normal(vec![
+                SSALeftValue::new_arg_scalar(0, Type::Int),
+                SSALeftValue::new_arg_unknown_length_array(1, Type::Int),
+            ]),
         );
         self.module.register_lib_func(
             "putfarray",
             Type::Void,
-            ArgumentList::Normal(vec![Argument::unknown_length_float_array()]),
+            ArgumentList::Normal(vec![
+                SSALeftValue::new_arg_scalar(0, Type::Int),
+                SSALeftValue::new_arg_unknown_length_array(1, Type::Float),
+            ]),
         );
         self.module
             .register_lib_func("putf", Type::Void, ArgumentList::Variadic);
@@ -749,12 +772,11 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         if self.cur_func_name != "_init" {
             let cur_bb_id = self.cur_bb.unwrap();
             let entry_bb_id = self.cur_function().entry_bb_id();
-            let mut instr =
-                Instruction::new(Box::new(Alloca::new(entry.to_address())), entry_bb_id);
+            let instr = Instruction::new(Box::new(Alloca::new(entry.to_address())), entry_bb_id);
             if cur_bb_id != entry_bb_id {
                 self.cur_function().add_instr2bb_at_front(instr);
             } else {
-                self.cur_function().add_instbb(instr);
+                self.cur_function().add_inst2bb(instr);
             }
             self.cur_function()
                 .mem_scope_mut()
@@ -848,7 +870,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             ));
             if cur_bb_id != entry_bb_id {
                 self.cur_function().add_instrs2bb_at_front(instrs);
-                instrs.clear();
+                let mut instrs: Vec<Instruction> = vec![];
                 self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), init_vals, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             } else {
@@ -920,35 +942,31 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         if is_have_args {
             let ret = self.return_content();
             let args = ret.into_func_f_params().unwrap();
-            if args.len() != 0 {
-                let func_entry = self.module.functions_mut().get_mut(&func_name).unwrap();
-                func_entry.set_arg_list(args.clone());
-                // TODO: 这段代码逻辑混乱，到时候要重写，难绷
-                for (arg_idx, (arg_name, mut arg_lvalue)) in args.into_iter().enumerate() {
-                    // TODO: 分别考虑ScalarType和ArrayType, 做不同处理
-                    let id = func_entry.alloc_ssa_id();
-                    let lvalue = SSALeftValue::new_arg(id, arg_lvalue.get_type());
-                    let alloca_ir = Instruction::new(
-                        Box::new(Alloca::new(lvalue.to_address())),
-                        self.cur_bb.unwrap(),
-                    );
-                    // func_entry.mem_scope_mut().new_mem_object(lvalue.clone());
-                    func_entry.add_inst2bb(alloca_ir);
-                    let rvalue = SSARightValue::new_reg(*arg_lvalue.id(), arg_lvalue.get_type());
-                    let store_ir = Instruction::new(
-                        Box::new(Store::new(lvalue.to_address(), rvalue)),
-                        self.cur_bb.unwrap(),
-                    );
-                    func_entry.add_inst2bb(store_ir);
-                    arg_lvalue.set_id(id);
-                    self.cur_vtable
-                        .as_mut()
-                        .unwrap()
-                        .append(arg_name, arg_lvalue.clone());
-                    func_entry
-                        .mem_scope_mut()
-                        .new_argument(arg_idx, arg_lvalue.clone())
-                }
+            let func_entry = self.module.functions_mut().get_mut(&func_name).unwrap();
+            func_entry.set_arg_list(ArgumentList::Normal(
+                args.iter().map(|(_, i)| i.clone()).collect::<Vec<_>>(),
+            ));
+            // TODO: 这段代码逻辑混乱，到时候要重写，难绷
+            for (arg_idx, (arg_name, arg)) in args.into_iter().enumerate() {
+                let id = func_entry.alloc_ssa_id();
+                let lvalue = arg.gen_save_arg_lvalue(id);
+                let alloca_ir = Instruction::new(
+                    Box::new(Alloca::new(lvalue.to_address())),
+                    self.cur_bb.unwrap(),
+                );
+                func_entry.add_inst2bb(alloca_ir);
+                let rvalue = SSARightValue::new_reg(*arg.id(), arg.get_type());
+                let store_ir = Instruction::new(
+                    Box::new(Store::new(lvalue.to_address(), rvalue)),
+                    self.cur_bb.unwrap(),
+                );
+                func_entry.add_inst2bb(store_ir);
+                self.cur_vtable
+                    .as_mut()
+                    .unwrap()
+                    .append(arg_name, lvalue.clone());
+                func_entry.mem_scope_mut().new_mem_object(lvalue);
+                func_entry.mem_scope_mut().new_argument(arg_idx, arg);
             }
         }
 
@@ -1073,34 +1091,22 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let ty = Type::from_str(ctx.bType().unwrap().get_text().as_str()).unwrap();
         let name = ctx.Identifier().unwrap().get_text().to_string();
         let mut shape: Vec<i32> = vec![];
-        // todo:
         if ctx.Lbrkt_all().len() > 0 {
-            shape.push(1 << 16);
+            shape.push(-1);
         }
         self.value_mode = ValueMode::Const;
-        self.cur_type = ty.clone();
-        let _ = ctx
-            .constExp_all()
-            .iter()
-            .map(|x| {
-                x.accept(self);
-                let ret = self.return_content();
-                let dim = match ret.into_exp().unwrap() {
-                    AstExp::StaticValue(Immediate::Int(i)) => i,
-                    _ => unreachable!(),
-                };
-                shape.push(dim);
-            })
-            .collect::<Vec<_>>();
+        self.cur_type = ty;
+        ctx.constExp_all().iter().for_each(|x| {
+            x.accept(self);
+            let ret = self.return_content();
+            let dim = match ret.into_exp().unwrap() {
+                AstExp::StaticValue(Immediate::Int(i)) => i,
+                _ => unreachable!(),
+            };
+            shape.push(dim);
+        });
         self.value_mode = ValueMode::Normal;
-        let cur_func = self.cur_function();
-        let entry = SSALeftValue::new_name_shape_arg(
-            cur_func.alloc_ssa_id(),
-            ty.clone(),
-            name.clone(),
-            shape,
-            true,
-        );
+        let entry = SSALeftValue::new_arg_array(self.cur_function().alloc_ssa_id(), ty, shape);
         log::trace!("leave_funcFParam");
         AstReturnContent::FuncFParam((name, entry)).into()
     }
@@ -2479,8 +2485,49 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         self.cur_bb = Some(true_branch_bb);
         ctx.eqExp().unwrap().accept(self);
         let ret = self.return_content();
-        log::trace!("leave lAnd2");
-        ret.into()
+        let res = match ret.into_exp().unwrap() {
+            AstExp::SSAValue(v) => v,
+            AstExp::StaticValue(immediate) => SSARightValue::new_imme(immediate),
+        };
+        let cur_bb = self.cur_bb.unwrap();
+        let cur_func = self.cur_function();
+        let last_instr_id = cur_func.layout().block_node(cur_bb).last_inst();
+        if last_instr_id.is_none()
+            || !cur_func
+                .instructions()
+                .get(&last_instr_id.unwrap())
+                .unwrap()
+                .is_cmp()
+        {
+            let ret_ssa = cur_func.new_reg(Type::Int);
+            let cmp_ir = if res.get_type().is_float() {
+                Instruction::new(
+                    Box::new(Fcmp {
+                        d1: ret_ssa.clone(),
+                        s1: res,
+                        s2: SSARightValue::new_imme(Immediate::Float(0.0)),
+                        cmp_type: CmpType::NEQ,
+                    }),
+                    cur_bb,
+                )
+            } else {
+                Instruction::new(
+                    Box::new(Icmp {
+                        d1: ret_ssa.clone(),
+                        s1: res,
+                        s2: SSARightValue::new_imme(Immediate::Int(0)),
+                        cmp_type: CmpType::NEQ,
+                    }),
+                    cur_bb,
+                )
+            };
+            cur_func.add_inst2bb(cmp_ir);
+            log::trace!("leave_lAnd2_0");
+            return AstReturnContent::Exp(AstExp::SSAValue(ret_ssa)).into();
+        } else {
+            log::trace!("leave lAnd2_1");
+            return AstReturnContent::Exp(AstExp::SSAValue(res)).into();
+        }
     }
 
     /**

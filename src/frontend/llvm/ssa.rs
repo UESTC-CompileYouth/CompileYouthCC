@@ -1,3 +1,4 @@
+use crate::common::constant::ADDRESS_SIZE;
 use crate::common::{immediate::Immediate, r#type::Type};
 use enum_as_inner::EnumAsInner;
 use getset::{Getters, Setters};
@@ -207,6 +208,8 @@ pub struct SSALeftValue {
     offset: i32,
     #[getset(get = "pub", set = "pub")]
     is_volatile: bool,
+    #[getset(get = "pub")]
+    is_omit_first_dim: bool, // true for array argument, false for array in function
 }
 
 impl Eq for SSALeftValue {}
@@ -294,7 +297,7 @@ impl SSALeftValue {
             is_omit_first_dim: true,
         }
     }
-    ///
+    /// address gep a new address
     pub fn new_addr(id: i32, ty: Type, shape: Vec<i32>) -> Self {
         Self {
             name: String::new(),
@@ -337,10 +340,6 @@ impl SSALeftValue {
         !self.is_global && !self.is_arg && self.shape.is_empty() // && self.size == bitwidth 32
     }
 
-    pub fn is_const(&self) -> bool {
-        self.init_value.is_some()
-    }
-
     pub fn set_global(&mut self) {
         self.is_global = true;
     }
@@ -359,6 +358,13 @@ impl SSALeftValue {
 
     pub fn set(&mut self, value: SSALeftValue) {
         *self = value;
+    }
+
+    pub fn gen_save_arg_lvalue(&self, id: i32) -> Self {
+        let mut new_lvalue = self.clone();
+        new_lvalue.is_arg = false;
+        new_lvalue.id = id;
+        new_lvalue
     }
 
     pub fn to_address(&self) -> SSARightValue {
@@ -388,7 +394,11 @@ impl SSALeftValue {
     }
 
     pub fn size(&self) -> u32 {
-        self.ty.size() * self.shape.iter().product::<i32>() as u32
+        if self.is_omit_first_dim {
+            ADDRESS_SIZE
+        } else {
+            self.ty.size() * self.shape.iter().product::<i32>() as u32
+        }
     }
 }
 

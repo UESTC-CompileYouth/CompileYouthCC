@@ -1,9 +1,9 @@
 use crate::frontend::llvm::{function::Function, instr::*, llvm_module::LLVMModule};
 use std::collections::{HashMap, HashSet};
 
-pub fn build_defs(f: &Function) -> HashMap<i32, i32> {
+fn build_defs(f: &Function) -> HashMap<i32, i32> {
     let mut defs = HashMap::new();
-    for (_, arg) in f.arg_list() {
+    for arg in f.arg_list().as_normal().unwrap().iter() {
         defs.insert(*arg.id(), 0); // instruction id 0 is reserved
     }
     for bb_id in f.layout().block_iter() {

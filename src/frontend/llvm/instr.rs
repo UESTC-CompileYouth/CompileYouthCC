@@ -211,10 +211,7 @@ impl Debug for Alloca {
             f,
             "{} = alloca {}",
             self.addr,
-            array_shape_string(
-                self.addr.addr_shape().as_ref().unwrap(),
-                self.addr.get_type()
-            )
+            address_type_string(&self.addr)
         )
     }
 }
@@ -268,12 +265,13 @@ impl Debug for Load {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(self.addr.is_addr());
         assert!(self.d1.get_type() == self.addr.get_type());
+        let type_str = address_type_string(&self.addr);
         writeln!(
             f,
             "{} = load {}, {}* {}",
             self.d1,
             self.d1.get_type(),
-            self.addr.get_type(),
+            type_str,
             self.addr,
         )
     }
@@ -340,12 +338,17 @@ impl Debug for Store {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(self.addr.is_addr(), "{} is not address", self.addr);
         assert!(self.addr.get_type() == self.s1.get_type());
+        let type_str = address_type_string(&self.addr);
         writeln!(
             f,
             "store {} {}, {}* {}",
-            self.s1.get_type(),
+            if self.s1.is_addr() {
+                address_type_string(&self.s1)
+            } else {
+                self.s1.get_type().to_string()
+            },
             self.s1,
-            self.addr.get_type(),
+            type_str,
             self.addr
         )
     }
@@ -1758,27 +1761,12 @@ pub struct Gep {
     index: SSARightValue,
 }
 
-fn type_recurrence(shape: &Vec<i32>, ty: Type) -> String {
-    let mut str = String::new();
-    if shape.len() == 0 {
-        str.push_str(format!("{}", ty).as_str());
-    } else {
-        str.push_str("[");
-        str.push_str(shape[0].to_string().as_str());
-        str.push_str(" x ");
-        let new_shape = shape[1..].to_vec();
-        str.push_str(&type_recurrence(&new_shape, ty.clone()));
-        str.push_str("]");
-    }
-    str
-}
-
 impl Debug for Gep {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(self.s1.is_addr());
         assert!(self.d1.is_addr());
         assert!(self.s1.get_type() == self.d1.get_type());
-        let type_str = type_recurrence(self.s1.addr_shape().as_ref().unwrap(), self.s1.get_type());
+        let type_str = address_type_string(&self.s1);
         writeln!(
             f,
             "{} = getelementptr {}, {}* {}, i32 {}",
@@ -2119,7 +2107,20 @@ impl UnaryInstr for Fptosi {
     }
 }
 
-pub fn array_shape_string(shape: &Vec<i32>, type_: Type) -> String {
+pub fn address_type_string(address: &SSARightValue) -> String {
+    let (_, &ty, shape, _, _) = address.inner().as_address().unwrap();
+    if shape.len() == 0 {
+        format!("{}", ty)
+    } else {
+        if shape[0] == -1 {
+            format!("{}*", array_shape_string(&shape[1..], ty))
+        } else {
+            format!("{}", array_shape_string(&shape, ty))
+        }
+    }
+}
+
+fn array_shape_string(shape: &[i32], type_: Type) -> String {
     let mut str = String::new();
     if shape.len() == 0 {
         str.push_str(format!("{}", type_).as_str());
@@ -2127,8 +2128,7 @@ pub fn array_shape_string(shape: &Vec<i32>, type_: Type) -> String {
         str.push_str("[");
         str.push_str(shape[0].to_string().as_str());
         str.push_str(" x ");
-        let new_shape = shape[1..].to_vec();
-        str.push_str(&array_shape_string(&new_shape, type_.clone()));
+        str.push_str(&array_shape_string(&shape[1..], type_));
         str.push_str("]");
     }
     str

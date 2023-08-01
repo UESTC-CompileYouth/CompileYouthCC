@@ -134,7 +134,7 @@ impl Function {
     ) {
         let mut int_arg_count = 0;
         let mut float_arg_count = 0;
-        for (_, arg_data) in llvm_function.arg_list().iter() {
+        for arg_data in llvm_function.arg_list().as_normal().unwrap().iter() {
             let cur_reg = if arg_data.get_type() == Type::Int {
                 let cur_reg = mapping_info.new_reg(Type::Int);
                 if int_arg_count < RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
@@ -189,8 +189,10 @@ impl Function {
     ) {
         self.arg_reg_ids = llvm_function
             .arg_list()
+            .as_normal()
+            .unwrap()
             .iter()
-            .map(|(_, value)| *value.id())
+            .map(|value| *value.id())
             .collect();
 
         let name = llvm_function.name().to_string();
@@ -206,7 +208,12 @@ impl Function {
             mapping_info
                 .obj_mapping_mut()
                 .insert(*mem_object.id(), stack_object_rc_refcell.clone());
-            self.stack_objects.push(stack_object_rc_refcell);
+            if *mem_object.is_arg() {
+                self.caller_stack_objects
+                    .push(stack_object_rc_refcell.clone());
+            } else {
+                self.stack_objects.push(stack_object_rc_refcell);
+            }
         }
 
         let entry_block_id = *block_num;

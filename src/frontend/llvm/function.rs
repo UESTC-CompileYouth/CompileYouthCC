@@ -1,78 +1,21 @@
 use super::mem_scope::MemScope;
 use super::{basic_block::BasicBlock, instr::*, layout::*, ssa::*};
 use crate::common::r#type::Type;
+use enum_as_inner::EnumAsInner;
 use getset::{Getters, MutGetters, Setters};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Default, Getters, MutGetters, Setters)]
-pub struct Argument {
-    #[getset(get = "pub")]
-    name: String,
-    #[getset(get = "pub")]
-    ty: Type,
-    #[getset(get = "pub")]
-    shape: Vec<i32>,
-    #[getset(get = "pub")]
-    is_omit_first_dim: bool,
-}
-
-impl Argument {
-    pub fn unknown_length_int_array() -> Self {
-        Self {
-            name: String::new(),
-            ty: Type::Int,
-            shape: vec![-1],
-            is_omit_first_dim: true,
-        }
-    }
-    pub fn unknown_length_float_array() -> Self {
-        Self {
-            name: String::new(),
-            ty: Type::Float,
-            shape: vec![-1],
-            is_omit_first_dim: true,
-        }
-    }
-    pub fn int() -> Self {
-        Self {
-            name: String::new(),
-            ty: Type::Int,
-            shape: vec![],
-            is_omit_first_dim: false,
-        }
-    }
-    pub fn float() -> Self {
-        Self {
-            name: String::new(),
-            ty: Type::Float,
-            shape: vec![],
-            is_omit_first_dim: false,
-        }
-    }
-    pub fn int_array(shape: Vec<i32>) -> Self {
-        Self {
-            name: String::new(),
-            ty: Type::Int,
-            shape,
-            is_omit_first_dim: false,
-        }
-    }
-    pub fn float_array(shape: Vec<i32>) -> Self {
-        Self {
-            name: String::new(),
-            ty: Type::Float,
-            shape,
-            is_omit_first_dim: false,
-        }
-    }
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug, EnumAsInner)]
 pub enum ArgumentList {
-    #[default]
     Variadic,
-    Normal(Vec<Argument>),
+    Normal(Vec<SSALeftValue>),
+}
+
+impl Default for ArgumentList {
+    fn default() -> Self {
+        Self::Normal(Vec::new())
+    }
 }
 
 #[derive(Debug, Default, Getters, Setters, MutGetters)]
@@ -134,13 +77,6 @@ impl Function {
 
     pub fn inst_len(&self) -> i32 {
         self.cur_inst_id - 1
-    }
-
-    pub fn append_arg(&mut self, arg: Argument) {
-        match &mut self.arg_list {
-            ArgumentList::Variadic => panic!("append_arg on variadic"),
-            ArgumentList::Normal(arg_list) => arg_list.push(arg),
-        }
     }
 
     pub fn alloc_ssa_id(&mut self) -> i32 {
@@ -309,23 +245,6 @@ impl Function {
     }
 
     pub fn remove_inst(&mut self, inst_id: i32) {
-        // if self.instructions.contains_key(&inst_id) {
-        //     if let Some(inst_node) = self.layout.instructions().get(&inst_id).cloned() {
-        //         // 调整layout中node的前后继关系
-        //         if let Some(prev_id) = inst_node.prev {
-        //             if let Some(prev_node) = self.layout.instructions_mut().get_mut(&prev_id) {
-        //                 prev_node.next = inst_node.next;
-        //             }
-        //         }
-
-        //         if let Some(succ_id) = inst_node.next {
-        //             if let Some(succ_node) = self.layout.instructions_mut().get_mut(&succ_id) {
-        //                 succ_node.prev = inst_node.prev;
-        //             }
-        //         }
-
-        //     }
-        // }
         // 删除指令
         self.layout.remove_inst(inst_id);
         self.instructions.remove(&inst_id);
@@ -366,19 +285,28 @@ impl Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_lib_func {
+            unimplemented!("lib func not support print");
+        }
         let mut func_def = format!("define {} @{}(", self.ret_type, self.name);
-        let size = self.arg_list.len();
+        let arg_list = self.arg_list.as_normal().unwrap();
+        let arg_num = arg_list.len();
         let mut cnt = 0;
-        for (_, var) in self.arg_list.iter() {
+        for var in arg_list.iter() {
             cnt += 1;
-            func_def.push_str(format!("{} ", var.get_type()).as_str());
-            for _i in var.get_shape() {
-                func_def.push_str("*");
+            func_def.push_str(format!("{}", var.ty()).as_str());
+            for i in var.shape() {
+                if *i == -1 {
+                    func_def.push_str("[]");
+                } else {
+                    func_def.push_str("[");
+                    func_def.push_str(i.to_string().as_str());
+                    func_def.push_str("]");
+                }
             }
 
-            func_def.push_str(" %");
-            func_def.push_str(var.id().to_string().as_str());
-            if cnt != size {
+            func_def.push_str(format!(" {}", var).as_str());
+            if cnt != arg_num {
                 func_def.push_str(", ");
             }
         }
@@ -386,8 +314,7 @@ impl Display for Function {
         writeln!(f, "{}", func_def)?;
 
         // visit basic blocks
-        let bb_iter = self.layout.block_iter();
-        for bb_id in bb_iter {
+        for bb_id in self.layout.block_iter() {
             let bb = self.basic_blocks.get(&bb_id).unwrap();
             write!(f, "{} ({}):", bb_id, bb.alias())?;
             if bb.prev_bb().len() != 0 {
@@ -397,13 +324,11 @@ impl Display for Function {
                 }
             }
             writeln!(f, "")?;
-            let inst_iter = self.layout.inst_iter(bb_id);
-            for inst_id in inst_iter {
+            for inst_id in self.layout.inst_iter(bb_id) {
                 let inst = self.instructions.get(&inst_id).unwrap();
                 write!(f, "  {:?}", inst)?;
             }
         }
-
         writeln!(f, "}}")?;
         Ok(())
     }
