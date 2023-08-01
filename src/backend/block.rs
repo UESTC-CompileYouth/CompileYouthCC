@@ -104,7 +104,7 @@ impl Block {
                         let ty = match unary_instr.unary_op() {
                             UnaryOp::Neg => RegType::Negw,
                             UnaryOp::Mov => RegType::Mv,
-                            UnaryOp::Not => RegType::Not,
+                            UnaryOp::Not => RegType::Seqz,
                             _ => unreachable!(),
                         };
                         risc_v_instrs.push(Box::new(RegInstr::new(rd, rs, ty)));

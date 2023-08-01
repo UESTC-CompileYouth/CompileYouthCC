@@ -186,7 +186,7 @@ pub(crate) enum RegType {
     // Pseudo Instruction
     Mv,
     Negw,
-    Not,
+    Seqz,
 }
 
 // x[rd] = op x[rs]
@@ -232,8 +232,8 @@ impl InstrTrait for RegInstr {
             RegType::Negw => {
                 asm.push_str(&format!("negw {}, {}", self.rd, self.rs));
             }
-            RegType::Not => {
-                asm.push_str(&format!("not {}, {}", self.rd, self.rs));
+            RegType::Seqz => {
+                asm.push_str(&format!("seqz {}, {}", self.rd, self.rs));
             }
         }
         asm.push_str("\n");
