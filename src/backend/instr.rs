@@ -141,22 +141,28 @@ impl InstrTrait for ImmeInstr {
     }
     fn gen_asm(&self) -> String {
         assert!(*self.rd.ty() == Type::Int);
-        match self.imme {
-            ImmeValueType::Direct(i) => {
-                assert!(i <= (1 << 19) - 1 && i >= -(1 << 19));
-            }
-            _ => {}
-        }
         let imme_string = imme_string(&self.imme, &self.trunc);
         let mut asm = String::new();
         match self.ty {
             ImmeType::Auipc => {
+                match self.imme {
+                    ImmeValueType::Direct(i) => {
+                        assert!(i <= (1 << 19) - 1 && i >= -(1 << 19));
+                    }
+                    _ => {}
+                }
                 asm.push_str(&format!("auipc {}, {}", self.rd, imme_string));
             }
             ImmeType::Li => {
                 asm.push_str(&format!("li {}, {}", self.rd, imme_string));
             }
             ImmeType::Lui => {
+                match self.imme {
+                    ImmeValueType::Direct(i) => {
+                        assert!(i <= (1 << 19) - 1 && i >= -(1 << 19));
+                    }
+                    _ => {}
+                }
                 asm.push_str(&format!("lui {}, {}", self.rd, imme_string));
             }
         }
