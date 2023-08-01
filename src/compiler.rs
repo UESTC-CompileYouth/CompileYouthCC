@@ -13,6 +13,7 @@ use sysycc_compiler::frontend::{
     error_listener::SysYErrorListener, llvm::llvm_module::LLVMModule,
 };
 use sysycc_compiler::optimize::passes::bb_ops::remove_phi;
+use sysycc_compiler::optimize::passes::check_ir::check_module;
 use sysycc_compiler::optimize::passes::dce::remove_unused_def;
 use sysycc_compiler::optimize::passes::mem2reg::{mem2reg, remove_unreachable_bb_module};
 
@@ -64,8 +65,11 @@ fn main() {
     // println!("{}", llvm_module);
     remove_unreachable_bb_module(&mut llvm_module);
     mem2reg(&mut llvm_module);
+    check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);
+    check_module(&llvm_module);
     remove_phi(&mut llvm_module);
+    // check_module(&llvm_module);
     llvm_module.before_backend();
 
     /* backend */

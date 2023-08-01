@@ -61,6 +61,7 @@ fn main() {
     // println!("{}", llvm_module);
     remove_unreachable_bb_module(&mut llvm_module);
     mem2reg(&mut llvm_module);
+    check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);
     check_module(&llvm_module);
 
