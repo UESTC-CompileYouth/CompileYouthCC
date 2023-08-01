@@ -15,6 +15,7 @@ pre_check:
   script:
     - rustc --version
     - cargo fmt --all --check
+    - cargo update -p time@0.3.24 --precise 0.3.23
     - cargo check --release --offline
     - cargo check --tests --release --offline
   interruptible: true
