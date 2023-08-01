@@ -39,15 +39,9 @@ impl LLVMModule {
         self.functions.insert(func.name().to_string(), func);
     }
 
-    pub fn register_lib_func(
-        &mut self,
-        name: &str,
-        ret_type: Type,
-        arg_list: ArgumentList,
-    ) -> &mut Function {
+    pub fn register_lib_func(&mut self, name: &str, ret_type: Type, arg_list: ArgumentList) {
         let entry = Function::new_lib_func(name.to_string(), ret_type, arg_list);
         self.functions.insert(name.to_string(), entry);
-        self.functions.get_mut(name).unwrap()
     }
 
     pub fn for_each_func<F>(&self, f: F)
