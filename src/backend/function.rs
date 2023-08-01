@@ -6,7 +6,7 @@ use super::{
     register::Reg,
 };
 use crate::common::{
-    constant::{BLOCK_LABEL_PREFIX, ENTRY_BLOCK_LABEL_PREFIX, FLOAT_SIZE, INT_SIZE},
+    constant::{BLOCK_LABEL_PREFIX, ENTRY_BLOCK_LABEL_PREFIX},
     r#type::Type,
 };
 use crate::frontend::llvm::function::Function as LLVMFunction;
@@ -113,10 +113,6 @@ pub struct Function {
     #[new(default)]
     #[getset(get = "pub", get_mut = "pub")]
     sf: Rc<RefCell<StackFrame>>,
-    // #[new(default)]
-    // reg_def: Vec<OccurPoint>,
-    // #[new(default)]
-    // reg_use: Vec<OccurPoint>,
 }
 
 impl Function {
@@ -135,8 +131,8 @@ impl Function {
         let mut int_arg_count = 0;
         let mut float_arg_count = 0;
         for arg_data in llvm_function.arg_list().as_normal().unwrap().iter() {
-            let cur_reg = if arg_data.get_type() == Type::Int {
-                let cur_reg = mapping_info.new_reg(Type::Int);
+            let cur_reg = mapping_info.from_ssa_rvalue(&arg_data.to_arg_rvalue());
+            if arg_data.get_type() == Type::Int {
                 if int_arg_count < RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
                     entry_block.push_back(Box::new(RegInstr::new_move(
                         cur_reg,
@@ -154,9 +150,7 @@ impl Function {
                         .push(caller_stack_object_rc_refcell.clone());
                 };
                 int_arg_count += 1;
-                cur_reg
             } else if arg_data.get_type() == Type::Float {
-                let cur_reg = mapping_info.new_reg(Type::Float);
                 if float_arg_count < RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
                     entry_block.push_back(Box::new(RegInstr::new_move(
                         cur_reg,
@@ -174,7 +168,6 @@ impl Function {
                         .push(caller_stack_object_rc_refcell.clone());
                 };
                 float_arg_count += 1;
-                cur_reg
             } else {
                 panic!("Unsupported type for function argument");
             };

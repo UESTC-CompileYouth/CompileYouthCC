@@ -425,6 +425,7 @@ impl SysYAstVisitor<'_> {
             "getarray",
             Type::Int,
             ArgumentList::Normal(vec![SSALeftValue::new_arg_unknown_length_array(
+                String::from("arg_0"),
                 0,
                 Type::Int,
             )]),
@@ -433,6 +434,7 @@ impl SysYAstVisitor<'_> {
             "getfarray",
             Type::Int,
             ArgumentList::Normal(vec![SSALeftValue::new_arg_unknown_length_array(
+                String::from("arg_0"),
                 0,
                 Type::Float,
             )]),
@@ -442,32 +444,44 @@ impl SysYAstVisitor<'_> {
         self.module.register_lib_func(
             "putint",
             Type::Void,
-            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(0, Type::Int)]),
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(
+                String::from("arg_0"),
+                0,
+                Type::Int,
+            )]),
         );
         self.module.register_lib_func(
             "putch",
             Type::Void,
-            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(0, Type::Int)]),
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(
+                String::from("arg_0"),
+                0,
+                Type::Int,
+            )]),
         );
         self.module.register_lib_func(
             "putfloat",
             Type::Void,
-            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(0, Type::Float)]),
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(
+                String::from("arg_0"),
+                0,
+                Type::Float,
+            )]),
         );
         self.module.register_lib_func(
             "putarray",
             Type::Void,
             ArgumentList::Normal(vec![
-                SSALeftValue::new_arg_scalar(0, Type::Int),
-                SSALeftValue::new_arg_unknown_length_array(1, Type::Int),
+                SSALeftValue::new_arg_scalar(String::from("arg_0"), 0, Type::Int),
+                SSALeftValue::new_arg_unknown_length_array(String::from("arg_1"), 1, Type::Int),
             ]),
         );
         self.module.register_lib_func(
             "putfarray",
             Type::Void,
             ArgumentList::Normal(vec![
-                SSALeftValue::new_arg_scalar(0, Type::Int),
-                SSALeftValue::new_arg_unknown_length_array(1, Type::Float),
+                SSALeftValue::new_arg_scalar(String::from("arg_0"), 0, Type::Int),
+                SSALeftValue::new_arg_unknown_length_array(String::from("arg_1"), 1, Type::Float),
             ]),
         );
         self.module
@@ -946,7 +960,6 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             func_entry.set_arg_list(ArgumentList::Normal(
                 args.iter().map(|(_, i)| i.clone()).collect::<Vec<_>>(),
             ));
-            // TODO: 这段代码逻辑混乱，到时候要重写，难绷
             for (arg_idx, (arg_name, arg)) in args.into_iter().enumerate() {
                 let id = func_entry.alloc_ssa_id();
                 let lvalue = arg.gen_save_arg_lvalue(id);
@@ -955,16 +968,15 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                     self.cur_bb.unwrap(),
                 );
                 func_entry.add_inst2bb(alloca_ir);
-                let rvalue = SSARightValue::new_reg(*arg.id(), arg.get_type());
                 let store_ir = Instruction::new(
-                    Box::new(Store::new(lvalue.to_address(), rvalue)),
+                    Box::new(Store::new(lvalue.to_address(), arg.to_arg_rvalue())),
                     self.cur_bb.unwrap(),
                 );
                 func_entry.add_inst2bb(store_ir);
                 self.cur_vtable
                     .as_mut()
                     .unwrap()
-                    .append(arg_name, lvalue.clone());
+                    .append(arg_name, lvalue.clone()); // arg is saved in lvalue after alloca and store
                 func_entry.mem_scope_mut().new_mem_object(lvalue);
                 func_entry.mem_scope_mut().new_argument(arg_idx, arg);
             }
@@ -1106,7 +1118,11 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             shape.push(dim);
         });
         self.value_mode = ValueMode::Normal;
-        let entry = SSALeftValue::new_arg_array(self.cur_function().alloc_ssa_id(), ty, shape);
+        let entry = if shape.len() == 0 {
+            SSALeftValue::new_arg_scalar(name.clone(), self.cur_function().alloc_ssa_id(), ty)
+        } else {
+            SSALeftValue::new_arg_array(name.clone(), self.cur_function().alloc_ssa_id(), ty, shape)
+        };
         log::trace!("leave_funcFParam");
         AstReturnContent::FuncFParam((name, entry)).into()
     }

@@ -209,7 +209,8 @@ pub struct SSALeftValue {
     #[getset(get = "pub", set = "pub")]
     is_volatile: bool,
     #[getset(get = "pub")]
-    is_omit_first_dim: bool, // true for array argument, false for array in function
+    is_omit_first_dim: bool, // 1. is_arg == true && is_omit_first_dim == true for array argument
+                             // 2. is_arg == true && is_omit_first_dim == false for array in function
 }
 
 impl Eq for SSALeftValue {}
@@ -252,9 +253,9 @@ impl SSALeftValue {
             is_omit_first_dim: false,
         }
     }
-    pub fn new_arg_scalar(id: i32, ty: Type) -> Self {
+    pub fn new_arg_scalar(name: String, id: i32, ty: Type) -> Self {
         Self {
-            name: String::new(),
+            name,
             is_arg: true,
             is_const: false,
             is_global: false,
@@ -267,9 +268,9 @@ impl SSALeftValue {
             is_omit_first_dim: false,
         }
     }
-    pub fn new_arg_array(id: i32, ty: Type, shape: Vec<i32>) -> Self {
+    pub fn new_arg_array(name: String, id: i32, ty: Type, shape: Vec<i32>) -> Self {
         Self {
-            name: String::new(),
+            name,
             is_arg: true,
             is_const: false,
             is_global: false,
@@ -282,9 +283,9 @@ impl SSALeftValue {
             is_omit_first_dim: true,
         }
     }
-    pub fn new_arg_unknown_length_array(id: i32, ty: Type) -> Self {
+    pub fn new_arg_unknown_length_array(name: String, id: i32, ty: Type) -> Self {
         Self {
-            name: String::new(),
+            name,
             is_arg: true,
             is_const: false,
             is_global: false,
@@ -393,8 +394,24 @@ impl SSALeftValue {
         }
     }
 
+    /// if arg is address, keep arg shape
+    pub fn to_arg_rvalue(&self) -> SSARightValue {
+        assert!(self.is_arg);
+        if self.is_omit_first_dim {
+            // array arg
+            self.to_address()
+        } else {
+            // scalar arg
+            SSARightValue {
+                inner: SSARightValueInner::Normal(self.id, self.ty),
+                origin_id_and_version: None,
+            }
+        }
+    }
+
     pub fn size(&self) -> u32 {
         if self.is_omit_first_dim {
+            // array arg, must be address, but memory stack not in callee stack, so size is address size
             ADDRESS_SIZE
         } else {
             self.ty.size() * self.shape.iter().product::<i32>() as u32
