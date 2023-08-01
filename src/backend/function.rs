@@ -144,7 +144,7 @@ impl Function {
                     )));
                 } else {
                     let caller_stack_object_rc_refcell =
-                        Rc::new(RefCell::new(StackObject::new(-1, INT_SIZE)));
+                        Rc::new(RefCell::new(StackObject::new(-1, arg_data.size())));
                     entry_block.push_back(Box::new(LoadStackInstr::new(
                         cur_reg,
                         0,
@@ -164,7 +164,7 @@ impl Function {
                     )));
                 } else {
                     let caller_stack_object_rc_refcell =
-                        Rc::new(RefCell::new(StackObject::new(-1, FLOAT_SIZE)));
+                        Rc::new(RefCell::new(StackObject::new(-1, arg_data.size())));
                     entry_block.push_back(Box::new(LoadStackInstr::new(
                         cur_reg,
                         0,
