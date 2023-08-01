@@ -1097,12 +1097,20 @@ pub fn peephole(func: &mut Function) -> bool {
                             RegRegType::Add => Some(RegImmeType::Addi),
                             RegRegType::Addw => Some(RegImmeType::Addiw),
                             RegRegType::Sub => {
-                                imme = -imme;
-                                Some(RegImmeType::Addi)
+                                if u2_in_map {
+                                    imme = -imme;
+                                    Some(RegImmeType::Addi)
+                                } else {
+                                    None
+                                }
                             }
                             RegRegType::Subw => {
-                                imme = -imme;
-                                Some(RegImmeType::Addiw)
+                                if u2_in_map {
+                                    imme = -imme;
+                                    Some(RegImmeType::Addiw)
+                                } else {
+                                    None
+                                }
                             }
                             RegRegType::Sll => Some(RegImmeType::Slli),
                             RegRegType::Sllw => Some(RegImmeType::Slliw),
@@ -1388,8 +1396,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/homemade/my_liveness2.sy")
-            .expect("cannot open source file");
+        let contents =
+            std::fs::read_to_string("test/functional/13_sub2.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
