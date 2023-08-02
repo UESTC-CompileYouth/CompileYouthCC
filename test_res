@@ -31,9 +31,9 @@ Exit code: 5
 Correct exit code: 5
 Test passed
 test 08_const_array_defn.sy
-Exit code: 4
+Exit code: 1
 Correct exit code: 4
-Test passed
+Test failed
 test 09_func_defn.sy
 Exit code: 9
 Correct exit code: 9
@@ -51,9 +51,9 @@ Exit code: 15
 Correct exit code: 15
 Test passed
 test 13_sub2.sy
-Exit code: 8
+Exit code: 248
 Correct exit code: 248
-Test failed
+Test passed
 test 14_subc.sy
 Exit code: 8
 Correct exit code: 8
@@ -83,9 +83,9 @@ Exit code: 1
 Correct exit code: 1
 Test passed
 test 21_if_test2.sy
-Exit code: 139
+-5Exit code: 0
 Correct exit code: 0
-Test failed
+Test passed
 test 22_if_test3.sy
 Exit code: 25
 Correct exit code: 25
@@ -103,9 +103,9 @@ test 25_while_if.sy
 Correct exit code: 0
 Test passed
 test 26_while_test1.sy
-Exit code: 139
+Exit code: 3
 Correct exit code: 3
-Test failed
+Test passed
 test 27_while_test2.sy
 Exit code: 54
 Correct exit code: 54
@@ -115,13 +115,13 @@ Exit code: 23
 Correct exit code: 23
 Test passed
 test 29_break.sy
-Exit code: 1
+Exit code: 201
 Correct exit code: 201
-Test failed
+Test passed
 test 30_continue.sy
-Exit code: 1
+Exit code: 36
 Correct exit code: 36
-Test failed
+Test passed
 test 31_while_if_test1.sy
 Exit code: 198
 Correct exit code: 198
@@ -147,13 +147,13 @@ Exit code: 24
 Correct exit code: 24
 Test passed
 test 37_op_priority3.sy
-Exit code: 10
+Exit code: 40
 Correct exit code: 40
-Test failed
-test 38_op_priority4.sy
-Exit code: 0
-Correct exit code: 0
 Test passed
+test 38_op_priority4.sy
+Exit code: 1
+Correct exit code: 0
+Test failed
 test 39_op_priority5.sy
 1Exit code: 1
 Correct exit code: 1
@@ -205,8 +205,8 @@ Test passed
 test 51_short_circuit3.sy
 0 3 0 3
 3 4
-ABCF
-CIJ
+ACF
+CIJK
 Exit code: 0
 Correct exit code: 0
 Test passed
@@ -215,34 +215,29 @@ test 52_scope.sy
 Correct exit code: 0
 Test passed
 test 53_scope2.sy
-Exit code: 1
+-40Exit code: 62
 Correct exit code: 62
-Test failed
+Test passed
 test 54_hidden_var.sy
-31042
-42
-2420
-5
-6719
+Exit code: 1
+Correct exit code: 0
+Test failed
+test 55_sort_test1.sy
+4
 Exit code: 0
 Correct exit code: 0
 Test passed
-test 55_sort_test1.sy
-Exit code: 139
-Correct exit code: 0
-Test failed
 test 56_sort_test2.sy
 4
 Exit code: 0
 Correct exit code: 0
 Test passed
 test 57_sort_test3.sy
-4
-Exit code: 0
+Exit code: 139
 Correct exit code: 0
-Test passed
+Test failed
 test 58_sort_test4.sy
-Exit code: 1
+Exit code: 139
 Correct exit code: 0
 Test failed
 test 59_sort_test5.sy

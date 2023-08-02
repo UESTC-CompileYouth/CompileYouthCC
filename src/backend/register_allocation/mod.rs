@@ -95,23 +95,16 @@ impl InterferenceGraph {
             let block_liveness = block_liveness.borrow();
             for inst_id in block_liveness.insts.iter() {
                 // try to allocate with same reg for reg instr, i.e. y = f(x)
-                if let Some(x) = func.block(*blockid).instrs()[*inst_id as usize]
-                    .as_any()
-                    .downcast_ref::<RegInstr>()
-                {
+                let inst = &func.block(*blockid).instrs()[*inst_id as usize];
+                if let Some(x) = inst.as_any().downcast_ref::<RegInstr>() {
                     let u = *x.uses()[0].id();
                     let d = *x.defs()[0].id();
-
-                    ig.add_node(u);
-                    ig.add_node(d);
 
                     if u != d {
                         ig.add_move_edge(u, d);
                     }
 
                     for v in block_liveness.get_inst_out(*inst_id).iter() {
-                        ig.add_node(*v);
-
                         if u != *v && *v != d {
                             ig.add_edge(d, *v);
                             ig.add_edge_in_graph(d, *v);
@@ -119,11 +112,7 @@ impl InterferenceGraph {
                     }
                 } else {
                     for u in block_liveness.get_inst_kill(*inst_id).iter() {
-                        ig.add_node(*u);
-
                         for v in block_liveness.get_inst_out(*inst_id).iter() {
-                            ig.add_node(*v);
-
                             if u != v {
                                 ig.add_edge(*u, *v);
                                 ig.add_edge_in_graph(*u, *v);
@@ -147,6 +136,12 @@ impl InterferenceGraph {
 
             if self.nodes.get(&nu).unwrap().move_adj_list.contains(&nv) {
                 if self.can_coalesce(nu, nv) {
+                    // remove move edges if it's also a normal edge
+                    for (u, v) in self.move_edges.clone() {
+                        if self.has_edge(u, v) {
+                            self.remove_move_edge(u, v);
+                        }
+                    }
                     self.coalesce(nu, nv);
                     has_coalesce = true;
                 }
@@ -169,8 +164,8 @@ impl InterferenceGraph {
         let mut shared_neighbor = HashSet::new();
         let mut unshared_neighbor = HashSet::new();
 
-        let u_node = self.nodes.get(&u).unwrap().clone();
-        let v_node = self.nodes.get(&v).unwrap().clone();
+        let u_node = self.nodes.get(&u).unwrap();
+        let v_node = self.nodes.get(&v).unwrap();
 
         // we just use the remain graph to check if we can coalesce
         for neighbor in u_node.adj_list_in_graph.iter() {
@@ -210,8 +205,11 @@ impl InterferenceGraph {
         // we will use the whole graph for coloring, so we should modify the whole graph
         // remove v's edge
         for n in v_node.adj_list.iter() {
-            if v_node.adj_list_in_graph.contains(&n) {
+            if v_node.adj_list_in_graph.contains(n) {
                 if !u_node.adj_list.contains(n) {
+                    if u_node.move_adj_list.contains(n) {
+                        self.remove_move_edge(u, *n);
+                    }
                     self.add_edge_in_graph(u, *n);
                     self.add_edge(u, *n);
                 }
@@ -228,7 +226,7 @@ impl InterferenceGraph {
         }
         // remove v's move edge
         for n in v_node.move_adj_list.iter() {
-            if !u_node.move_adj_list.contains(n) {
+            if !u_node.move_adj_list.contains(n) && !u_node.adj_list_in_graph.contains(n) {
                 self.add_move_edge(u, *n);
             }
             self.remove_move_edge(v, *n);
@@ -422,11 +420,17 @@ impl InterferenceGraph {
     }
 
     pub fn add_edge(&mut self, u: i32, v: i32) {
+        assert!(u != v);
+        self.add_node(u);
+        self.add_node(v);
         self.nodes.get_mut(&u).unwrap().adj_list.insert(v);
         self.nodes.get_mut(&v).unwrap().adj_list.insert(u);
     }
 
     pub fn add_edge_in_graph(&mut self, u: i32, v: i32) {
+        assert!(u != v);
+        self.add_node(u);
+        self.add_node(v);
         self.nodes.get_mut(&u).unwrap().adj_list_in_graph.insert(v);
         self.nodes.get_mut(&v).unwrap().adj_list_in_graph.insert(u);
     }
@@ -460,6 +464,12 @@ impl InterferenceGraph {
         if u > v {
             return self.add_move_edge(v, u);
         }
+
+        self.add_node(u);
+        self.add_node(v);
+
+        assert!(!self.nodes[&u].adj_list_in_graph.contains(&v));
+        assert!(!self.nodes[&v].adj_list_in_graph.contains(&u));
 
         self.move_edges.insert((u, v));
 
@@ -873,66 +883,66 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
     let sf = func.sf().clone();
     let mut sf = sf.borrow_mut();
 
-    l.block_liveness_map
-        .iter()
-        .for_each(|(block_id, block_liveness)| {
-            let block_liveness = block_liveness.borrow();
+    for block in func.blocks_mut().iter_mut() {
+        let mut insert_pos = vec![];
+        let mut insert_store_reg_offset_map = HashMap::new();
+        for (inst_id, inst) in block.instrs().iter().enumerate() {
+            let block_id = *block.id();
+            let block_liveness = l.block_liveness_map[&block_id].borrow();
             let mut offset = 0;
-            for inst_id in block_liveness.insts.iter() {
-                {
-                    let block = func.block(*block_id);
-                    let inst = block.instrs().get(*inst_id as usize).unwrap();
-
-                    if !inst.as_any().downcast_ref::<CallInstr>().is_some() {
-                        continue;
-                    }
-                }
-
-                let mut out = block_liveness.get_inst_out(*inst_id).clone();
-                // return value can be changed
-                out.remove(&A0);
-
-                // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
-                let mut store_reg_postion = vec![];
-
-                // calculate the position to store regs
-                for reg_id in out {
-                    let so_idx = sf.push_dword();
-                    let so = sf.get_stack_object(so_idx);
-                    let pos = *so.borrow().position();
-
-                    store_reg_postion.push((reg_id, pos));
-                }
-
-                // store before function call
-                for &(reg_id, pos) in store_reg_postion.iter() {
-                    let reg = Reg::new_int(reg_id);
-                    let sp = Reg::new_int(SP);
-
-                    let store = StoreInstr::new(sp, reg, pos, StoreType::Sd);
-
-                    let insert_idx = *inst_id as usize + offset;
-                    offset += 1;
-                    func.block_mut(*block_id)
-                        .instrs_mut()
-                        .insert(insert_idx, Box::new(store));
-                }
-
-                // restore after function call
-                for &(reg_id, pos) in store_reg_postion.iter() {
-                    let reg = Reg::new_int(reg_id);
-                    let sp = Reg::new_int(SP);
-
-                    let load = LoadInstr::new(reg, sp, pos, LoadType::Ld);
-
-                    let insert_idx = *inst_id as usize + offset + 1;
-                    offset += 1;
-                    func.block_mut(*block_id)
-                        .instrs_mut()
-                        .insert(insert_idx, Box::new(load));
+            {
+                if !inst.as_any().downcast_ref::<CallInstr>().is_some() {
+                    continue;
                 }
             }
-        });
+
+            let mut out = block_liveness.get_inst_out(inst_id as i32).clone();
+            // return value can be changed
+            out.remove(&A0);
+
+            // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
+            let mut store_reg_offset = vec![];
+
+            // calculate the position to store regs
+            for reg_id in out {
+                let so_idx = sf.push_dword();
+                let so = sf.get_stack_object(so_idx);
+                let pos = *so.borrow().position();
+
+                store_reg_offset.push((reg_id, pos));
+            }
+
+            insert_pos.push(inst_id);
+            insert_store_reg_offset_map.insert(inst_id, store_reg_offset);
+        }
+        for pos in insert_pos.iter().rev() {
+            let store_reg_offset = &insert_store_reg_offset_map[pos];
+
+            // restore after function call
+            for &(reg_id, offset) in store_reg_offset.iter() {
+                let reg = Reg::new_int(reg_id);
+                let sp = Reg::new_int(SP);
+
+                let load = LoadInstr::new(reg, sp, offset, LoadType::Ld);
+
+                block
+                    .instrs_mut()
+                    .insert(*pos + 1, Box::new(load));
+            }
+
+            // store before function call
+            for &(reg_id, offset) in store_reg_offset.iter() {
+                let reg = Reg::new_int(reg_id);
+                let sp = Reg::new_int(SP);
+
+                let store = StoreInstr::new(sp, reg, offset, StoreType::Sd);
+
+                block
+                    .instrs_mut()
+                    .insert(*pos, Box::new(store));
+            }
+        }
+    }
 }
 
 pub fn peephole(func: &mut Function) -> bool {
@@ -957,93 +967,143 @@ pub fn peephole(func: &mut Function) -> bool {
     }
 
     // `j .L3; .L3: j .L4` => `j .L4;`
-    let mut jump_map = HashMap::new();
-    let mut name2id = HashMap::new();
-    let mut id2name = HashMap::new();
-    func.blocks_mut().iter_mut().for_each(|block| {
-        let block_name = block.name().clone();
-
-        name2id.insert(block_name.clone(), *block.id());
-        id2name.insert(*block.id(), block_name.clone());
-
-        if let Some(inst) = block.instrs_mut().iter_mut().next() {
-            if let Some(x) = inst.as_any().downcast_ref::<JumpInstr>() {
-                if matches!(x.ty(), JumpType::J) {
-                    jump_map.insert(block_name.clone(), x.label().clone());
-                }
-            }
-        }
-    });
-    // println!("{:?}", jump_map);
-    // jump_map.insert(".L4".to_string(), ".L8");
-
-    // 传递闭包
-    for (block_name, jump_label) in jump_map.clone() {
-        let mut target_label = &jump_label;
-
+    loop {
         let mut simplified = false;
-        while jump_map.contains_key(target_label) {
-            target_label = &jump_map[target_label];
-            simplified = true;
-        }
 
-        if simplified {
-            jump_map.insert(block_name, target_label.clone());
-        }
-    }
+        let mut jump_map = HashMap::new();
+        let mut name2id = HashMap::new();
+        let mut id2name = HashMap::new();
 
-    // jump simplification
-    func.blocks_mut().iter_mut().for_each(|block| {
-        for inst in block.instrs_mut().iter_mut() {
-            if let Some(x) = inst.as_any_mut().downcast_mut::<JumpInstr>() {
-                if let Some(label) = jump_map.get(x.label()) {
-                    x.set_label(label.clone());
-                    changed = true;
-                }
-            } else if let Some(x) = inst.as_any_mut().downcast_mut::<BranchInstr>() {
-                if let Some(label) = jump_map.get(x.label()) {
-                    x.set_label(label.clone());
-                    changed = true;
-                }
-            }
-        }
-    });
+        let mut jump_to_push: Box<dyn InstrTrait> =
+            Box::new(JumpInstr::new_jump("impossible".to_string()));
 
-    // map id to new id
-    let mut map_id = HashMap::new();
+        let mut block_to_remove_id = -1;
 
-    {
-        // adjust block's id, because block's id is related to its index in an array
-        let mut remove_cnt = 0;
         for block in func.blocks_mut().iter_mut() {
-            if jump_map.contains_key(block.name()) {
-                remove_cnt += 1;
-            } else {
-                map_id.insert(*block.id(), *block.id() - remove_cnt);
-                *block.id_mut() -= remove_cnt;
+            let block_name = block.name().clone();
+
+            name2id.insert(block_name.clone(), *block.id());
+            id2name.insert(*block.id(), block_name.clone());
+
+            if !simplified {
+                if let Some(inst) = block.instrs_mut().iter_mut().next() {
+                    // the first inst is `j label`
+                    if let Some(x) = inst.as_any().downcast_ref::<JumpInstr>() {
+                        if matches!(x.ty(), JumpType::J) {
+                            jump_map.insert(block_name.clone(), x.label().clone());
+
+                            jump_to_push = Box::new(JumpInstr::new_jump(x.label().clone()));
+
+                            block_to_remove_id = *block.id();
+
+                            changed = true;
+                            simplified = true;
+                        }
+                    }
+                }
             }
+        }
+
+        // // 传递闭包
+        // for (block_name, jump_label) in jump_map.clone() {
+        //     let mut target_label = &jump_label;
+
+        //     let mut simplified = false;
+        //     while jump_map.contains_key(target_label) {
+        //         target_label = &jump_map[target_label];
+        //         simplified = true;
+        //     }
+
+        //     if simplified {
+        //         jump_map.insert(block_name, target_label.clone());
+        //     }
+        // }
+
+        // jump simplification
+        func.blocks_mut().iter_mut().for_each(|block| {
+            for inst in block.instrs_mut().iter_mut() {
+                if let Some(x) = inst.as_any_mut().downcast_mut::<JumpInstr>() {
+                    if let Some(label) = jump_map.get(x.label()) {
+                        x.set_label(label.clone());
+                    }
+                } else if let Some(x) = inst.as_any_mut().downcast_mut::<BranchInstr>() {
+                    if let Some(label) = jump_map.get(x.label()) {
+                        x.set_label(label.clone());
+                    }
+                }
+            }
+        });
+
+        // map id to new id, because we will remove some block
+        let mut map_id = HashMap::new();
+
+        {
+            // adjust block's id, because block's id is related to its index in an array
+            let mut remove_cnt = 0;
+            for block in func.blocks_mut().iter_mut() {
+                if jump_map.contains_key(block.name()) {
+                    remove_cnt += 1;
+                } else {
+                    map_id.insert(*block.id(), *block.id() - remove_cnt);
+                    *block.id_mut() -= remove_cnt;
+                }
+            }
+        }
+
+        // adjust succ block's id
+        let mut prev_block_id = -1;
+        func.blocks_mut().iter_mut().for_each(|block| {
+            // !!! only work if only remove one block
+            if *block.id() < block_to_remove_id {
+                prev_block_id = max(prev_block_id, *block.id());
+            }
+
+            for block_id in block.out_edges_mut().iter_mut() {
+                let mut redirect = false;
+                if let Some(succ_label) = id2name.get(block_id) {
+                    if let Some(label) = jump_map.get(succ_label) {
+                        *block_id = map_id[&name2id[label]];
+                        redirect = true;
+                    }
+                }
+                if !redirect {
+                    *block_id = map_id[block_id];
+                }
+            }
+        });
+
+        if prev_block_id != -1 {
+            func.block_mut(prev_block_id)
+                .instrs_mut()
+                .push(jump_to_push);
+        }
+
+        func.blocks_mut()
+            .retain(|b| !jump_map.contains_key(b.name()));
+
+        if !simplified {
+            break;
         }
     }
 
-    // adjust succ block's id
-    func.blocks_mut().iter_mut().for_each(|block| {
-        for block_id in block.out_edges_mut().iter_mut() {
-            let mut redirect = false;
-            if let Some(succ_label) = id2name.get(block_id) {
-                if let Some(label) = jump_map.get(succ_label) {
-                    *block_id = map_id[&name2id[label]];
-                    redirect = true;
-                    changed = true;
-                }
-            }
-            if !redirect {
-                *block_id = map_id[block_id];
+    // remove redundant jump, e.g. `j .L1; j .L2;` => `j .L1;`
+    for block in func.blocks_mut() {
+        let mut inst_to_remove = vec![];
+        for i in 1..block.instrs_mut().len() {
+            let inst0 = &block.instrs()[i - 1];
+            let inst1 = &block.instrs()[i];
+            if inst0.as_any().downcast_ref::<JumpInstr>().is_some()
+                && inst1.as_any().downcast_ref::<JumpInstr>().is_some()
+            {
+                inst_to_remove.push(i);
             }
         }
-    });
 
-    func.blocks_mut()
-        .retain(|b| !jump_map.contains_key(b.name()));
+        for i in inst_to_remove.iter().rev() {
+            block.instrs_mut().remove(*i);
+            changed = true;
+        }
+    }
 
     // constant propagation for li
     for block in func.blocks_mut().iter_mut() {
@@ -1220,7 +1280,7 @@ pub fn peephole(func: &mut Function) -> bool {
 
     // remove mov
     let analysis = LivenessAnalysis::of(func);
-    let mut push_map = HashMap::new();
+    let mut push_map = vec![];
     func.blocks_mut().iter_mut().for_each(|block| {
         let mut remove_movs = vec![];
         let liveness = analysis
@@ -1272,23 +1332,24 @@ pub fn peephole(func: &mut Function) -> bool {
                         if need_push {
                             // replacement maybe continue in succ block, so we need to push the mov to succ block
                             for block_id in block.out_edges().iter() {
-                                push_map.insert(
-                                    *block_id,
-                                    Box::new(RegInstr::new_move(
-                                        reg_inst.rd().clone(),
-                                        reg_inst.rs().clone(),
-                                    )),
-                                );
+                                let inst = Box::new(RegInstr::new_move(
+                                    reg_inst.rd().clone(),
+                                    reg_inst.rs().clone(),
+                                ));
+                                // println!("{}->{}: {}", block.id(), block_id, inst.gen_asm());
+                                push_map.push((*block_id, inst));
                             }
                         }
                         // replace the use of y with x
                         for i in (inst_idx + 1)..block.instrs().len() {
                             let inst = &mut block.instrs_mut()[i];
                             let def_cnt = inst.defs().len();
-                            for reg in inst.regs_mut()[def_cnt..].iter_mut() {
-                                if *reg.id() == y {
-                                    reg.set_id(x);
-                                    changed = true;
+                            if inst.regs_mut().len() > 0 {
+                                for reg in inst.regs_mut()[def_cnt..].iter_mut() {
+                                    if *reg.id() == y {
+                                        reg.set_id(x);
+                                        changed = true;
+                                    }
                                 }
                             }
 
@@ -1396,8 +1457,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents =
-            std::fs::read_to_string("test/functional/13_sub2.sy").expect("cannot open source file");
+        let contents = std::fs::read_to_string("test/functional/21_if_test2.sy")
+            .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1463,19 +1524,20 @@ mod tests {
                 }
             }
 
-            {
-                let mut peephole_cnt = 0;
-                while peephole(func) {
-                    println!("PEEPHOLE {}: ", peephole_cnt);
-                    peephole_cnt += 1;
-                    for b in func.blocks().iter() {
-                        println!("{}:", b.name());
-                        for i in b.instrs().iter() {
-                            print!("\t{}", i.gen_asm());
-                        }
-                    }
-                }
-            }
+            // {
+            //     let mut peephole_cnt = 0;
+            //     while peephole(func) {
+            //         println!("PEEPHOLE {}: ", peephole_cnt);
+            //         peephole_cnt += 1;
+            //         for b in func.blocks().iter() {
+            //             println!("{}:", b.name());
+            //             for i in b.instrs().iter() {
+            //                 print!("\t{}", i.gen_asm());
+            //             }
+            //         }
+            //         break;
+            //     }
+            // }
 
             insert_prologue(func);
             insert_epilogue(func);
