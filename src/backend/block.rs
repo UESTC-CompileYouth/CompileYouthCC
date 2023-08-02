@@ -2,7 +2,7 @@ use super::{
     arch_info::{RegConvention, A0, FA0, SP, ZERO},
     function::Function,
     instr::*,
-    misc::{CmpInfo, InstCond, MappingInfo},
+    misc::{InstCond, MappingInfo},
     register::Reg,
 };
 use crate::common::{
@@ -17,7 +17,6 @@ use crate::frontend::llvm::{
 };
 use derive_new::new;
 use getset::{Getters, MutGetters, Setters};
-use std::collections::HashMap;
 
 pub(crate) type BlockId = i32;
 #[derive(new, Getters, Setters, MutGetters)]
@@ -57,7 +56,6 @@ impl Block {
         function: &mut Function,
         llvm_function: &LLVMFunction,
         mapping_info: &mut MappingInfo,
-        cmp_infos: &mut HashMap<Reg, CmpInfo>,
     ) {
         let self_bb_id = *mapping_info
             .rev_block_mapping()
@@ -337,15 +335,14 @@ impl Block {
                     mapping_info.from_ssa_rvalue(s2_ssa)
                 };
                 let rd = mapping_info.from_ssa_rvalue(icmp_instr.d1());
-                cmp_infos.insert(
+                let cmp_instrs = gen_icmp_riscv_instrs(
+                    rs1,
+                    rs2,
+                    InstCond::from_llvm_cmp_type(icmp_instr.cmp_type()),
                     rd,
-                    CmpInfo::new(
-                        rs1,
-                        rs2,
-                        false,
-                        InstCond::from_llvm_cmp_type(icmp_instr.cmp_type()),
-                    ),
+                    mapping_info,
                 );
+                risc_v_instrs.extend(cmp_instrs);
             } else if let Some(fcmp_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Fcmp>()
             {
                 let s1_ssa = fcmp_instr.s1();
@@ -385,15 +382,13 @@ impl Block {
                     mapping_info.from_ssa_rvalue(s2_ssa)
                 };
                 let rd = mapping_info.from_ssa_rvalue(fcmp_instr.d1());
-                cmp_infos.insert(
+                let cmp_instrs = gen_fcmp_riscv_instr(
+                    rs1,
+                    rs2,
+                    InstCond::from_llvm_cmp_type(fcmp_instr.cmp_type()),
                     rd,
-                    CmpInfo::new(
-                        rs1,
-                        rs2,
-                        true,
-                        InstCond::from_llvm_cmp_type(fcmp_instr.cmp_type()),
-                    ),
                 );
+                risc_v_instrs.extend(cmp_instrs);
             } else if let Some(ret_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Ret>() {
                 if let Some(ret_value) = ret_instr.value() {
                     if ret_value.ty().is_float() {
@@ -440,70 +435,28 @@ impl Block {
             } else if let Some(branch_instr) =
                 llvm_instr.as_any().downcast_ref::<llvm::instr::Branch>()
             {
-                let mut true_target_block_id = *mapping_info
+                let true_target_block_id = *mapping_info
                     .block_mapping()
                     .get(&branch_instr.label1)
                     .unwrap();
                 if let Some(cond) = &branch_instr.cond {
                     let rd = mapping_info.from_ssa_rvalue(&cond);
-                    let mut false_target_block_id = *mapping_info
+                    let false_target_block_id = *mapping_info
                         .block_mapping()
                         .get(&branch_instr.label2.unwrap())
                         .unwrap();
-                    let cmp_info = cmp_infos.get(&rd).unwrap();
-                    if *cmp_info.is_float() {
-                        let (lhs, ty, rhs) = cmp_info.to_risc_v_fcmp();
-                        risc_v_instrs.push(Box::new(FcmpInstr::new(rd, lhs, rhs, ty)));
-                        let (true_target_block_id, false_target_block_id) =
-                            if *cmp_info.cond() == InstCond::Ne {
-                                false_target_block_id = true_target_block_id;
-                                true_target_block_id = *mapping_info
-                                    .block_mapping()
-                                    .get(&branch_instr.label2.unwrap())
-                                    .unwrap();
-                                (true_target_block_id, false_target_block_id)
-                            } else {
-                                let false_target_block_id = *mapping_info
-                                    .block_mapping()
-                                    .get(&branch_instr.label2.unwrap())
-                                    .unwrap();
-                                (true_target_block_id, false_target_block_id)
-                            };
-                        if next_block_id.is_none() || true_target_block_id != next_block_id.unwrap()
-                        {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + true_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(BranchInstr::new(
-                                rd,
-                                Reg::new(ZERO, Type::Int),
-                                label,
-                                BranchType::Bne,
-                            )));
-                        }
-                        if next_block_id.is_none()
-                            || false_target_block_id != next_block_id.unwrap()
-                        {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + false_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
-                        }
-                    } else {
-                        let (lhs, ty, rhs) = cmp_info.to_risc_v_branch();
-                        // println!("NNN {}   {} {}", next_block_id.is_none(), true_target_block_id, next_block_id.unwrap());
-                        // if next_block_id.is_none() || true_target_block_id != next_block_id.unwrap()
-                        if true {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + true_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(BranchInstr::new(lhs, rhs, label, ty)));
-                            // println!("DDDDDDDDDDDDDDDDDDDDDDDDDD");
-                        }
-                        if next_block_id.is_none()
-                            || false_target_block_id != next_block_id.unwrap()
-                        {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + false_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
-                        }
+                    let label =
+                        BLOCK_LABEL_PREFIX.to_string() + true_target_block_id.to_string().as_str();
+                    risc_v_instrs.push(Box::new(BranchInstr::new(
+                        rd,
+                        Reg::new(ZERO, Type::Int),
+                        label,
+                        BranchType::Bne,
+                    )));
+                    if next_block_id.is_none() || false_target_block_id != next_block_id.unwrap() {
+                        let label = BLOCK_LABEL_PREFIX.to_string()
+                            + false_target_block_id.to_string().as_str();
+                        risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
                     }
                     blocks[(self_block_id - block_id_offset) as usize]
                         .add_out_edge(true_target_block_id);

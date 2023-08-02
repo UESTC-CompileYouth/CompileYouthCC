@@ -83,9 +83,8 @@ impl MappingInfo {
 }
 
 #[derive(Default, PartialEq, Eq)]
-pub(crate) enum InstCond {
+pub enum InstCond {
     #[default]
-    // Always,
     Eq,
     Ne,
     Ge,
@@ -108,7 +107,7 @@ impl InstCond {
 }
 
 #[derive(new, Getters, Setters)]
-pub(crate) struct CmpInfo {
+pub(crate) struct _CmpInfo {
     #[getset(get = "pub", set = "pub")]
     lhs: Reg,
     #[getset(get = "pub", set = "pub")]
@@ -119,8 +118,8 @@ pub(crate) struct CmpInfo {
     cond: InstCond,
 }
 
-impl CmpInfo {
-    pub fn to_risc_v_fcmp(&self) -> (Reg, FcmpType, Reg) {
+impl _CmpInfo {
+    pub fn _to_risc_v_fcmp(&self) -> (Reg, FcmpType, Reg) {
         assert!(self.is_float);
         match self.cond {
             InstCond::Eq => (self.lhs, FcmpType::FeqS, self.rhs),
@@ -129,10 +128,9 @@ impl CmpInfo {
             InstCond::Gt => (self.rhs, FcmpType::FltS, self.lhs),
             InstCond::Le => (self.lhs, FcmpType::FleS, self.rhs),
             InstCond::Lt => (self.lhs, FcmpType::FltS, self.rhs),
-            // _ => unreachable!("always is not allowed"),
         }
     }
-    pub fn to_risc_v_branch(&self) -> (Reg, BranchType, Reg) {
+    pub fn _to_risc_v_branch(&self) -> (Reg, BranchType, Reg) {
         assert!(!self.is_float);
         match self.cond {
             InstCond::Eq => (self.lhs, BranchType::Beq, self.rhs),
@@ -141,7 +139,6 @@ impl CmpInfo {
             InstCond::Gt => (self.rhs, BranchType::Blt, self.lhs),
             InstCond::Le => (self.rhs, BranchType::Bge, self.lhs),
             InstCond::Lt => (self.lhs, BranchType::Blt, self.rhs),
-            // _ => unreachable!("always is not allowed"),
         }
     }
 }

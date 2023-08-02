@@ -47,7 +47,7 @@ impl Node {
 
 #[derive(Default)]
 pub(crate) struct InterferenceGraph {
-    pub K: usize,
+    pub k: usize,
     pub nodes: HashMap<i32, Node>,
     // when u and v are coalesced, combined_mapping[v] = u
     pub combined_mapping: HashMap<i32, i32>,
@@ -57,7 +57,7 @@ pub(crate) struct InterferenceGraph {
 
 impl Debug for InterferenceGraph {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "K: {}", self.K)?;
+        writeln!(f, "k: {}", self.k)?;
         writeln!(f, "nodes: {:?}", self.nodes.keys().sorted())?;
         println!("EDGES: ");
         for (n, node) in self.nodes.iter() {
@@ -79,13 +79,13 @@ impl Debug for InterferenceGraph {
 }
 
 const UNCOLORED: i32 = i32::MIN;
-const SPECIAL_COLOR_OFFSET: i32 = -100;
+const _SPECIAL_COLOR_OFFSET: i32 = -100;
 
 impl InterferenceGraph {
     pub(crate) fn build(func: &Function, max_reg_cnt: usize) -> Self {
         let liveness = LivenessAnalysis::of(func);
         let mut ig = InterferenceGraph {
-            K: max_reg_cnt,
+            k: max_reg_cnt,
             nodes: HashMap::new(),
             combined_mapping: HashMap::new(),
             move_edges: HashSet::new(),
@@ -187,17 +187,17 @@ impl InterferenceGraph {
 
         let mut big_degree_cnt = 0;
         for n in shared_neighbor {
-            if self.nodes.get(&n).unwrap().degree() > self.K {
+            if self.nodes.get(&n).unwrap().degree() > self.k {
                 big_degree_cnt += 1;
             }
         }
         for n in unshared_neighbor {
-            if self.nodes.get(&n).unwrap().degree() >= self.K {
+            if self.nodes.get(&n).unwrap().degree() >= self.k {
                 big_degree_cnt += 1;
             }
         }
 
-        big_degree_cnt < self.K
+        big_degree_cnt < self.k
     }
 
     // briggs conservative policy
@@ -259,7 +259,7 @@ impl InterferenceGraph {
 
         // we can only remove small degree node from the graph, and without move edges
         let can_simpilify =
-            |node: &Node| node.in_graph && node.degree() < self.K && node.move_adj_list.is_empty();
+            |node: &Node| node.in_graph && node.degree() < self.k && node.move_adj_list.is_empty();
 
         let mut stk = self
             .nodes
@@ -370,7 +370,7 @@ impl InterferenceGraph {
             return self.nodes.get(&node_id).unwrap().color;
         }
 
-        let mut candidate = (0..self.K).into_iter().collect::<Vec<usize>>();
+        let mut candidate = (0..self.k).into_iter().collect::<Vec<usize>>();
         for adj in self.nodes.get(&node_id).unwrap().adj_list.iter() {
             let adj = self.nodes.get(adj).unwrap();
             let c = adj.color;
@@ -419,6 +419,7 @@ impl InterferenceGraph {
         self.nodes.get(&u).unwrap().adj_list.contains(&v)
     }
 
+    #[allow(dead_code)]
     pub fn has_edge_in_graph(&self, u: i32, v: i32) -> bool {
         self.nodes.get(&u).unwrap().adj_list_in_graph.contains(&v)
     }
@@ -439,6 +440,7 @@ impl InterferenceGraph {
         self.nodes.get_mut(&v).unwrap().adj_list_in_graph.insert(u);
     }
 
+    #[allow(dead_code)]
     pub fn get_color(&self, reg_id: i32) -> i32 {
         self.nodes.get(&reg_id).unwrap().color
     }
@@ -485,12 +487,12 @@ impl InterferenceGraph {
         let mut to_freeze = -1;
         let mut to_freeze_degree = 0;
         for (n, node) in self.nodes.iter() {
-            if node.degree() < self.K {
+            if node.degree() < self.k {
                 if node.degree() > to_freeze_degree {
                     to_freeze = *n;
                     to_freeze_degree = node.degree();
                 }
-                if node.degree() == self.K - 1 {
+                if node.degree() == self.k - 1 {
                     break;
                 }
             }
@@ -556,7 +558,7 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32) {
     for (bb_idx, block) in f.blocks_mut().iter_mut().enumerate() {
         let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
-            let (kill, gen1, gen2) = inst.get_operands();
+            let (kill, _, _) = inst.get_operands();
             if kill == spill_reg {
                 let mut r = inst.regs_mut();
                 for reg in r.iter_mut() {
@@ -592,7 +594,7 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32) {
     for (bb_id, block) in f.blocks_mut().iter_mut().enumerate() {
         let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
-            let (kill, gen1, gen2) = inst.get_operands();
+            let (_, gen1, gen2) = inst.get_operands();
             if gen1 == spill_reg || gen2 == spill_reg {
                 let mut r = inst.regs_mut();
 
@@ -819,7 +821,7 @@ pub(crate) fn insert_epilogue(function: &mut Function) {
         .instrs_mut();
 
     let sp = Reg::new_int(SP);
-    let ra = Reg::new_int(RA);
+    let _ = Reg::new_int(RA);
     let offset = ImmeValueType::Direct(sf.total_frame_size() as i32);
     let ty = RegImmeType::Addi;
 
@@ -929,9 +931,7 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
                 let load = LoadInstr::new(reg, sp, offset, LoadType::Ld);
 
-                block
-                    .instrs_mut()
-                    .insert(*pos + 1, Box::new(load));
+                block.instrs_mut().insert(*pos + 1, Box::new(load));
             }
 
             // store before function call
@@ -941,9 +941,7 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
                 let store = StoreInstr::new(sp, reg, offset, StoreType::Sd);
 
-                block
-                    .instrs_mut()
-                    .insert(*pos, Box::new(store));
+                block.instrs_mut().insert(*pos, Box::new(store));
             }
         }
     }
@@ -1150,6 +1148,8 @@ pub fn peephole(func: &mut Function) -> bool {
                             RegRegType::Srlw => ((x as u32) >> (y as u32)) as i32,
                             RegRegType::Sra => x >> y,
                             RegRegType::Sraw => x >> y,
+                            RegRegType::And => x & y,
+                            RegRegType::Or => x | y,
                         };
 
                         let new_inst = ImmeInstr::new_load_immediate(*reg_reg_inst.rd(), res);
@@ -1207,6 +1207,9 @@ pub fn peephole(func: &mut Function) -> bool {
                             RegType::Mv => x,
                             RegType::Negw => -x,
                             RegType::Seqz => (x == 0) as i32,
+                            RegType::Snez => (x != 0) as i32,
+                            RegType::Sgtz => (x > 0) as i32,
+                            RegType::Sltz => (x < 0) as i32,
                         };
                         let new_inst = ImmeInstr::new_load_immediate(*reg_inst.rd(), res);
                         rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
@@ -1385,6 +1388,7 @@ pub fn peephole(func: &mut Function) -> bool {
     changed
 }
 
+#[cfg(test)]
 mod tests {
     use antlr_rust::{common_token_stream::CommonTokenStream, InputStream};
     use itertools::Itertools;
@@ -1413,7 +1417,7 @@ mod tests {
     #[test]
     fn test_ig() {
         let mut ig = InterferenceGraph::default();
-        ig.K = 4;
+        ig.k = 4;
 
         for i in 100..=106 {
             ig.add_node(i);
