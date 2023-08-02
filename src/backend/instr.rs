@@ -1377,9 +1377,9 @@ impl InstrTrait for FcmpInstr {
         assert!(*self.rs2.ty() == Type::Float);
         assert!(*self.rd.ty() == Type::Int);
         let asm = match self.ty {
-            FcmpType::FeqS => format!("feq.s {}, {}, {}", self.rd, self.rs1, self.rs2),
-            FcmpType::FltS => format!("flt.s {}, {}, {}", self.rd, self.rs1, self.rs2),
-            FcmpType::FleS => format!("fle.s {}, {}, {}", self.rd, self.rs1, self.rs2),
+            FcmpType::FeqS => format!("feq.s {}, {}, {}\n", self.rd, self.rs1, self.rs2),
+            FcmpType::FltS => format!("flt.s {}, {}, {}\n", self.rd, self.rs1, self.rs2),
+            FcmpType::FleS => format!("fle.s {}, {}, {}\n", self.rd, self.rs1, self.rs2),
         };
         asm
     }
