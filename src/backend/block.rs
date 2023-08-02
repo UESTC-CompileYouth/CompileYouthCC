@@ -110,20 +110,25 @@ impl Block {
                     UnaryOp::FMov => {
                         let rd = mapping_info.from_ssa_rvalue(unary_instr.des_register().unwrap());
                         let s1_ssa = unary_instr.s1();
-                        if s1_ssa.is_immediate() {
-                            let rs = mapping_info.new_reg(s1_ssa.ty());
-                            let imme = s1_ssa.get_value().unwrap().into_float().unwrap().to_bits();
-                            risc_v_instrs
-                                .push(Box::new(ImmeInstr::new_load_immediate(rd, imme as _)));
-                            risc_v_instrs.push(Box::new(FRegRegInstr::new(
-                                rd,
-                                rs,
-                                FRegRegConvertType::FmvS,
+                        assert!(s1_ssa.ty().is_float());
+                        let rs = if s1_ssa.is_immediate() {
+                            let imme = s1_ssa.get_value().unwrap().into_float().unwrap();
+                            let int_s1 = mapping_info.new_reg(Type::Int);
+                            risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(
+                                int_s1,
+                                imme.to_bits() as _,
                             )));
+                            let float_s1 = mapping_info.new_reg(Type::Float);
+                            risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                                float_s1,
+                                int_s1,
+                                FRegRegConvertType::FmvWX,
+                            )));
+                            float_s1
                         } else {
-                            let rs = mapping_info.from_ssa_rvalue(s1_ssa);
-                            risc_v_instrs.push(Box::new(FRegInstr::new(rd, rs, FRegType::FmvS)));
+                            mapping_info.from_ssa_rvalue(s1_ssa)
                         };
+                        risc_v_instrs.push(Box::new(FRegInstr::new(rd, rs, FRegType::FmvS)));
                     }
                     UnaryOp::Fptosi => {
                         let s1_ssa = unary_instr.s1();
