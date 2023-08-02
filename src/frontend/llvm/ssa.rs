@@ -191,7 +191,7 @@ pub struct SSALeftValue {
     #[getset(get = "pub")]
     name: String,
     #[getset(get = "pub")]
-    is_arg: bool,
+    is_arg: bool, // logical arg or arg on stack
     #[getset(get = "pub")]
     is_const: bool,
     #[getset(get = "pub")]
@@ -298,7 +298,7 @@ impl SSALeftValue {
             is_omit_first_dim: true,
         }
     }
-    /// address gep a new address
+    /// gep source address gen a new address
     pub fn new_addr(id: i32, ty: Type, shape: Vec<i32>) -> Self {
         Self {
             name: String::new(),
@@ -363,7 +363,6 @@ impl SSALeftValue {
 
     pub fn gen_save_arg_lvalue(&self, id: i32) -> Self {
         let mut new_lvalue = self.clone();
-        new_lvalue.is_arg = false;
         new_lvalue.id = id;
         new_lvalue
     }

@@ -270,7 +270,11 @@ impl Debug for Load {
             f,
             "{} = load {}, {}* {}",
             self.d1,
-            self.d1.get_type(),
+            if self.d1.is_addr() {
+                address_type_string(&self.d1)
+            } else {
+                self.d1.get_type().to_string()
+            },
             type_str,
             self.addr,
         )
@@ -1766,11 +1770,14 @@ impl Debug for Gep {
         assert!(self.s1.is_addr());
         assert!(self.d1.is_addr());
         assert!(self.s1.get_type() == self.d1.get_type());
-        let type_str = address_type_string(&self.s1);
         writeln!(
             f,
             "{} = getelementptr {}, {}* {}, i32 {}",
-            self.d1, type_str, type_str, self.s1, self.index
+            self.d1,
+            address_type_string(&self.s1),
+            address_type_string(&self.s1),
+            self.s1,
+            self.index
         )
     }
 }

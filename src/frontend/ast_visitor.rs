@@ -1162,7 +1162,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         log::trace!("visit_assignment");
         ctx.lVal().unwrap().accept(self);
         let return_content = self.return_content();
-        let lvalue = return_content.into_lvalue().unwrap();
+        let lvalue_addr = return_content.into_exp().unwrap().into_ssa_value().unwrap();
         ctx.exp().unwrap().accept(self);
         let return_content = self.return_content();
         let rvalue = match return_content {
@@ -1172,9 +1172,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         if self.cur_bb.is_none() {
             panic!("cur_bb is None");
         }
-        let rvalue = self.convert_type(rvalue, lvalue.get_type());
+        let rvalue = self.convert_type(rvalue, lvalue_addr.get_type());
         let store = Instruction::new(
-            Box::new(Store::new(lvalue.to_address(), rvalue)),
+            Box::new(Store::new(lvalue_addr, rvalue)),
             self.cur_bb.unwrap(),
         );
         self.cur_function().add_inst2bb(store);
@@ -1746,35 +1746,50 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 panic!("variable not found");
             }
         } else {
-            let mut lvalue = self
+            let cur_bb = self.cur_bb.unwrap();
+            let lvalue = self
                 .cur_vtable
                 .as_mut()
                 .unwrap()
                 .get_variable_mut(res.as_str())
                 .expect("variable not found")
                 .clone();
+            let mut lvalue_addr = if *lvalue.is_omit_first_dim() {
+                // arg is a pointer, make a fake lvalue(lvalue is in another function stack frame)
+                let new_lvalue = SSALeftValue::new_addr(
+                    self.cur_function().alloc_ssa_id(),
+                    lvalue.get_type(),
+                    lvalue.get_shape(),
+                );
+                let load_address_from_mem = Instruction::new(
+                    Box::new(Load::new(lvalue.to_address(), new_lvalue.to_address())),
+                    cur_bb,
+                );
+                self.cur_function().add_inst2bb(load_address_from_mem);
+                new_lvalue.to_address()
+            } else {
+                // arg is a value
+                lvalue.to_address()
+            };
 
-            let cur_bb = self.cur_bb.unwrap();
-            let cur_func = self.cur_function();
             let ty = lvalue.get_type();
+            let mut shape = lvalue.get_shape();
             for i in indexs.iter() {
-                let new_shape = lvalue.get_shape()[1..].to_vec();
+                let cur_func = self.cur_function();
+                let new_shape = shape[1..].to_vec();
                 let new_lvalue =
-                    SSALeftValue::new_addr(cur_func.alloc_ssa_id(), ty.clone(), new_shape);
-
+                    SSALeftValue::new_addr(cur_func.alloc_ssa_id(), ty.clone(), new_shape.clone());
                 let gepir = Instruction::new(
-                    Box::new(Gep::new(
-                        lvalue.to_address(),
-                        new_lvalue.to_address(),
-                        i.clone(),
-                    )),
+                    Box::new(Gep::new(lvalue_addr, new_lvalue.to_address(), i.clone())),
                     cur_bb,
                 );
                 cur_func.add_inst2bb(gepir);
-                lvalue = new_lvalue;
+                shape = new_shape;
+                lvalue_addr = new_lvalue.to_address();
             }
             log::trace!("leaveLVal_1");
-            return AstReturnContent::Lvalue(lvalue).into();
+            return AstReturnContent::Exp(AstExp::SSAValue(lvalue_addr)).into();
+            // return lvalue address
         }
     }
 
@@ -1804,51 +1819,20 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     #[allow(non_snake_case)]
     fn visit_primaryExp2(&mut self, ctx: &PrimaryExp2Context<'input>) -> Self::Return {
         log::trace!("visit_primaryExp2 start");
-        if self.value_mode != ValueMode::Const {
+        if self.value_mode == ValueMode::Const {
+            let res = self.visit_children(ctx);
+            log::trace!("visit_primaryExp2_1 end");
+            res
+        } else {
             ctx.lVal().unwrap().accept(self);
             let return_content = self.return_content();
-            let lvalue = match return_content {
-                AstReturnContent::Lvalue(lvalue) => lvalue,
-                _ => panic!("primaryExp2: not a lvalue"),
-            };
-            // TODO: i dont know why do this
-            if lvalue.get_shape().len() != 0 {
-                // address pointer
-                let new_shape = lvalue.get_shape();
-                let new_shape = new_shape[1..].to_vec();
-                let d1 = SSALeftValue::new_addr(self.new_id(), lvalue.get_type(), new_shape);
-
-                let gepir = Instruction::new(
-                    Box::new(Gep::new(
-                        lvalue.to_address(),
-                        d1.to_address(),
-                        SSARightValue::new_imme(Immediate::Int(0)),
-                    )),
-                    self.cur_bb.unwrap(),
-                );
-                self.cur_function().add_inst2bb(gepir);
-                log::trace!("leavePrimaryExp2_0");
-                return AstReturnContent::Exp(AstExp::SSAValue(d1.to_address())).into();
-            } else {
-                // if *lvalue.is_arg() {
-                //     log::trace!("leavePrimaryExp2_1");
-                //     return AstReturnContent::Exp(AstExp::SSAValue(lvalue.to_address())).into();
-                // } else {
-                // scalar value
-                let d1 = self.cur_function().new_reg(lvalue.get_type());
-                let loadir = Instruction::new(
-                    Box::new(Load::new(lvalue.to_address(), d1.clone())),
-                    self.cur_bb.unwrap(),
-                );
-                self.cur_function().add_inst2bb(loadir);
-                log::trace!("leavePrimaryExp2_1");
-                return AstReturnContent::Exp(AstExp::SSAValue(d1)).into();
-                // }
-            }
-        } else {
-            let res = self.visit_children(ctx);
-            log::trace!("visit_primaryExp2 end");
-            res
+            let addr = return_content.into_exp().unwrap().into_ssa_value().unwrap();
+            let reg = SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), addr.get_type());
+            let load_value =
+                Instruction::new(Box::new(Load::new(addr, reg.clone())), self.cur_bb.unwrap());
+            self.cur_function().add_inst2bb(load_value);
+            log::trace!("visit_primaryExp2_2 end");
+            return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
         }
     }
 
