@@ -104,7 +104,7 @@ impl InterferenceGraph {
                     let u = *x.uses()[0].id();
                     let d = *x.defs()[0].id();
 
-                    if u != d && !ig.has_edge_in_graph(u, d){
+                    if u != d && !ig.has_edge_in_graph(u, d) {
                         ig.add_move_edge(u, d);
                     }
 
@@ -391,7 +391,9 @@ impl InterferenceGraph {
     }
 
     pub fn add_node(&mut self, reg_id: i32) {
-        if reg_id == 0 { return; }
+        if reg_id == 0 {
+            return;
+        }
         if !self.nodes.contains_key(&reg_id) {
             self.nodes.insert(
                 reg_id,
