@@ -432,7 +432,7 @@ impl InstrTrait for RegImmeInstr {
         assert!(*self.rs1.ty() == Type::Int);
         match self.offset {
             ImmeValueType::Direct(i) => {
-                assert!(i <= 2047 && i >= -2048);
+                assert!(i <= 2047 && i >= -2048, "offset {} out of range", i);
             }
             _ => {}
         }
