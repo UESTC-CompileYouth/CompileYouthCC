@@ -127,9 +127,24 @@ impl Block {
                     }
                     UnaryOp::Fptosi => {
                         let s1_ssa = unary_instr.s1();
-                        assert!(!s1_ssa.is_immediate());
                         assert!(s1_ssa.ty().is_float());
-                        let rs = mapping_info.from_ssa_rvalue(s1_ssa);
+                        let rs = if s1_ssa.is_immediate() {
+                            let imme = s1_ssa.get_value().unwrap().into_float().unwrap();
+                            let int_s1 = mapping_info.new_reg(Type::Int);
+                            risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(
+                                int_s1,
+                                imme.to_bits() as _,
+                            )));
+                            let float_s1 = mapping_info.new_reg(Type::Float);
+                            risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                                float_s1,
+                                int_s1,
+                                FRegRegConvertType::FmvWX,
+                            )));
+                            float_s1
+                        } else {
+                            mapping_info.from_ssa_rvalue(s1_ssa)
+                        };
                         let d1_ssa = unary_instr.des_register().unwrap();
                         assert!(d1_ssa.ty().is_int());
                         let rd = mapping_info.from_ssa_rvalue(d1_ssa);
@@ -141,9 +156,15 @@ impl Block {
                     }
                     UnaryOp::Sitofp => {
                         let s1_ssa = unary_instr.s1();
-                        assert!(!s1_ssa.is_immediate());
                         assert!(s1_ssa.ty().is_int());
-                        let rs = mapping_info.from_ssa_rvalue(s1_ssa);
+                        let rs = if s1_ssa.is_immediate() {
+                            let rs = mapping_info.new_reg(s1_ssa.ty());
+                            let imme = s1_ssa.get_value().unwrap().into_int().unwrap();
+                            risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(rs, imme)));
+                            rs
+                        } else {
+                            mapping_info.from_ssa_rvalue(s1_ssa)
+                        };
                         let d1_ssa = unary_instr.des_register().unwrap();
                         assert!(d1_ssa.ty().is_float());
                         let rd = mapping_info.from_ssa_rvalue(d1_ssa);
