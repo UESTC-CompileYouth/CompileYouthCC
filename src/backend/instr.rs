@@ -1229,7 +1229,8 @@ pub(crate) enum FRegRegConvertType {
     FclassS, // x[rd] = classifys(f[rs1])
     FmvXW,   // x[rd] = sext(f[rs1][31:0])
     FmvWX,   // f[rd][31:0] = x[rs1]
-             // Pseudo Instruction
+    // Pseudo Instruction
+    FmvS
 }
 
 // f[rd] = op x[rs]
@@ -1273,6 +1274,11 @@ impl InstrTrait for FRegRegInstr {
                 assert!(self.rd.ty() == &Type::Float);
                 assert!(self.rs.ty() == &Type::Int);
                 format!("fmv.w.x {}, {}", self.rd, self.rs)
+            }
+            FRegRegConvertType::FmvS => {
+                assert!(self.rd.ty() == &Type::Float);
+                assert!(self.rs.ty() == &Type::Float);
+                format!("fmv.s {}, {}", self.rd, self.rs)
             }
         };
         asm.push_str("\n");

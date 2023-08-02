@@ -118,7 +118,7 @@ impl Block {
                             risc_v_instrs.push(Box::new(FRegRegInstr::new(
                                 rd,
                                 rs,
-                                FRegRegConvertType::FmvWX,
+                                FRegRegConvertType::FmvS,
                             )));
                         } else {
                             let rs = mapping_info.from_ssa_rvalue(s1_ssa);
