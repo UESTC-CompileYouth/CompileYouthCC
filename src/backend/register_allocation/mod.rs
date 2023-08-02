@@ -96,6 +96,10 @@ impl InterferenceGraph {
             for inst_id in block_liveness.insts.iter() {
                 // try to allocate with same reg for reg instr, i.e. y = f(x)
                 let inst = &func.block(*blockid).instrs()[*inst_id as usize];
+                let (x, y, z) = inst.get_operands();
+                ig.add_node(x);
+                ig.add_node(y);
+                ig.add_node(z);
                 if let Some(x) = inst.as_any().downcast_ref::<RegInstr>() {
                     let u = *x.uses()[0].id();
                     let d = *x.defs()[0].id();
@@ -1457,7 +1461,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/21_if_test2.sy")
+        let contents = std::fs::read_to_string("test/functional/08_const_array_defn.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
@@ -1524,20 +1528,19 @@ mod tests {
                 }
             }
 
-            // {
-            //     let mut peephole_cnt = 0;
-            //     while peephole(func) {
-            //         println!("PEEPHOLE {}: ", peephole_cnt);
-            //         peephole_cnt += 1;
-            //         for b in func.blocks().iter() {
-            //             println!("{}:", b.name());
-            //             for i in b.instrs().iter() {
-            //                 print!("\t{}", i.gen_asm());
-            //             }
-            //         }
-            //         break;
-            //     }
-            // }
+            {
+                let mut peephole_cnt = 0;
+                while peephole(func) {
+                    println!("PEEPHOLE {}: ", peephole_cnt);
+                    peephole_cnt += 1;
+                    for b in func.blocks().iter() {
+                        println!("{}:", b.name());
+                        for i in b.instrs().iter() {
+                            print!("\t{}", i.gen_asm());
+                        }
+                    }
+                }
+            }
 
             insert_prologue(func);
             insert_epilogue(func);
