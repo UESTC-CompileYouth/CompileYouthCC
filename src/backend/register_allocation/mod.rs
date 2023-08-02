@@ -927,9 +927,7 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
                 let load = LoadInstr::new(reg, sp, offset, LoadType::Ld);
 
-                block
-                    .instrs_mut()
-                    .insert(*pos + 1, Box::new(load));
+                block.instrs_mut().insert(*pos + 1, Box::new(load));
             }
 
             // store before function call
@@ -939,9 +937,7 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
                 let store = StoreInstr::new(sp, reg, offset, StoreType::Sd);
 
-                block
-                    .instrs_mut()
-                    .insert(*pos, Box::new(store));
+                block.instrs_mut().insert(*pos, Box::new(store));
             }
         }
     }
