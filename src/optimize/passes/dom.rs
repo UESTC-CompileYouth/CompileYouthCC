@@ -18,6 +18,8 @@ pub struct DominatorTreeBuilder<'func_lifetime> {
     dfsn_order: Vec<IdBB>,
     #[getset(get = "pub")]
     idom_map: HashMap<IdBB, IdBB>,
+    #[getset(get = "pub")]
+    dom_children_map: HashMap<IdBB, HashSet<IdBB>>,
 }
 
 impl<'func_lifetime> DominatorTreeBuilder<'func_lifetime> {
@@ -31,6 +33,7 @@ impl<'func_lifetime> DominatorTreeBuilder<'func_lifetime> {
             dominator_frontier_map: HashMap::new(),
             dfsn_order: Vec::new(),
             idom_map: HashMap::new(),
+            dom_children_map: HashMap::new(),
         }
     }
 
@@ -105,30 +108,32 @@ impl<'func_lifetime> DominatorTreeBuilder<'func_lifetime> {
     }
 
     fn build_dfsn_order_from_idom(&mut self) {
-        let mut dom_tree_map: HashMap<IdBB, Vec<IdBB>> = HashMap::new();
+        self.build_dom_childrent_map();
+        let mut visited: HashSet<IdBB> = HashSet::new();
+        self.build_dfsn_order(&mut visited, self.f.entry_bb_id());
+    }
+
+    fn build_dom_childrent_map(&mut self) {
         for bb in self.f.layout().block_iter() {
-            dom_tree_map.insert(bb, Vec::new());
+            self.dom_children_map.insert(bb, HashSet::new());
         }
         for (bb, fa) in self.idom_map.iter() {
             if *bb != self.f.entry_bb_id() {
-                dom_tree_map.get_mut(fa).unwrap().push(*bb);
+                self.dom_children_map.get_mut(fa).unwrap().insert(*bb);
             }
         }
-        let mut visited: HashSet<IdBB> = HashSet::new();
-        self.build_dfsn_order(&mut visited, &dom_tree_map, self.f.entry_bb_id());
     }
 
     fn build_dfsn_order(
         &mut self,
         visited: &mut HashSet<IdBB>,
-        dom_tree_map: &HashMap<IdBB, Vec<IdBB>>,
         root: IdBB,
     ) {
         if !visited.contains(&root) {
             visited.insert(root);
             self.dfsn_order.push(root);
-            for child in dom_tree_map[&root].iter() {
-                self.build_dfsn_order(visited, dom_tree_map, *child);
+            for child in self.dom_children_map.get(&root).unwrap().clone() {
+                self.build_dfsn_order(visited, child);
             }
         }
     }
