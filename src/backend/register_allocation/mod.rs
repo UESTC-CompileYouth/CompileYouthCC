@@ -907,6 +907,11 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
             let mut out = block_liveness.get_inst_out(inst_id as i32).clone();
             // return value can be changed
             out.remove(&A0);
+            out.retain(|x| {
+                *x < 32
+                    && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
+                        == RegisterUsage::CallerSaved
+            });
 
             // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
             let mut store_reg_offset = vec![];
@@ -1470,8 +1475,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents =
-            std::fs::read_to_string("test/homemade/float.sy").expect("cannot open source file");
+        let contents = std::fs::read_to_string("test/homemade/float.sy")
+            .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1548,6 +1553,9 @@ mod tests {
                             print!("\t{}", i.gen_asm());
                         }
                     }
+                    // if peephole_cnt == 3 {
+                    //     break;
+                    // }
                 }
             }
 
