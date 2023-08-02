@@ -104,7 +104,7 @@ impl InterferenceGraph {
                     let u = *x.uses()[0].id();
                     let d = *x.defs()[0].id();
 
-                    if u != d {
+                    if u != d && !ig.has_edge_in_graph(u, d){
                         ig.add_move_edge(u, d);
                     }
 
@@ -391,6 +391,7 @@ impl InterferenceGraph {
     }
 
     pub fn add_node(&mut self, reg_id: i32) {
+        if reg_id == 0 { return; }
         if !self.nodes.contains_key(&reg_id) {
             self.nodes.insert(
                 reg_id,
@@ -895,7 +896,6 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
         for (inst_id, inst) in block.instrs().iter().enumerate() {
             let block_id = *block.id();
             let block_liveness = l.block_liveness_map[&block_id].borrow();
-            let mut offset = 0;
             {
                 if !inst.as_any().downcast_ref::<CallInstr>().is_some() {
                     continue;
@@ -1465,7 +1465,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/08_const_array_defn.sy")
+        let contents = std::fs::read_to_string("test/functional/50_short_circuit.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
