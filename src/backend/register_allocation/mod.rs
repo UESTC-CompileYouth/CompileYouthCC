@@ -1187,19 +1187,22 @@ pub fn peephole(func: &mut Function) -> bool {
                             _ => None,
                         };
 
-                        if let Some(ty) = ty {
-                            let new_inst = RegImmeInstr::new(
-                                reg_reg_inst.rd().clone(),
-                                if u1_in_map {
-                                    reg_reg_inst.rs2().clone()
-                                } else {
-                                    reg_reg_inst.rs1().clone()
-                                },
-                                ImmeValueType::Direct(imme),
-                                ty,
-                                None,
-                            );
-                            rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
+                        if imme >= -2048 && imme < 2048 {
+                            // we can use addi/slli/srli/srai
+                            if let Some(ty) = ty {
+                                let new_inst = RegImmeInstr::new(
+                                    reg_reg_inst.rd().clone(),
+                                    if u1_in_map {
+                                        reg_reg_inst.rs2().clone()
+                                    } else {
+                                        reg_reg_inst.rs1().clone()
+                                    },
+                                    ImmeValueType::Direct(imme),
+                                    ty,
+                                    None,
+                                );
+                                rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
+                            }
                         }
                     }
                 } else if let Some(reg_inst) = inst.as_any().downcast_ref::<RegInstr>() {
@@ -1467,8 +1470,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/50_short_circuit.sy")
-            .expect("cannot open source file");
+        let contents =
+            std::fs::read_to_string("test/homemade/float.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
