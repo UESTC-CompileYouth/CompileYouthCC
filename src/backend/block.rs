@@ -489,14 +489,9 @@ impl Block {
                         }
                     } else {
                         let (lhs, ty, rhs) = cmp_info.to_risc_v_branch();
-                        // println!("NNN {}   {} {}", next_block_id.is_none(), true_target_block_id, next_block_id.unwrap());
-                        // if next_block_id.is_none() || true_target_block_id != next_block_id.unwrap()
-                        if true {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + true_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(BranchInstr::new(lhs, rhs, label, ty)));
-                            // println!("DDDDDDDDDDDDDDDDDDDDDDDDDD");
-                        }
+                        let label = BLOCK_LABEL_PREFIX.to_string()
+                            + true_target_block_id.to_string().as_str();
+                        risc_v_instrs.push(Box::new(BranchInstr::new(lhs, rhs, label, ty)));
                         if next_block_id.is_none()
                             || false_target_block_id != next_block_id.unwrap()
                         {
