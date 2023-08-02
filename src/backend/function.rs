@@ -249,8 +249,6 @@ impl Function {
         }
         entry_block.add_out_edge(real_entry_block_id);
         blocks_vec[0].add_in_edge(entry_block_id);
-
-        let mut cmp_infos = HashMap::new();
         for self_block_id in start_block_id..end_block_id {
             let next_block_id = if self_block_id == end_block_id - 1 {
                 None
@@ -265,7 +263,6 @@ impl Function {
                 self,
                 llvm_function,
                 &mut mapping_info,
-                &mut cmp_infos,
             )
         }
         self.blocks = blocks_vec;

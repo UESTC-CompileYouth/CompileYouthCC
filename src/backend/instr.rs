@@ -5,7 +5,7 @@
 ///
 use super::{
     arch_info::{RegConvention, RegisterUsage, RA, SP},
-    misc::{AsmContext, StackObject},
+    misc::{AsmContext, InstCond, MappingInfo, StackObject},
     register::Reg,
 };
 use crate::common::r#type::Type;
@@ -190,6 +190,9 @@ pub(crate) enum RegType {
     Mv,
     Negw,
     Seqz,
+    Snez,
+    Sltz,
+    Sgtz,
 }
 
 // x[rd] = op x[rs]
@@ -241,6 +244,15 @@ impl InstrTrait for RegInstr {
             RegType::Seqz => {
                 asm.push_str(&format!("seqz {}, {}", self.rd, self.rs));
             }
+            RegType::Snez => {
+                asm.push_str(&format!("snez {}, {}", self.rd, self.rs));
+            }
+            RegType::Sltz => {
+                asm.push_str(&format!("sltz {}, {}", self.rd, self.rs));
+            }
+            RegType::Sgtz => {
+                asm.push_str(&format!("sgtz {}, {}", self.rd, self.rs));
+            }
         }
         asm.push_str("\n");
         asm
@@ -276,6 +288,8 @@ pub(crate) enum RegRegType {
     Srlw,
     Sra,
     Sraw,
+    And,
+    Or,
     // Pseudo Instruction
 }
 
@@ -355,6 +369,12 @@ impl InstrTrait for RegRegInstr {
             }
             RegRegType::Sraw => {
                 asm.push_str(&format!("sraw {}, {}, {}", self.rd, self.rs1, self.rs2));
+            }
+            RegRegType::And => {
+                asm.push_str(&format!("and {}, {}, {}", self.rd, self.rs1, self.rs2));
+            }
+            RegRegType::Or => {
+                asm.push_str(&format!("or {}, {}, {}", self.rd, self.rs1, self.rs2));
             }
         }
         asm.push_str("\n");
@@ -1366,4 +1386,74 @@ impl InstrTrait for FcmpInstr {
     fn regs_mut(&mut self) -> Vec<&mut Reg> {
         vec![&mut self.rd, &mut self.rs1, &mut self.rs2]
     }
+}
+
+pub fn gen_icmp_riscv_instrs(
+    rs1: Reg,
+    rs2: Reg,
+    cond_type: InstCond,
+    rd: Reg,
+    mapping_info: &mut MappingInfo,
+) -> Vec<Box<dyn InstrTrait>> {
+    assert!(*rs1.ty() == Type::Int);
+    assert!(*rs2.ty() == Type::Int);
+    assert!(*rd.ty() == Type::Int);
+    let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
+    match cond_type {
+        InstCond::Eq => {
+            instrs.push(Box::new(RegRegInstr::new(rd, rs1, rs2, RegRegType::Sub)));
+            instrs.push(Box::new(RegInstr::new(rd, rd, RegType::Seqz)));
+        }
+        InstCond::Ne => {
+            instrs.push(Box::new(RegRegInstr::new(rd, rs1, rs2, RegRegType::Sub)));
+            instrs.push(Box::new(RegInstr::new(rd, rd, RegType::Snez)));
+        }
+        InstCond::Lt => {
+            instrs.push(Box::new(RegRegInstr::new(rd, rs1, rs2, RegRegType::Sub)));
+            instrs.push(Box::new(RegInstr::new(rd, rd, RegType::Sltz)));
+        }
+        InstCond::Le => {
+            instrs.push(Box::new(RegRegInstr::new(rd, rs1, rs2, RegRegType::Sub)));
+            let tmp = mapping_info.new_reg(Type::Int);
+            instrs.push(Box::new(RegInstr::new(tmp, rd, RegType::Seqz)));
+            instrs.push(Box::new(RegInstr::new(rd, rd, RegType::Sltz)));
+            instrs.push(Box::new(RegRegInstr::new(rd, tmp, rd, RegRegType::Or)));
+        }
+        InstCond::Gt => {
+            instrs.push(Box::new(RegRegInstr::new(rd, rs1, rs2, RegRegType::Sub)));
+            instrs.push(Box::new(RegInstr::new(rd, rd, RegType::Sgtz)));
+        }
+        InstCond::Ge => {
+            instrs.push(Box::new(RegRegInstr::new(rd, rs1, rs2, RegRegType::Sub)));
+            let tmp = mapping_info.new_reg(Type::Int);
+            instrs.push(Box::new(RegInstr::new(tmp, rd, RegType::Seqz)));
+            instrs.push(Box::new(RegInstr::new(rd, rd, RegType::Sgtz)));
+            instrs.push(Box::new(RegRegInstr::new(rd, tmp, rd, RegRegType::Or)));
+        }
+    }
+    instrs
+}
+
+pub fn gen_fcmp_riscv_instr(
+    rs1: Reg,
+    rs2: Reg,
+    cond_type: InstCond,
+    rd: Reg,
+) -> Vec<Box<dyn InstrTrait>> {
+    assert!(*rs1.ty() == Type::Float);
+    assert!(*rs2.ty() == Type::Float);
+    assert!(*rd.ty() == Type::Int);
+    let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
+    match cond_type {
+        InstCond::Eq => instrs.push(Box::new(FcmpInstr::new(rd, rs1, rs2, FcmpType::FeqS))),
+        InstCond::Ne => {
+            instrs.push(Box::new(FcmpInstr::new(rd, rs1, rs2, FcmpType::FeqS)));
+            instrs.push(Box::new(RegInstr::new(rd, rd, RegType::Seqz)));
+        }
+        InstCond::Lt => instrs.push(Box::new(FcmpInstr::new(rd, rs1, rs2, FcmpType::FltS))),
+        InstCond::Le => instrs.push(Box::new(FcmpInstr::new(rd, rs1, rs2, FcmpType::FleS))),
+        InstCond::Gt => instrs.push(Box::new(FcmpInstr::new(rd, rs2, rs1, FcmpType::FltS))),
+        InstCond::Ge => instrs.push(Box::new(FcmpInstr::new(rd, rs2, rs1, FcmpType::FleS))),
+    }
+    instrs
 }

@@ -1148,6 +1148,8 @@ pub fn peephole(func: &mut Function) -> bool {
                             RegRegType::Srlw => ((x as u32) >> (y as u32)) as i32,
                             RegRegType::Sra => x >> y,
                             RegRegType::Sraw => x >> y,
+                            RegRegType::And => x & y,
+                            RegRegType::Or => x | y,
                         };
 
                         let new_inst = ImmeInstr::new_load_immediate(*reg_reg_inst.rd(), res);
@@ -1205,6 +1207,9 @@ pub fn peephole(func: &mut Function) -> bool {
                             RegType::Mv => x,
                             RegType::Negw => -x,
                             RegType::Seqz => (x == 0) as i32,
+                            RegType::Snez => (x != 0) as i32,
+                            RegType::Sgtz => (x > 0) as i32,
+                            RegType::Sltz => (x < 0) as i32,
                         };
                         let new_inst = ImmeInstr::new_load_immediate(*reg_inst.rd(), res);
                         rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
