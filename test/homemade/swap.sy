@@ -1,7 +1,7 @@
 int swap(int arr[]) {
     int t = arr[0];
     arr[0] = arr[1];
-    arr[1] = arr[0];
+    arr[1] = t;
 }
 
 int main() {
