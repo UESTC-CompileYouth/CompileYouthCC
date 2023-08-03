@@ -1295,105 +1295,105 @@ pub fn peephole(func: &mut Function) -> bool {
         }
     }
 
-    // remove mov
-    let analysis = LivenessAnalysis::of(func);
-    let mut push_map = vec![];
-    func.blocks_mut().iter_mut().for_each(|block| {
-        let mut remove_movs = vec![];
-        let liveness = analysis
-            .block_liveness_map
-            .get(&block.id())
-            .unwrap()
-            .borrow();
-        for inst_idx in 0..block.instrs().len() {
-            if let Some(reg_inst) = block.instrs()[inst_idx].as_any().downcast_ref::<RegInstr>() {
-                if matches!(reg_inst.ty(), RegType::Mv) {
-                    // y = x
-                    let (y, x, _) = reg_inst.get_operands();
-                    let mut removable = true;
-                    let mut need_push = true;
-                    for i in (inst_idx + 1)..block.instrs().len() {
-                        let inst = &block.instrs()[i];
+    // // remove mov
+    // let analysis = LivenessAnalysis::of(func);
+    // let mut push_map = vec![];
+    // func.blocks_mut().iter_mut().for_each(|block| {
+    //     let mut remove_movs = vec![];
+    //     let liveness = analysis
+    //         .block_liveness_map
+    //         .get(&block.id())
+    //         .unwrap()
+    //         .borrow();
+    //     for inst_idx in 0..block.instrs().len() {
+    //         if let Some(reg_inst) = block.instrs()[inst_idx].as_any().downcast_ref::<RegInstr>() {
+    //             if matches!(reg_inst.ty(), RegType::Mv) {
+    //                 // y = x
+    //                 let (y, x, _) = reg_inst.get_operands();
+    //                 let mut removable = true;
+    //                 let mut need_push = true;
+    //                 for i in (inst_idx + 1)..block.instrs().len() {
+    //                     let inst = &block.instrs()[i];
 
-                        // mov for return
-                        if inst.as_any().downcast_ref::<ReturnInstr>().is_some() && y == A0 {
-                            removable = false;
-                            need_push = false;
-                            break;
-                        } else if let Some(call) = inst.as_any().downcast_ref::<CallInstr>() {
-                            // mov for args
-                            if y >= A0 && y <= A7 && ((y - A0) as usize) < *call.int_arg_cnt() {
-                                removable = false;
-                                need_push = false;
-                                break;
-                            }
-                        }
+    //                     // mov for return
+    //                     if inst.as_any().downcast_ref::<ReturnInstr>().is_some() && y == A0 {
+    //                         removable = false;
+    //                         need_push = false;
+    //                         break;
+    //                     } else if let Some(call) = inst.as_any().downcast_ref::<CallInstr>() {
+    //                         // mov for args
+    //                         if y >= A0 && y <= A7 && ((y - A0) as usize) < *call.int_arg_cnt() {
+    //                             removable = false;
+    //                             need_push = false;
+    //                             break;
+    //                         }
+    //                     }
 
-                        let d = inst.get_operands().0;
-                        if d == x {
-                            if liveness.get_inst_out(i as i32).contains(&y) {
-                                removable = false;
-                            }
-                            need_push = false;
-                            break;
-                        } else if d == y {
-                            need_push = false;
-                            break;
-                        }
-                    }
+    //                     let d = inst.get_operands().0;
+    //                     if d == x {
+    //                         if liveness.get_inst_out(i as i32).contains(&y) {
+    //                             removable = false;
+    //                         }
+    //                         need_push = false;
+    //                         break;
+    //                     } else if d == y {
+    //                         need_push = false;
+    //                         break;
+    //                     }
+    //                 }
 
-                    if removable {
-                        // record removing the mov
-                        remove_movs.push(inst_idx);
-                        // push the mov to next block
-                        if need_push {
-                            // replacement maybe continue in succ block, so we need to push the mov to succ block
-                            for block_id in block.out_edges().iter() {
-                                let inst = Box::new(RegInstr::new_move(
-                                    reg_inst.rd().clone(),
-                                    reg_inst.rs().clone(),
-                                ));
-                                // println!("{}->{}: {}", block.id(), block_id, inst.gen_asm());
-                                push_map.push((*block_id, inst));
-                            }
-                        }
-                        // replace the use of y with x
-                        for i in (inst_idx + 1)..block.instrs().len() {
-                            let inst = &mut block.instrs_mut()[i];
-                            let def_cnt = inst.defs().len();
-                            if inst.regs_mut().len() > 0 {
-                                for reg in inst.regs_mut()[def_cnt..].iter_mut() {
-                                    if *reg.id() == y {
-                                        reg.set_id(x);
-                                        changed = true;
-                                    }
-                                }
-                            }
+    //                 if removable {
+    //                     // record removing the mov
+    //                     remove_movs.push(inst_idx);
+    //                     // push the mov to next block
+    //                     if need_push {
+    //                         // replacement maybe continue in succ block, so we need to push the mov to succ block
+    //                         for block_id in block.out_edges().iter() {
+    //                             let inst = Box::new(RegInstr::new_move(
+    //                                 reg_inst.rd().clone(),
+    //                                 reg_inst.rs().clone(),
+    //                             ));
+    //                             // println!("{}->{}: {}", block.id(), block_id, inst.gen_asm());
+    //                             push_map.push((*block_id, inst));
+    //                         }
+    //                     }
+    //                     // replace the use of y with x
+    //                     for i in (inst_idx + 1)..block.instrs().len() {
+    //                         let inst = &mut block.instrs_mut()[i];
+    //                         let def_cnt = inst.defs().len();
+    //                         if inst.regs_mut().len() > 0 {
+    //                             for reg in inst.regs_mut()[def_cnt..].iter_mut() {
+    //                                 if *reg.id() == y {
+    //                                     reg.set_id(x);
+    //                                     changed = true;
+    //                                 }
+    //                             }
+    //                         }
 
-                            let d = inst.get_operands().0;
-                            if d == y || d == x {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    //                         let d = inst.get_operands().0;
+    //                         if d == y || d == x {
+    //                             break;
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        // remove the mov
-        for inst_idx in remove_movs.iter().rev() {
-            // println!("REMOVE MOV: {}", block.instrs()[*inst_idx].gen_asm());
-            block.instrs_mut().remove(*inst_idx);
-            changed = true;
-        }
-    });
+    //     // remove the mov
+    //     for inst_idx in remove_movs.iter().rev() {
+    //         // println!("REMOVE MOV: {}", block.instrs()[*inst_idx].gen_asm());
+    //         block.instrs_mut().remove(*inst_idx);
+    //         changed = true;
+    //     }
+    // });
 
-    // push the mov to next block
-    for (block_id, inst) in push_map {
-        let block = func.block_mut(block_id);
-        block.instrs_mut().insert(0, inst);
-        changed = true;
-    }
+    // // push the mov to next block
+    // for (block_id, inst) in push_map {
+    //     let block = func.block_mut(block_id);
+    //     block.instrs_mut().insert(0, inst);
+    //     changed = true;
+    // }
 
     changed
 }
@@ -1476,7 +1476,7 @@ mod tests {
     #[test]
     fn test() {
         let contents =
-            std::fs::read_to_string("test/homemade/swap.sy").expect("cannot open source file");
+            std::fs::read_to_string("test/functional/55_sort_test1.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
