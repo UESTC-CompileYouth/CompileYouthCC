@@ -665,6 +665,15 @@ pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
     //     }
     // }
 
+    for block in func.blocks_mut() {
+        if block.instrs().len() == 0 {
+            block.instrs_mut().push(Box::new(RegInstr::new_move(
+                Reg::new_int(0),
+                Reg::new_int(0),
+            )));
+        }
+    }
+
     let mut allocation = HashMap::new();
 
     // 1. build  interference graph
@@ -1516,15 +1525,6 @@ mod tests {
 
         // let main = llvm_module.functions.get_mut("main").unwrap();
         for func in p.functions_mut() {
-            for block in func.blocks_mut() {
-                if block.instrs().len() == 0 {
-                    block.instrs_mut().push(Box::new(RegInstr::new_move(
-                        Reg::new_int(0),
-                        Reg::new_int(0),
-                    )));
-                }
-            }
-
             println!("{}: ", func.name());
 
             println!("BEFORE REG ALLOC: ");
@@ -1556,22 +1556,22 @@ mod tests {
                 }
             }
 
-            // {
-            //     let mut peephole_cnt = 0;
-            //     while peephole(func) {
-            //         println!("PEEPHOLE {}: ", peephole_cnt);
-            //         peephole_cnt += 1;
-            //         for b in func.blocks().iter() {
-            //             println!("{}:", b.name());
-            //             for i in b.instrs().iter() {
-            //                 print!("\t{}", i.gen_asm());
-            //             }
-            //         }
-            //         // if peephole_cnt == 3 {
-            //         //     break;
-            //         // }
-            //     }
-            // }
+            {
+                let mut peephole_cnt = 0;
+                while peephole(func) {
+                    println!("PEEPHOLE {}: ", peephole_cnt);
+                    peephole_cnt += 1;
+                    for b in func.blocks().iter() {
+                        println!("{}:", b.name());
+                        for i in b.instrs().iter() {
+                            print!("\t{}", i.gen_asm());
+                        }
+                    }
+                    // if peephole_cnt == 3 {
+                    //     break;
+                    // }
+                }
+            }
 
             insert_prologue(func);
             insert_epilogue(func);
