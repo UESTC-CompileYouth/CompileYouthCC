@@ -1475,8 +1475,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents =
-            std::fs::read_to_string("test/functional/55_sort_test1.sy").expect("cannot open source file");
+        let contents = std::fs::read_to_string("test/functional/55_sort_test1.sy")
+            .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
