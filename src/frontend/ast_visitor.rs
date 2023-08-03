@@ -1755,22 +1755,22 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 .expect("variable not found")
                 .clone();
 
-            // if *lvalue.is_omit_first_dim() {
-            //     // arg is a pointer, make a fake lvalue(lvalue is in another function stack frame)
-            //     let new_lvalue = SSALeftValue::new_addr(
-            //         self.cur_function().alloc_ssa_id(),
-            //         lvalue.get_type(),
-            //         lvalue.get_shape(),
-            //     );
-            //     let load_address_from_mem = Instruction::new(
-            //         Box::new(Load::new(lvalue.to_address(), new_lvalue.to_address())),
-            //         cur_bb,
-            //     );
-            //     self.cur_function().add_inst2bb(load_address_from_mem);
-            //     lvalue = new_lvalue;
-            // } else {
-            //     // arg is a value
-            // };
+            if *lvalue.is_omit_first_dim() {
+                // arg is a pointer, make a fake lvalue(lvalue is in another function stack frame)
+                let new_lvalue = SSALeftValue::new_addr(
+                    self.cur_function().alloc_ssa_id(),
+                    lvalue.get_type(),
+                    lvalue.get_shape(),
+                );
+                let load_address_from_mem = Instruction::new(
+                    Box::new(Load::new(lvalue.to_address(), new_lvalue.to_address())),
+                    cur_bb,
+                );
+                self.cur_function().add_inst2bb(load_address_from_mem);
+                lvalue = new_lvalue;
+            } else {
+                // arg is a value
+            };
 
             let ty = lvalue.get_type();
             let cur_func = self.cur_function();
