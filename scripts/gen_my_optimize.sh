@@ -19,7 +19,7 @@ if (($# >= 1)); then
 		for syfile in $source_dir/*.sy; do
 			echo "$syfile"
 			syfile_basename=$(basename $syfile)
-			./target/release/sysy-mem2reg $syfile -o $output_path/${syfile_basename%%.sy}.ll --log-level $log_level
+			./target/release/sysy-optimize $syfile -o $output_path/${syfile_basename%%.sy}.ll --log-level $log_level
 		done
 	else
 		syfile=$source_path # is file
@@ -27,9 +27,9 @@ if (($# >= 1)); then
 		if [ -z "$output_path" ]; then
 			output_path=$(dirname $syfile)
 		fi
-		./target/release/sysy-mem2reg $syfile -o $output_path/${syfile_basename%%.sy}.ll --log-level $log_level
+		./target/release/sysy-optimize $syfile -o $output_path/${syfile_basename%%.sy}.ll --log-level $log_level
 	fi
 else
-	echo "use it like $: sh ./scripts/gen_my_mem2reg.sh test/functional/30_continue.sy output/mem2reg/functional info \
-or $: sh ./scripts/gen_my_mem2reg.sh test/functional output/mem2reg/functional"
+	echo "use it like $: sh ./scripts/gen_my_optimize.sh test/functional/30_continue.sy output/optimize/functional info \
+or $: sh ./scripts/gen_my_optimize.sh test/functional output/optimize/functional"
 fi
