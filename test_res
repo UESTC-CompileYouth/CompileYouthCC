@@ -228,30 +228,87 @@ Exit code: 0
 Correct exit code: 0
 Test passed
 test 55_sort_test1.sy
+0
+1
+2
+3
 4
+5
+6
+7
+8
+9
 Exit code: 0
 Correct exit code: 0
 Test passed
 test 56_sort_test2.sy
+0
+1
+2
+3
 4
+5
+6
+7
+8
+9
 Exit code: 0
 Correct exit code: 0
 Test passed
 test 57_sort_test3.sy
-Exit code: 139
-Correct exit code: 0
-Test failed
-test 58_sort_test4.sy
-Exit code: 139
-Correct exit code: 0
-Test failed
-test 59_sort_test5.sy
+0
+1
+2
+3
 4
+5
+6
+7
+8
+9
+Exit code: 0
+Correct exit code: 0
+Test passed
+test 58_sort_test4.sy
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+Exit code: 0
+Correct exit code: 0
+Test passed
+test 59_sort_test5.sy
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
 Exit code: 0
 Correct exit code: 0
 Test passed
 test 60_sort_test6.sy
-Exit code: 139
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+Exit code: 0
 Correct exit code: 0
-Test failed
+Test passed
 test 61_sort_test7.sy
