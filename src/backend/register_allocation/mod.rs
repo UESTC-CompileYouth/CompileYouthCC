@@ -11,9 +11,9 @@ use self::liveness::LivenessAnalysis;
 use super::arch_info::{RegConvention, RegisterUsage, A0, A7, RA, SP};
 use super::function::Function;
 use super::instr::{
-    BranchInstr, CallInstr, ImmeInstr, ImmeType, ImmeValueType, InstrTrait, JumpInstr, JumpType,
-    LoadInstr, LoadStackAddrInstr, LoadType, RegImmeInstr, RegImmeType, RegInstr, RegRegInstr,
-    RegRegType, RegType, ReturnInstr, StoreInstr, StoreType,
+    BranchInstr, CallInstr, FRegInstr, FRegType, ImmeInstr, ImmeType, ImmeValueType, InstrTrait,
+    JumpInstr, JumpType, LoadInstr, LoadStackAddrInstr, LoadType, RegImmeInstr, RegImmeType,
+    RegInstr, RegRegInstr, RegRegType, RegType, ReturnInstr, StoreInstr, StoreType,
 };
 use super::register::Reg;
 
@@ -141,11 +141,6 @@ impl InterferenceGraph {
             if self.nodes.get(&nu).unwrap().move_adj_list.contains(&nv) {
                 if self.can_coalesce(nu, nv) {
                     // remove move edges if it's also a normal edge
-                    for (u, v) in self.move_edges.clone() {
-                        if self.has_edge(u, v) {
-                            self.remove_move_edge(u, v);
-                        }
-                    }
                     self.coalesce(nu, nv);
                     has_coalesce = true;
                 }
@@ -165,6 +160,9 @@ impl InterferenceGraph {
     }
 
     pub fn can_coalesce(&self, u: i32, v: i32) -> bool {
+        if self.has_edge(u, v) {
+            return false;
+        }
         let mut shared_neighbor = HashSet::new();
         let mut unshared_neighbor = HashSet::new();
 
@@ -245,6 +243,8 @@ impl InterferenceGraph {
 
         // combine u and v
         self.combined_mapping.insert(v, u);
+
+        self.remove_invalid_move_edges();
     }
 
     pub fn simplify(&mut self) -> Vec<i32> {
@@ -306,10 +306,21 @@ impl InterferenceGraph {
         res
     }
 
+    pub fn remove_invalid_move_edges(&mut self) {
+        // if the two node has a normal edge, remove the move edge
+        for (u, v) in self.move_edges.clone() {
+            if self.has_edge(u, v) {
+                self.remove_move_edge(u, v);
+            }
+        }
+    }
+
     // assign colors for special reg
     // e.g. a0-a7, func args
     // it can be seen as a simplification, which is followed by a color assignment
     pub fn assign_special(&mut self) {
+        self.remove_invalid_move_edges();
+
         let mut special_mapping = HashMap::new();
         // special reg alloc for a0-a7 which are used to pass args
         for reg in A0..=A7 {
@@ -420,6 +431,7 @@ impl InterferenceGraph {
 
     pub fn has_edge(&self, u: i32, v: i32) -> bool {
         self.nodes.get(&u).unwrap().adj_list.contains(&v)
+            || self.nodes.get(&v).unwrap().adj_list.contains(&u)
     }
 
     #[allow(dead_code)]
@@ -907,6 +919,11 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
             let mut out = block_liveness.get_inst_out(inst_id as i32).clone();
             // return value can be changed
             out.remove(&A0);
+            out.retain(|x| {
+                *x < 32
+                    && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
+                        == RegisterUsage::CallerSaved
+            });
 
             // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
             let mut store_reg_offset = vec![];
@@ -951,7 +968,8 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
 pub fn peephole(func: &mut Function) -> bool {
     let mut changed = false;
-    // remove `mov t0, t0`
+    // remove `mv t0, t0`
+    // remove `fmv ft0, ft0`
     for block in func.blocks_mut().iter_mut() {
         let mut insts_to_remove = vec![];
         for (i, inst) in block.instrs_mut().iter_mut().enumerate() {
@@ -961,6 +979,12 @@ pub fn peephole(func: &mut Function) -> bool {
                     insts_to_remove.push(i);
                 }
             }
+            // else if let Some(x) = inst.as_any().downcast_ref::<FRegInstr>() {
+            //     let (u, v, _) = x.get_operands();
+            //     if matches!(x.ty(), FRegType::FmvS) && u == v {
+            //         insts_to_remove.push(i);
+            //     }
+            // }
         }
 
         while !insts_to_remove.is_empty() {
@@ -1007,21 +1031,6 @@ pub fn peephole(func: &mut Function) -> bool {
                 }
             }
         }
-
-        // // 传递闭包
-        // for (block_name, jump_label) in jump_map.clone() {
-        //     let mut target_label = &jump_label;
-
-        //     let mut simplified = false;
-        //     while jump_map.contains_key(target_label) {
-        //         target_label = &jump_map[target_label];
-        //         simplified = true;
-        //     }
-
-        //     if simplified {
-        //         jump_map.insert(block_name, target_label.clone());
-        //     }
-        // }
 
         // jump simplification
         func.blocks_mut().iter_mut().for_each(|block| {
@@ -1537,19 +1546,22 @@ mod tests {
                 }
             }
 
-            // {
-            //     let mut peephole_cnt = 0;
-            //     while peephole(func) {
-            //         println!("PEEPHOLE {}: ", peephole_cnt);
-            //         peephole_cnt += 1;
-            //         for b in func.blocks().iter() {
-            //             println!("{}:", b.name());
-            //             for i in b.instrs().iter() {
-            //                 print!("\t{}", i.gen_asm());
-            //             }
-            //         }
-            //     }
-            // }
+            {
+                let mut peephole_cnt = 0;
+                while peephole(func) {
+                    println!("PEEPHOLE {}: ", peephole_cnt);
+                    peephole_cnt += 1;
+                    for b in func.blocks().iter() {
+                        println!("{}:", b.name());
+                        for i in b.instrs().iter() {
+                            print!("\t{}", i.gen_asm());
+                        }
+                    }
+                    // if peephole_cnt == 3 {
+                    //     break;
+                    // }
+                }
+            }
 
             insert_prologue(func);
             insert_epilogue(func);
