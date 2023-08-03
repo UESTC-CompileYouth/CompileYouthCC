@@ -423,6 +423,10 @@ impl SSALeftValue {
             self.ty.size() * self.shape.iter().product::<i32>() as u32
         }
     }
+
+    pub fn is_array_arg(&self) -> bool {
+        self.is_arg && self.shape.len() > 0
+    }
 }
 
 impl Display for SSALeftValue {
