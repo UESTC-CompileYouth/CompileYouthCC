@@ -7,6 +7,8 @@ int func(int arr[][5], int p) {
 }
 
 int main() {
+	int a = 1, b;
+	b = a;
 	int arr[2][5];
 	return func(arr, 7);
 }
