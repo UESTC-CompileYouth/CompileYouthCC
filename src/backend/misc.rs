@@ -72,7 +72,12 @@ impl MappingInfo {
         if let Some(reg) = self.reg_mapping.get(&rvalue) {
             return *reg;
         }
-        let reg = self.new_reg(rvalue.ty());
+        // float address use int register
+        let reg = if rvalue.is_addr() && rvalue.ty().is_float() {
+            self.new_reg(Type::Int)
+        } else {
+            self.new_reg(rvalue.ty())
+        };
         self.reg_mapping.insert(rvalue.clone(), reg);
         return reg;
     }
