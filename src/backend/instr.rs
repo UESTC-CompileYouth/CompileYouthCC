@@ -1184,10 +1184,13 @@ pub(crate) enum FRegType {
 }
 
 // f[rd] = op f[rs]
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct FRegInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     rs: Reg,
+    #[getset(get = "pub")]
     ty: FRegType,
 }
 

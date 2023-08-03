@@ -6,7 +6,7 @@ int main() {
 	int b = 3;
 	float c = a * b + 3;
 
-	if (c > b) {
+	if (c / c > b) {
 		return 1;
 	}
 	return 2;

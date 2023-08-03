@@ -11,9 +11,9 @@ use self::liveness::LivenessAnalysis;
 use super::arch_info::{RegConvention, RegisterUsage, A0, A7, RA, SP};
 use super::function::Function;
 use super::instr::{
-    BranchInstr, CallInstr, ImmeInstr, ImmeType, ImmeValueType, InstrTrait, JumpInstr, JumpType,
-    LoadInstr, LoadStackAddrInstr, LoadType, RegImmeInstr, RegImmeType, RegInstr, RegRegInstr,
-    RegRegType, RegType, ReturnInstr, StoreInstr, StoreType,
+    BranchInstr, CallInstr, FRegInstr, FRegType, ImmeInstr, ImmeType, ImmeValueType, InstrTrait,
+    JumpInstr, JumpType, LoadInstr, LoadStackAddrInstr, LoadType, RegImmeInstr, RegImmeType,
+    RegInstr, RegRegInstr, RegRegType, RegType, ReturnInstr, StoreInstr, StoreType,
 };
 use super::register::Reg;
 
@@ -956,13 +956,19 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
 pub fn peephole(func: &mut Function) -> bool {
     let mut changed = false;
-    // remove `mov t0, t0`
+    // remove `mv t0, t0`
+    // remove `fmv ft0, ft0`
     for block in func.blocks_mut().iter_mut() {
         let mut insts_to_remove = vec![];
         for (i, inst) in block.instrs_mut().iter_mut().enumerate() {
             if let Some(x) = inst.as_any().downcast_ref::<RegInstr>() {
                 let (u, v, _) = x.get_operands();
                 if matches!(x.ty(), RegType::Mv) && u == v {
+                    insts_to_remove.push(i);
+                }
+            } else if let Some(x) = inst.as_any().downcast_ref::<FRegInstr>() {
+                let (u, v, _) = x.get_operands();
+                if matches!(x.ty(), FRegType::FmvS) && u == v {
                     insts_to_remove.push(i);
                 }
             }
@@ -1012,21 +1018,6 @@ pub fn peephole(func: &mut Function) -> bool {
                 }
             }
         }
-
-        // // 传递闭包
-        // for (block_name, jump_label) in jump_map.clone() {
-        //     let mut target_label = &jump_label;
-
-        //     let mut simplified = false;
-        //     while jump_map.contains_key(target_label) {
-        //         target_label = &jump_map[target_label];
-        //         simplified = true;
-        //     }
-
-        //     if simplified {
-        //         jump_map.insert(block_name, target_label.clone());
-        //     }
-        // }
 
         // jump simplification
         func.blocks_mut().iter_mut().for_each(|block| {
@@ -1475,8 +1466,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/57_sort_test3.sy")
-            .expect("cannot open source file");
+        let contents =
+            std::fs::read_to_string("test/functional/95_float.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1542,22 +1533,22 @@ mod tests {
                 }
             }
 
-            // {
-            //     let mut peephole_cnt = 0;
-            //     while peephole(func) {
-            //         println!("PEEPHOLE {}: ", peephole_cnt);
-            //         peephole_cnt += 1;
-            //         for b in func.blocks().iter() {
-            //             println!("{}:", b.name());
-            //             for i in b.instrs().iter() {
-            //                 print!("\t{}", i.gen_asm());
-            //             }
-            //         }
-            //         // if peephole_cnt == 3 {
-            //         //     break;
-            //         // }
-            //     }
-            // }
+            {
+                let mut peephole_cnt = 0;
+                while peephole(func) {
+                    println!("PEEPHOLE {}: ", peephole_cnt);
+                    peephole_cnt += 1;
+                    for b in func.blocks().iter() {
+                        println!("{}:", b.name());
+                        for i in b.instrs().iter() {
+                            print!("\t{}", i.gen_asm());
+                        }
+                    }
+                    // if peephole_cnt == 3 {
+                    //     break;
+                    // }
+                }
+            }
 
             insert_prologue(func);
             insert_epilogue(func);
