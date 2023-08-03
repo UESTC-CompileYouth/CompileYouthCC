@@ -1475,7 +1475,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/homemade/float.sy")
+        let contents = std::fs::read_to_string("test/functional/57_sort_test3.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
@@ -1542,22 +1542,22 @@ mod tests {
                 }
             }
 
-            {
-                let mut peephole_cnt = 0;
-                while peephole(func) {
-                    println!("PEEPHOLE {}: ", peephole_cnt);
-                    peephole_cnt += 1;
-                    for b in func.blocks().iter() {
-                        println!("{}:", b.name());
-                        for i in b.instrs().iter() {
-                            print!("\t{}", i.gen_asm());
-                        }
-                    }
-                    // if peephole_cnt == 3 {
-                    //     break;
-                    // }
-                }
-            }
+            // {
+            //     let mut peephole_cnt = 0;
+            //     while peephole(func) {
+            //         println!("PEEPHOLE {}: ", peephole_cnt);
+            //         peephole_cnt += 1;
+            //         for b in func.blocks().iter() {
+            //             println!("{}:", b.name());
+            //             for i in b.instrs().iter() {
+            //                 print!("\t{}", i.gen_asm());
+            //             }
+            //         }
+            //         // if peephole_cnt == 3 {
+            //         //     break;
+            //         // }
+            //     }
+            // }
 
             insert_prologue(func);
             insert_epilogue(func);
