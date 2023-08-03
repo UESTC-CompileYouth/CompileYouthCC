@@ -153,7 +153,7 @@ impl Function {
                 int_arg_count += 1;
             } else if arg_data.get_type() == Type::Float {
                 if float_arg_count < RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
-                    entry_block.push_back(Box::new(RegInstr::new_move(
+                    entry_block.push_back(Box::new(FRegInstr::new_fmove(
                         cur_reg,
                         Reg::new_float(RegConvention::<f32>::ARGUMENT_REGISTERS[float_arg_count]),
                     )));

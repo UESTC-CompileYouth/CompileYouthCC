@@ -1191,6 +1191,12 @@ pub(crate) struct FRegInstr {
     ty: FRegType,
 }
 
+impl FRegInstr {
+    pub fn new_fmove(rd: Reg, rs: Reg) -> Self {
+        Self::new(rd, rs, FRegType::FmvS)
+    }
+}
+
 impl InstrTrait for FRegInstr {
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -1229,8 +1235,6 @@ pub(crate) enum FRegRegConvertType {
     FclassS, // x[rd] = classifys(f[rs1])
     FmvXW,   // x[rd] = sext(f[rs1][31:0])
     FmvWX,   // f[rd][31:0] = x[rs1]
-    // Pseudo Instruction
-    FmvS
 }
 
 // f[rd] = op x[rs]
@@ -1274,11 +1278,6 @@ impl InstrTrait for FRegRegInstr {
                 assert!(self.rd.ty() == &Type::Float);
                 assert!(self.rs.ty() == &Type::Int);
                 format!("fmv.w.x {}, {}", self.rd, self.rs)
-            }
-            FRegRegConvertType::FmvS => {
-                assert!(self.rd.ty() == &Type::Float);
-                assert!(self.rs.ty() == &Type::Float);
-                format!("fmv.s {}, {}", self.rd, self.rs)
             }
         };
         asm.push_str("\n");

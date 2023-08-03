@@ -432,10 +432,10 @@ impl Block {
                             )));
                         } else {
                             let float_ret_value = mapping_info.from_ssa_rvalue(ret_value);
-                            risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                            risc_v_instrs.push(Box::new(FRegInstr::new(
                                 Reg::new(FA0, Type::Float), // f10 f11 are return value register
                                 float_ret_value,
-                                FRegRegConvertType::FmvWX,
+                                FRegType::FmvS,
                             )));
                         }
                     } else if ret_value.ty().is_int() {
@@ -631,10 +631,10 @@ impl Block {
                 if let Some(ret) = call_instr.ret() {
                     let rd = mapping_info.from_ssa_rvalue(ret);
                     if ret.ty().is_float() {
-                        risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                        risc_v_instrs.push(Box::new(FRegInstr::new(
                             rd,
                             Reg::new(FA0, Type::Float),
-                            FRegRegConvertType::FmvWX,
+                            FRegType::FmvS,
                         )));
                     } else if ret.ty().is_int() {
                         risc_v_instrs.push(Box::new(RegInstr::new(
