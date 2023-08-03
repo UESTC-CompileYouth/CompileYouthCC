@@ -895,15 +895,32 @@ impl InstrTrait for LoadStackInstr {
     }
     fn gen_asm(&self) -> String {
         assert!(*self.rd.ty() == Type::Int);
+        let size = *self.stack_object.borrow().size();
         if self.offset == -1 {
-            format!(
-                "lw {}, {}(sp)\n",
-                self.rd,
-                *self.stack_object.borrow().position()
-            )
+            if size == 4 {
+                return format!(
+                    "lw {}, {}(sp)\n",
+                    self.rd,
+                    *self.stack_object.borrow().position()
+                );
+            } else if size == 8 {
+                return format!(
+                    "ld {}, {}(sp)\n",
+                    self.rd,
+                    *self.stack_object.borrow().position()
+                );
+            } else {
+                unreachable!("size of stack object is not 4 or 8");
+            }
         } else {
             assert!(self.offset >= -2048 && self.offset <= 2047);
-            format!("lw {}, {}(sp)\n", self.rd, self.offset)
+            if size == 4 {
+                return format!("lw {}, {}(sp)\n", self.rd, self.offset);
+            } else if size == 8 {
+                return format!("ld {}, {}(sp)\n", self.rd, self.offset);
+            } else {
+                unreachable!("size of stack object is not 4 or 8");
+            }
         }
     }
     fn uses(&self) -> Vec<Reg> {

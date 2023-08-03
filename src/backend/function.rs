@@ -133,7 +133,7 @@ impl Function {
         let mut float_arg_count = 0;
         for arg_data in llvm_function.arg_list().as_normal().unwrap().iter() {
             let cur_reg = mapping_info.from_ssa_rvalue(&arg_data.to_arg_rvalue());
-            if arg_data.get_type() == Type::Int {
+            if arg_data.get_type() == Type::Int || arg_data.is_array_arg() {
                 if int_arg_count < RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
                     entry_block.push_back(Box::new(RegInstr::new_move(
                         cur_reg,
