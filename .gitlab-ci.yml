@@ -16,8 +16,6 @@ pre_check:
     - rustc --version
     - cargo update
     - cargo fmt --all --check
-    - cargo check --release
-    - cargo check --tests --release
   interruptible: true
 
 
