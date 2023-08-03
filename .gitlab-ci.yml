@@ -35,6 +35,7 @@ unit_test:
 functional_test:
   stage: test
   script:
+    - rm -rf ci_output
     - cargo clean
     - cargo update
     - cargo update -p time@0.3.25 --precise 0.3.23
