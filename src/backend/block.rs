@@ -237,20 +237,19 @@ impl Block {
                 }
             } else if let Some(load_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Load>()
             {
+                let d1 = load_instr.d1();
+                let rd = mapping_info.from_ssa_rvalue(d1);
                 let addr = load_instr.addr();
                 if addr.is_global() {
                     let symbol = addr.global_name().unwrap().to_string();
-                    risc_v_instrs.push(Box::new(LoadGlobalInstr::new(
-                        mapping_info.from_ssa_rvalue(load_instr.d1()),
-                        symbol,
-                    )))
+                    risc_v_instrs.push(Box::new(LoadGlobalInstr::new(rd, symbol)))
                 } else {
-                    risc_v_instrs.push(Box::new(LoadInstr::new(
-                        mapping_info.from_ssa_rvalue(load_instr.d1()),
-                        mapping_info.from_ssa_rvalue(addr),
-                        0,
-                        LoadType::Lw,
-                    )));
+                    let rs1 = mapping_info.from_ssa_rvalue(addr);
+                    if d1.is_addr() {
+                        risc_v_instrs.push(Box::new(LoadInstr::new(rd, rs1, 0, LoadType::Ld)));
+                    } else {
+                        risc_v_instrs.push(Box::new(LoadInstr::new(rd, rs1, 0, LoadType::Lw)));
+                    }
                 }
             } else if let Some(store_instr) =
                 llvm_instr.as_any().downcast_ref::<llvm::instr::Store>()
@@ -270,12 +269,12 @@ impl Block {
                     let symbol = addr.global_name().unwrap().to_string();
                     risc_v_instrs.push(Box::new(StoreGlobalInstr::new(rs, symbol, rt)));
                 } else {
-                    risc_v_instrs.push(Box::new(StoreInstr::new(
-                        mapping_info.from_ssa_rvalue(store_instr.addr()),
-                        rs,
-                        0,
-                        StoreType::Sw,
-                    )));
+                    let rs1 = mapping_info.from_ssa_rvalue(addr);
+                    if s1_ssa.is_addr() {
+                        risc_v_instrs.push(Box::new(StoreInstr::new(rs1, rs, 0, StoreType::Sd)));
+                    } else {
+                        risc_v_instrs.push(Box::new(StoreInstr::new(rs1, rs, 0, StoreType::Sw)));
+                    }
                 }
             } else if let Some(gep_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Gep>() {
                 // todo: address
