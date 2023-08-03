@@ -1471,7 +1471,7 @@ mod tests {
     #[test]
     fn test() {
         let contents =
-            std::fs::read_to_string("test/homemade/float.sy").expect("cannot open source file");
+            std::fs::read_to_string("test/homemade/swap.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1537,19 +1537,19 @@ mod tests {
                 }
             }
 
-            {
-                let mut peephole_cnt = 0;
-                while peephole(func) {
-                    println!("PEEPHOLE {}: ", peephole_cnt);
-                    peephole_cnt += 1;
-                    for b in func.blocks().iter() {
-                        println!("{}:", b.name());
-                        for i in b.instrs().iter() {
-                            print!("\t{}", i.gen_asm());
-                        }
-                    }
-                }
-            }
+            // {
+            //     let mut peephole_cnt = 0;
+            //     while peephole(func) {
+            //         println!("PEEPHOLE {}: ", peephole_cnt);
+            //         peephole_cnt += 1;
+            //         for b in func.blocks().iter() {
+            //             println!("{}:", b.name());
+            //             for i in b.instrs().iter() {
+            //                 print!("\t{}", i.gen_asm());
+            //             }
+            //         }
+            //     }
+            // }
 
             insert_prologue(func);
             insert_epilogue(func);
