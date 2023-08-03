@@ -10,11 +10,7 @@ use self::liveness::LivenessAnalysis;
 
 use super::arch_info::{RegConvention, RegisterUsage, A0, A7, RA, SP};
 use super::function::Function;
-use super::instr::{
-    BranchInstr, CallInstr, FRegInstr, FRegType, ImmeInstr, ImmeType, ImmeValueType, InstrTrait,
-    JumpInstr, JumpType, LoadInstr, LoadStackAddrInstr, LoadType, RegImmeInstr, RegImmeType,
-    RegInstr, RegRegInstr, RegRegType, RegType, ReturnInstr, StoreInstr, StoreType,
-};
+use super::instr::*;
 use super::register::Reg;
 
 const MAX_USABLE_REG_CNT: usize = 27;
