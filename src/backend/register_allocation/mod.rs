@@ -1489,7 +1489,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/61_sort_test7.sy")
+        let contents = std::fs::read_to_string("test/functional/64_calculator.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
