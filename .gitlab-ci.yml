@@ -15,7 +15,7 @@ pre_check:
   script:
     - rustc --version
     - cargo update
-    - cargo update -p time@0.3.24 --precise 0.3.23
+    - cargo update -p time@0.3.25 --precise 0.3.23
     - cargo fmt --all --check
     - cargo check --release
     - cargo check --tests --release
@@ -27,7 +27,7 @@ unit_test:
   stage: test
   script:
     - cargo update
-    - cargo update -p time@0.3.24 --precise 0.3.23
+    - cargo update -p time@0.3.25 --precise 0.3.23
     - cargo test
 
 
@@ -36,7 +36,7 @@ functional_test:
   stage: test
   script:
     - cargo update
-    - cargo update -p time@0.3.24 --precise 0.3.23
+    - cargo update -p time@0.3.25 --precise 0.3.23
     - cargo build -r
     - bash scripts/ci_functional_test.sh /home/gitlab-runner/Tools/qemu/riscv-gnu-toolchain/opt-riscv-rv64/bin /usr/bin/qemu-riscv64-static
     
