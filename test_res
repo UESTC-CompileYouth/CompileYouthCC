@@ -312,3 +312,8 @@ Exit code: 0
 Correct exit code: 0
 Test passed
 test 61_sort_test7.sy
+1: 1
+Exit code: 0
+Correct exit code: 0
+Test passed
+test 62_percolation.sy

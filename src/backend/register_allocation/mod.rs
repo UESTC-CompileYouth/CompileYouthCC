@@ -87,6 +87,8 @@ impl InterferenceGraph {
             move_edges: HashSet::new(),
         };
 
+        ig.add_node(0);
+
         for (blockid, block_liveness) in liveness.block_liveness_map.iter() {
             let block_liveness = block_liveness.borrow();
             for inst_id in block_liveness.insts.iter() {
@@ -122,8 +124,6 @@ impl InterferenceGraph {
                 }
             }
         }
-
-        // println!("func: {} NODES: {:?}", liveness.function.name(), ig.nodes.keys().sorted());
 
         ig
     }
@@ -322,6 +322,7 @@ impl InterferenceGraph {
         for reg in A0..=A7 {
             special_mapping.insert(reg, reg - 5);
         }
+        special_mapping.insert(0, -5);
 
         for (reg_id, color) in special_mapping.clone().iter() {
             if let Some(mut node) = self.nodes.get_mut(reg_id) {
@@ -398,9 +399,9 @@ impl InterferenceGraph {
     }
 
     pub fn add_node(&mut self, reg_id: i32) {
-        if reg_id == 0 {
-            return;
-        }
+        // if reg_id == 0 {
+        //     return;
+        // }
         if !self.nodes.contains_key(&reg_id) {
             self.nodes.insert(
                 reg_id,
@@ -669,6 +670,8 @@ pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
     // 1. build  interference graph
     let mut ig = InterferenceGraph::build(func, MAX_USABLE_REG_CNT);
     ig.assign_special();
+
+    // println!("{:?}", ig);
 
     let mut stk = vec![];
 
@@ -1405,7 +1408,9 @@ mod tests {
 
     use crate::{
         backend::{
+            instr::RegInstr,
             program::Program,
+            register::Reg,
             register_allocation::{
                 allocate_load_stack, backpatch_arg_stack_offset, insert_epilogue, insert_prologue,
                 peephole, register_allocate, save_callee_saved_regs, save_caller_saved_regs,
@@ -1475,7 +1480,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/55_sort_test1.sy")
+        let contents = std::fs::read_to_string("test/functional/61_sort_test7.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
@@ -1511,6 +1516,15 @@ mod tests {
 
         // let main = llvm_module.functions.get_mut("main").unwrap();
         for func in p.functions_mut() {
+            for block in func.blocks_mut() {
+                if block.instrs().len() == 0 {
+                    block.instrs_mut().push(Box::new(RegInstr::new_move(
+                        Reg::new_int(0),
+                        Reg::new_int(0),
+                    )));
+                }
+            }
+
             println!("{}: ", func.name());
 
             println!("BEFORE REG ALLOC: ");
