@@ -1747,48 +1747,50 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             }
         } else {
             let cur_bb = self.cur_bb.unwrap();
-            let lvalue = self
+            let mut lvalue = self
                 .cur_vtable
                 .as_mut()
                 .unwrap()
                 .get_variable_mut(res.as_str())
                 .expect("variable not found")
                 .clone();
-            let mut lvalue_addr = if *lvalue.is_omit_first_dim() {
-                // arg is a pointer, make a fake lvalue(lvalue is in another function stack frame)
-                let new_lvalue = SSALeftValue::new_addr(
-                    self.cur_function().alloc_ssa_id(),
-                    lvalue.get_type(),
-                    lvalue.get_shape(),
-                );
-                let load_address_from_mem = Instruction::new(
-                    Box::new(Load::new(lvalue.to_address(), new_lvalue.to_address())),
-                    cur_bb,
-                );
-                self.cur_function().add_inst2bb(load_address_from_mem);
-                new_lvalue.to_address()
-            } else {
-                // arg is a value
-                lvalue.to_address()
-            };
+
+            // if *lvalue.is_omit_first_dim() {
+            //     // arg is a pointer, make a fake lvalue(lvalue is in another function stack frame)
+            //     let new_lvalue = SSALeftValue::new_addr(
+            //         self.cur_function().alloc_ssa_id(),
+            //         lvalue.get_type(),
+            //         lvalue.get_shape(),
+            //     );
+            //     let load_address_from_mem = Instruction::new(
+            //         Box::new(Load::new(lvalue.to_address(), new_lvalue.to_address())),
+            //         cur_bb,
+            //     );
+            //     self.cur_function().add_inst2bb(load_address_from_mem);
+            //     lvalue = new_lvalue;
+            // } else {
+            //     // arg is a value
+            // };
 
             let ty = lvalue.get_type();
-            let mut shape = lvalue.get_shape();
-            for i in indexs.iter() {
-                let cur_func = self.cur_function();
-                let new_shape = shape[1..].to_vec();
+            let cur_func = self.cur_function();
+            for index in indexs.into_iter() {
+                let new_shape = lvalue.get_shape()[1..].to_vec();
                 let new_lvalue =
                     SSALeftValue::new_addr(cur_func.alloc_ssa_id(), ty.clone(), new_shape.clone());
                 let gepir = Instruction::new(
-                    Box::new(Gep::new(lvalue_addr, new_lvalue.to_address(), i.clone())),
+                    Box::new(Gep::new(
+                        lvalue.to_address(),
+                        new_lvalue.to_address(),
+                        index,
+                    )),
                     cur_bb,
                 );
                 cur_func.add_inst2bb(gepir);
-                shape = new_shape;
-                lvalue_addr = new_lvalue.to_address();
+                lvalue = new_lvalue;
             }
             log::trace!("leaveLVal_1");
-            return AstReturnContent::Exp(AstExp::SSAValue(lvalue_addr)).into();
+            return AstReturnContent::Exp(AstExp::SSAValue(lvalue.to_address())).into();
             // return lvalue address
         }
     }
@@ -1824,15 +1826,25 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             log::trace!("visit_primaryExp2_1 end");
             res
         } else {
+            // let res = self.visit_children(ctx);
+            // log::trace!("visit_primaryExp2_2 end");
+            // res
             ctx.lVal().unwrap().accept(self);
             let return_content = self.return_content();
             let addr = return_content.into_exp().unwrap().into_ssa_value().unwrap();
-            let reg = SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), addr.get_type());
-            let load_value =
-                Instruction::new(Box::new(Load::new(addr, reg.clone())), self.cur_bb.unwrap());
-            self.cur_function().add_inst2bb(load_value);
-            log::trace!("visit_primaryExp2_2 end");
-            return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
+            // println!("addr: {:?}", addr);
+            if addr.is_array_addr() {
+                log::trace!("visit_primaryExp2_2 end");
+                return AstReturnContent::Exp(AstExp::SSAValue(addr)).into();
+            } else {
+                let reg =
+                    SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), addr.get_type());
+                let load_value =
+                    Instruction::new(Box::new(Load::new(addr, reg.clone())), self.cur_bb.unwrap());
+                self.cur_function().add_inst2bb(load_value);
+                log::trace!("visit_primaryExp2_3 end");
+                return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
+            }
         }
     }
 

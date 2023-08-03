@@ -126,6 +126,13 @@ impl SSARightValue {
         }
     }
 
+    pub fn is_array_addr(&self) -> bool {
+        match &self.inner {
+            SSARightValueInner::Address(_, _, shape, _, _) => shape.len() > 0,
+            _ => false,
+        }
+    }
+
     pub fn is_arg(&self) -> bool {
         match self.inner {
             SSARightValueInner::Address(_, _, _, _, is_arg) => is_arg,
