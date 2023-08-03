@@ -1,4 +1,5 @@
 use crate::common::r#type::Type;
+use crate::frontend::llvm::instr::FMov;
 use crate::frontend::llvm::{
     function::Function,
     instr::{Branch, Instruction, Mov, Phi},
@@ -101,10 +102,18 @@ pub fn remove_phi_in_function(f: &mut Function) {
             // println!("{:?}", mov_vec);
             let emit_copy = |a: &SSARightValue, b: &SSARightValue, f: &mut Function| {
                 // println!("!!!!!!!!!!!!");
-                f.add_inst2bb(Instruction::new(
-                    Box::new(Mov::new(b.clone(), a.clone())),
-                    new_bb_id,
-                ));
+                assert!(a.get_type() == b.get_type());
+                if a.get_type() == Type::Float {
+                    f.add_inst2bb(Instruction::new(
+                        Box::new(FMov::new(b.clone(), a.clone())),
+                        new_bb_id,
+                    ));
+                } else {
+                    f.add_inst2bb(Instruction::new(
+                        Box::new(Mov::new(b.clone(), a.clone())),
+                        new_bb_id,
+                    ));
+                }
             };
 
             let mut pred = HashMap::new();
