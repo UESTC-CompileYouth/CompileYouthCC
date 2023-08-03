@@ -263,45 +263,71 @@ impl Block {
                 }
             } else if let Some(load_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Load>()
             {
+                let d1 = load_instr.d1();
+                let rd = mapping_info.from_ssa_rvalue(d1);
                 let addr = load_instr.addr();
                 if addr.is_global() {
                     let symbol = addr.global_name().unwrap().to_string();
-                    risc_v_instrs.push(Box::new(LoadGlobalInstr::new(
-                        mapping_info.from_ssa_rvalue(load_instr.d1()),
-                        symbol,
-                    )))
+                    if *rd.ty() == Type::Int {
+                        risc_v_instrs.push(Box::new(LoadGlobalInstr::new(rd, symbol)))
+                    } else {
+                        let rt = mapping_info.new_reg(Type::Int);
+                        risc_v_instrs.push(Box::new(FLoadGlobalInstr::new(rd, symbol, rt)))
+                    }
                 } else {
-                    risc_v_instrs.push(Box::new(LoadInstr::new(
-                        mapping_info.from_ssa_rvalue(load_instr.d1()),
-                        mapping_info.from_ssa_rvalue(addr),
-                        0,
-                        LoadType::Lw,
-                    )));
+                    let rs1 = mapping_info.from_ssa_rvalue(addr);
+                    if *rd.ty() == Type::Int {
+                        risc_v_instrs.push(Box::new(LoadInstr::new(rd, rs1, 0, LoadType::Lw)));
+                    } else {
+                        risc_v_instrs.push(Box::new(FLoadInstr::new(rd, rs1, 0)));
+                    }
                 }
             } else if let Some(store_instr) =
                 llvm_instr.as_any().downcast_ref::<llvm::instr::Store>()
             {
                 let s1_ssa = store_instr.s1();
                 let rs = if s1_ssa.is_immediate() {
-                    let rs = mapping_info.new_reg(s1_ssa.ty());
-                    let imme = s1_ssa.get_value().unwrap().into_int().unwrap();
-                    risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(rs, imme)));
-                    rs
+                    if s1_ssa.ty() == Type::Int {
+                        let rs = mapping_info.new_reg(s1_ssa.ty());
+                        let imme = s1_ssa.get_value().unwrap().into_int().unwrap();
+                        risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(rs, imme)));
+                        rs
+                    } else if s1_ssa.ty() == Type::Float {
+                        let imme = s1_ssa.get_value().unwrap().into_float().unwrap();
+                        let int_rs = mapping_info.new_reg(Type::Int);
+                        risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(
+                            int_rs,
+                            imme.to_bits() as _,
+                        )));
+                        let rs = mapping_info.new_reg(Type::Float);
+                        risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                            rs,
+                            int_rs,
+                            FRegRegConvertType::FmvWX,
+                        )));
+                        rs
+                    } else {
+                        unreachable!()
+                    }
                 } else {
                     mapping_info.from_ssa_rvalue(s1_ssa)
                 };
                 let addr = store_instr.addr();
                 if addr.is_global() {
-                    let rt = mapping_info.new_reg(Type::Int);
                     let symbol = addr.global_name().unwrap().to_string();
-                    risc_v_instrs.push(Box::new(StoreGlobalInstr::new(rs, symbol, rt)));
+                    let rt = mapping_info.new_reg(Type::Int);
+                    if *rs.ty() == Type::Int {
+                        risc_v_instrs.push(Box::new(StoreGlobalInstr::new(rs, symbol, rt)));
+                    } else {
+                        risc_v_instrs.push(Box::new(FStoreGlobalInstr::new(rs, symbol, rt)));
+                    }
                 } else {
-                    risc_v_instrs.push(Box::new(StoreInstr::new(
-                        mapping_info.from_ssa_rvalue(store_instr.addr()),
-                        rs,
-                        0,
-                        StoreType::Sw,
-                    )));
+                    let rs1 = mapping_info.from_ssa_rvalue(addr);
+                    if *rs.ty() == Type::Int {
+                        risc_v_instrs.push(Box::new(StoreInstr::new(rs1, rs, 0, StoreType::Sw)));
+                    } else {
+                        risc_v_instrs.push(Box::new(FStoreInstr::new(rs1, rs, 0)));
+                    }
                 }
             } else if let Some(gep_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Gep>() {
                 // todo: address
