@@ -1425,7 +1425,7 @@ mod tests {
             program::Program,
             register_allocation::{
                 allocate_load_stack, backpatch_arg_stack_offset, insert_epilogue, insert_prologue,
-                peephole, register_allocate, save_callee_saved_regs, save_caller_saved_regs,
+                register_allocate, save_callee_saved_regs, save_caller_saved_regs,
                 InterferenceGraph,
             },
         },
