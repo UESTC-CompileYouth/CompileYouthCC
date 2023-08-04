@@ -1524,7 +1524,7 @@ impl InstrTrait for FLoadGlobalInstr {
         assert!(*self.rd.ty() == Type::Float);
         assert!(*self.rt.ty() == Type::Int);
         format!(
-            "lui {}, %pcrel_hi({})\nflw {}, %pcrel_lo({})({})\n",
+            "lui {}, %hi({})\nflw {}, %lo({})({})\n",
             self.rt, self.symbol, self.rd, self.symbol, self.rt
         )
     }
