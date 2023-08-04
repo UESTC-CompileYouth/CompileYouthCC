@@ -6,7 +6,7 @@ use getset::{Getters, MutGetters, Setters};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, EnumAsInner)]
+#[derive(Debug, EnumAsInner, Clone)]
 pub enum ArgumentList {
     Variadic,
     Normal(Vec<SSALeftValue>),
@@ -15,6 +15,15 @@ pub enum ArgumentList {
 impl Default for ArgumentList {
     fn default() -> Self {
         Self::Normal(Vec::new())
+    }
+}
+
+impl ArgumentList {
+    pub fn is_normal(&self) -> bool {
+        match self {
+            Self::Normal(_) => true,
+            _ => false,
+        }
     }
 }
 
