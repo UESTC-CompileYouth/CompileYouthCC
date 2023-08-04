@@ -1293,11 +1293,20 @@ pub(crate) enum FRegType {
 }
 
 // f[rd] = op f[rs]
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct FRegInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     rs: Reg,
+    #[getset(get = "pub")]
     ty: FRegType,
+}
+
+impl FRegInstr {
+    pub fn new_fmove(rd: Reg, rs: Reg) -> Self {
+        Self::new(rd, rs, FRegType::FmvS)
+    }
 }
 
 impl InstrTrait for FRegInstr {
@@ -1338,7 +1347,6 @@ pub(crate) enum FRegRegConvertType {
     FclassS, // x[rd] = classifys(f[rs1])
     FmvXW,   // x[rd] = sext(f[rs1][31:0])
     FmvWX,   // f[rd][31:0] = x[rs1]
-             // Pseudo Instruction
 }
 
 // f[rd] = op x[rs]
@@ -1480,9 +1488,9 @@ impl InstrTrait for FcmpInstr {
         assert!(*self.rs2.ty() == Type::Float);
         assert!(*self.rd.ty() == Type::Int);
         let asm = match self.ty {
-            FcmpType::FeqS => format!("feq.s {}, {}, {}", self.rd, self.rs1, self.rs2),
-            FcmpType::FltS => format!("flt.s {}, {}, {}", self.rd, self.rs1, self.rs2),
-            FcmpType::FleS => format!("fle.s {}, {}, {}", self.rd, self.rs1, self.rs2),
+            FcmpType::FeqS => format!("feq.s {}, {}, {}\n", self.rd, self.rs1, self.rs2),
+            FcmpType::FltS => format!("flt.s {}, {}, {}\n", self.rd, self.rs1, self.rs2),
+            FcmpType::FleS => format!("fle.s {}, {}, {}\n", self.rd, self.rs1, self.rs2),
         };
         asm
     }
@@ -1494,6 +1502,68 @@ impl InstrTrait for FcmpInstr {
     }
     fn regs_mut(&mut self) -> Vec<&mut Reg> {
         vec![&mut self.rd, &mut self.rs1, &mut self.rs2]
+    }
+}
+
+// Pesudo Instruction: floating-point load global, most for global float variables
+#[derive(Debug, new)]
+pub(crate) struct FLoadGlobalInstr {
+    rd: Reg,
+    symbol: String,
+    rt: Reg,
+}
+
+impl InstrTrait for FLoadGlobalInstr {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn gen_asm(&self) -> String {
+        assert!(*self.rd.ty() == Type::Float);
+        assert!(*self.rt.ty() == Type::Int);
+        format!("flw {}, {}, {}\n", self.rd, self.symbol, self.rt)
+    }
+    fn uses(&self) -> Vec<Reg> {
+        vec![]
+    }
+    fn defs(&self) -> Vec<Reg> {
+        vec![self.rd, self.rt]
+    }
+    fn regs_mut(&mut self) -> Vec<&mut Reg> {
+        vec![&mut self.rd, &mut self.rt]
+    }
+}
+
+// Pesudo Instruction: floating-point store global, most for global float variables
+#[derive(Debug, new)]
+pub(crate) struct FStoreGlobalInstr {
+    rd: Reg,
+    symbol: String,
+    rt: Reg,
+}
+
+impl InstrTrait for FStoreGlobalInstr {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn gen_asm(&self) -> String {
+        assert!(*self.rd.ty() == Type::Float);
+        assert!(*self.rt.ty() == Type::Int);
+        format!("fsw {}, {}, {}\n", self.rd, self.symbol, self.rt)
+    }
+    fn uses(&self) -> Vec<Reg> {
+        vec![self.rd, self.rt]
+    }
+    fn defs(&self) -> Vec<Reg> {
+        vec![]
+    }
+    fn regs_mut(&mut self) -> Vec<&mut Reg> {
+        vec![&mut self.rd, &mut self.rt]
     }
 }
 

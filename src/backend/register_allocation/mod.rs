@@ -986,6 +986,11 @@ pub fn peephole(func: &mut Function) -> bool {
                 if matches!(x.ty(), RegType::Mv) && u == v {
                     insts_to_remove.push(i);
                 }
+            } else if let Some(x) = inst.as_any().downcast_ref::<FRegInstr>() {
+                let (u, v, _) = x.get_operands();
+                if matches!(x.ty(), FRegType::FmvS) && u == v {
+                    insts_to_remove.push(i);
+                }
             }
             // else if let Some(x) = inst.as_any().downcast_ref::<FRegInstr>() {
             //     let (u, v, _) = x.get_operands();
@@ -1417,9 +1422,7 @@ mod tests {
 
     use crate::{
         backend::{
-            instr::RegInstr,
             program::Program,
-            register::Reg,
             register_allocation::{
                 allocate_load_stack, backpatch_arg_stack_offset, insert_epilogue, insert_prologue,
                 peephole, register_allocate, save_callee_saved_regs, save_caller_saved_regs,
@@ -1557,7 +1560,7 @@ mod tests {
             }
 
             {
-                let mut peephole_cnt = 0;
+                let mut _peephole_cnt = 0;
                 while peephole(func) {
                     println!("PEEPHOLE {}: ", peephole_cnt);
                     peephole_cnt += 1;
