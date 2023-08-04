@@ -284,19 +284,9 @@ Exit code: 0
 Correct exit code: 0
 Test passed
 test 59_sort_test5.sy
-0
-1
-2
-3
-4
-5
-6
-7
-8
-9
-Exit code: 0
+Exit code: 139
 Correct exit code: 0
-Test passed
+Test failed
 test 60_sort_test6.sy
 0
 1
@@ -312,8 +302,55 @@ Exit code: 0
 Correct exit code: 0
 Test passed
 test 61_sort_test7.sy
-1: 1
+0:
 Exit code: 0
 Correct exit code: 0
 Test passed
 test 62_percolation.sy
+-1
+Exit code: 0
+Correct exit code: 0
+Test passed
+test 63_big_int_mul.sy
+3102343761271952753654505476597868729361003112012671299112096683775968059149440439438030623917912792644636180Exit code: 0
+Correct exit code: 127
+Test failed
+test 64_calculator.sy
+Exit code: 139
+Correct exit code: 0
+Test failed
+test 65_color.sy
+1Exit code: 1
+Correct exit code: 127
+Test failed
+test 66_exgcd.sy
+13Exit code: 0
+Correct exit code: 0
+Test passed
+test 67_reverse_output.sy
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004120421213123000000000000000000000000Exit code: 0
+Correct exit code: 0
+Test passed
+test 68_brainfk.sy
+Exit code: 0
+Correct exit code: 127
+Test failed
+test 69_expr_eval.sy
+2
+2
+2
+Exit code: 0
+Correct exit code: 0
+Test passed
+test 70_dijkstra.sy
+0 0 
+Exit code: 0
+Correct exit code: 0
+Test passed
+test 71_full_conn.sy
+cat
+dog
+Exit code: 0
+Correct exit code: 0
+Test passed
+test 72_hanoi.sy

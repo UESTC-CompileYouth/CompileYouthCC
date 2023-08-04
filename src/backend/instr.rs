@@ -430,41 +430,66 @@ impl InstrTrait for RegImmeInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rd.ty() == Type::Int);
         assert!(*self.rs1.ty() == Type::Int);
+
+        let mut imme_strings = vec![];
+        let mut imme_flag = false;
+        let step = 2036;
         match self.offset {
             ImmeValueType::Direct(i) => {
-                assert!(i <= 2047 && i >= -2048, "offset {} out of range", i);
+                // assert!(i <= 2047 && i >= -2048, "offset {} out of range", i);
+                let mut offset = i;
+                imme_flag = true;
+                while offset > 2047 {
+                    imme_strings.push(format!("{}", step));
+                    offset -= step;
+                }
+                while offset < -2048 {
+                    imme_strings.push(format!("{}", -step));
+                    offset += step;
+                }
+                if offset != 0 || imme_strings.is_empty() {
+                    imme_strings.push(format!("{}", offset));
+                }
             }
             _ => {}
         }
-        let mut asm = String::new();
-        let imme_string = imme_string(&self.offset, &self.trunc);
-        match self.ty {
-            RegImmeType::Addi => {
-                asm.push_str(&format!("addi {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
-            RegImmeType::Addiw => {
-                asm.push_str(&format!("addiw {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
-            RegImmeType::Slli => {
-                asm.push_str(&format!("slli {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
-            RegImmeType::Slliw => {
-                asm.push_str(&format!("slliw {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
-            RegImmeType::Srli => {
-                asm.push_str(&format!("srli {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
-            RegImmeType::Srliw => {
-                asm.push_str(&format!("srliw {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
-            RegImmeType::Srai => {
-                asm.push_str(&format!("srai {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
-            RegImmeType::Sraiw => {
-                asm.push_str(&format!("sraiw {}, {}, {}", self.rd, self.rs1, imme_string));
-            }
+
+        if !imme_flag {
+            let imme_string = imme_string(&self.offset, &self.trunc);
+            imme_strings.push(imme_string);
         }
-        asm.push_str("\n");
+
+        let mut asm = String::new();
+
+        for imme_string in imme_strings {
+            match self.ty {
+                RegImmeType::Addi => {
+                    asm.push_str(&format!("addi {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+                RegImmeType::Addiw => {
+                    asm.push_str(&format!("addiw {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+                RegImmeType::Slli => {
+                    asm.push_str(&format!("slli {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+                RegImmeType::Slliw => {
+                    asm.push_str(&format!("slliw {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+                RegImmeType::Srli => {
+                    asm.push_str(&format!("srli {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+                RegImmeType::Srliw => {
+                    asm.push_str(&format!("srliw {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+                RegImmeType::Srai => {
+                    asm.push_str(&format!("srai {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+                RegImmeType::Sraiw => {
+                    asm.push_str(&format!("sraiw {}, {}, {}", self.rd, self.rs1, imme_string));
+                }
+            }
+            asm.push_str("\n");
+        }
         asm
     }
 
@@ -509,23 +534,42 @@ impl InstrTrait for LoadInstr {
     }
     fn gen_asm(&self) -> String {
         assert!(*self.rd.ty() == Type::Int);
-        assert!(self.offset >= -2048 && self.offset <= 2047);
+        // assert!(self.offset >= -2048 && self.offset <= 2047);
         let mut asm = String::new();
+
+        let mut steps = vec![];
+        let step = 2032;
+        let mut offset = self.offset;
+        while offset < -2048 {
+            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, -step));
+            offset += step;
+            steps.push(step);
+        }
+        while offset > 2047 {
+            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
+            offset -= step;
+            steps.push(-step);
+        }
+
         match self.ty {
             LoadType::Lb => {
-                asm.push_str(&format!("lb {}, {}({})", self.rd, self.offset, self.rs1));
+                asm.push_str(&format!("lb {}, {}({})", self.rd, offset, self.rs1));
             }
             LoadType::Lh => {
-                asm.push_str(&format!("lh {}, {}({})", self.rd, self.offset, self.rs1));
+                asm.push_str(&format!("lh {}, {}({})", self.rd, offset, self.rs1));
             }
             LoadType::Lw => {
-                asm.push_str(&format!("lw {}, {}({})", self.rd, self.offset, self.rs1));
+                asm.push_str(&format!("lw {}, {}({})", self.rd, offset, self.rs1));
             }
             LoadType::Ld => {
-                asm.push_str(&format!("ld {}, {}({})", self.rd, self.offset, self.rs1));
+                asm.push_str(&format!("ld {}, {}({})", self.rd, offset, self.rs1));
             }
         }
         asm.push_str("\n");
+
+        for step in steps {
+            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
+        }
         asm
     }
 
@@ -571,23 +615,42 @@ impl InstrTrait for StoreInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rs2.ty() == Type::Int);
-        assert!(self.offset >= -2048 && self.offset <= 2047);
+        // assert!(self.offset >= -2048 && self.offset <= 2047);
         let mut asm = String::new();
+
+        let mut steps = vec![];
+        let step = 2032;
+        let mut offset = self.offset;
+        while offset < -2048 {
+            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, -step));
+            offset += step;
+            steps.push(step);
+        }
+        while offset > 2047 {
+            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
+            offset -= step;
+            steps.push(-step);
+        }
+
         match self.ty {
             StoreType::Sb => {
-                asm.push_str(&format!("sb {}, {}({})", self.rs2, self.offset, self.rs1));
+                asm.push_str(&format!("sb {}, {}({})", self.rs2, offset, self.rs1));
             }
             StoreType::Sh => {
-                asm.push_str(&format!("sh {}, {}({})", self.rs2, self.offset, self.rs1));
+                asm.push_str(&format!("sh {}, {}({})", self.rs2, offset, self.rs1));
             }
             StoreType::Sw => {
-                asm.push_str(&format!("sw {}, {}({})", self.rs2, self.offset, self.rs1));
+                asm.push_str(&format!("sw {}, {}({})", self.rs2, offset, self.rs1));
             }
             StoreType::Sd => {
-                asm.push_str(&format!("sd {}, {}({})", self.rs2, self.offset, self.rs1));
+                asm.push_str(&format!("sd {}, {}({})", self.rs2, offset, self.rs1));
             }
         }
         asm.push_str("\n");
+
+        for step in steps {
+            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
+        }
         asm
     }
 
@@ -1042,12 +1105,41 @@ impl InstrTrait for LoadStackAddrInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        // unreachable!("load stack addr instr must be replaced by real instr")
-        format!(
-            "addi {}, sp, {}\n",
-            self.rd.gen_asm(),
-            *self.stack_object.borrow().position()
-        )
+        // unreachable!("load stack addr instr must be replaced by real instr");
+        let mut offset = *self.stack_object.borrow().position();
+
+        let mut offsets = vec![];
+        let step = 2036;
+
+        while offset > 2047 {
+            offsets.push(format!("{}", step));
+            offset -= step;
+        }
+        while offset < -2048 {
+            offsets.push(format!("{}", -step));
+            offset += step;
+        }
+        if offset != 0 || offsets.is_empty() {
+            offsets.push(format!("{}", offset));
+        }
+
+        let mut asm = String::new();
+        let mut first_flag = true;
+        for offset in offsets {
+            if first_flag {
+                asm.push_str(&format!("addi {}, sp, {}\n", self.rd.gen_asm(), offset));
+                first_flag = false;
+            } else {
+                asm.push_str(&format!(
+                    "addi {}, {}, {}\n",
+                    self.rd.gen_asm(),
+                    self.rd.gen_asm(),
+                    offset
+                ));
+            }
+        }
+        asm
+
         // format!("LSA {} {}", self.rd.gen_asm(), self.offset)
     }
     fn uses(&self) -> Vec<Reg> {

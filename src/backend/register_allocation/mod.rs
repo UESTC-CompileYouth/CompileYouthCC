@@ -1489,7 +1489,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/55_sort_test1.sy")
+        let contents = std::fs::read_to_string("test/functional/59_sort_test5.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
@@ -1548,25 +1548,25 @@ mod tests {
 
             // println!("CALLEE  SAVED: {:?}", func.callee_saved_regs());
 
-            println!("BEFORE PEEP HOLE: ");
-            for b in func.blocks().iter() {
-                println!("{}:", b.name());
-                for i in b.instrs().iter() {
-                    print!("\t{}", i.gen_asm());
-                }
-            }
+            // println!("BEFORE PEEP HOLE: ");
+            // for b in func.blocks().iter() {
+            //     println!("{}:", b.name());
+            //     for i in b.instrs().iter() {
+            //         print!("\t{}", i.gen_asm());
+            //     }
+            // }
 
             {
                 let mut peephole_cnt = 0;
                 while peephole(func) {
-                    println!("PEEPHOLE {}: ", peephole_cnt);
-                    peephole_cnt += 1;
-                    for b in func.blocks().iter() {
-                        println!("{}:", b.name());
-                        for i in b.instrs().iter() {
-                            print!("\t{}", i.gen_asm());
-                        }
-                    }
+                    // println!("PEEPHOLE {}: ", peephole_cnt);
+                    // peephole_cnt += 1;
+                    // for b in func.blocks().iter() {
+                    //     println!("{}:", b.name());
+                    //     for i in b.instrs().iter() {
+                    //         print!("\t{}", i.gen_asm());
+                    //     }
+                    // }
                     // if peephole_cnt == 3 {
                     //     break;
                     // }
