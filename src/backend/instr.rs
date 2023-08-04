@@ -142,6 +142,18 @@ impl ImmeInstr {
             trunc,
         }
     }
+    pub fn new_load_upper_immediate(
+        rd: Reg,
+        imme: ImmeValueType,
+        trunc: Option<TruncType>,
+    ) -> Self {
+        Self {
+            rd,
+            ty: ImmeType::Lui,
+            imme,
+            trunc,
+        }
+    }
 }
 
 impl InstrTrait for ImmeInstr {
@@ -169,12 +181,6 @@ impl InstrTrait for ImmeInstr {
                 asm.push_str(&format!("li {}, {}", self.rd, imme_string));
             }
             ImmeType::Lui => {
-                match self.imme {
-                    ImmeValueType::Direct(i) => {
-                        assert!(i <= (1 << 19) - 1 && i >= -(1 << 19));
-                    }
-                    _ => {}
-                }
                 asm.push_str(&format!("lui {}, {}", self.rd, imme_string));
             }
         }
@@ -1076,7 +1082,7 @@ pub fn gen_store_global(rs: Reg, symbol: String, rt: Reg) -> Vec<Box<dyn InstrTr
     let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
     assert!(*rs.ty() == Type::Int);
     assert!(*rt.ty() == Type::Int);
-    instrs.push(Box::new(ImmeInstr::new_auipc(
+    instrs.push(Box::new(ImmeInstr::new_load_upper_immediate(
         rt,
         ImmeValueType::Symbol(symbol.clone()),
         Some(TruncType::Hi),
@@ -1566,7 +1572,7 @@ pub fn gen_fload_global(rd: Reg, symbol: String, rt: Reg) -> Vec<Box<dyn InstrTr
     assert!(rd.ty() == &Type::Float);
     assert!(rt.ty() == &Type::Int);
     let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
-    instrs.push(Box::new(ImmeInstr::new_auipc(
+    instrs.push(Box::new(ImmeInstr::new_load_upper_immediate(
         rt,
         ImmeValueType::Symbol(symbol.clone()),
         Some(TruncType::Hi),
@@ -1584,7 +1590,7 @@ pub fn gen_fstore_global(rs: Reg, symbol: String, rt: Reg) -> Vec<Box<dyn InstrT
     assert!(rs.ty() == &Type::Float);
     assert!(rt.ty() == &Type::Int);
     let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
-    instrs.push(Box::new(ImmeInstr::new_auipc(
+    instrs.push(Box::new(ImmeInstr::new_load_upper_immediate(
         rt,
         ImmeValueType::Symbol(symbol.clone()),
         Some(TruncType::Hi),
