@@ -24,7 +24,7 @@ impl TruncType {
     pub(crate) fn gen_asm(&self) -> String {
         match self {
             TruncType::Lo => format!("%lo"),
-            TruncType::Hi => format!("&hi"),
+            TruncType::Hi => format!("%hi"),
         }
     }
 }
