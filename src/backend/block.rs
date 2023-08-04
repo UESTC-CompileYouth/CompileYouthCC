@@ -244,7 +244,7 @@ impl Block {
                 let addr = load_instr.addr();
                 if addr.is_global() {
                     let symbol = addr.global_name().unwrap().to_string();
-                    risc_v_instrs.push(Box::new(LoadGlobalInstr::new(rd, symbol)))
+                    risc_v_instrs.push(Box::new(LoadGlobalInstr::new(rd, symbol)));
                 } else {
                     let rs1 = mapping_info.from_ssa_rvalue(addr);
                     if d1.is_addr() {
