@@ -1568,6 +1568,35 @@ impl InstrTrait for FcmpInstr {
     }
 }
 
+// Pseudo Instruction, Floating-point Swap Rounding Mode
+#[derive(Debug, new)]
+pub(crate) struct FsrmInstr {
+    rs: Reg,
+}
+
+impl InstrTrait for FsrmInstr {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn gen_asm(&self) -> String {
+        assert!(*self.rs.ty() == Type::Int);
+        let asm = format!("fsrm x0, {}\n", self.rs);
+        asm
+    }
+    fn uses(&self) -> Vec<Reg> {
+        vec![self.rs]
+    }
+    fn defs(&self) -> Vec<Reg> {
+        vec![]
+    }
+    fn regs_mut(&mut self) -> Vec<&mut Reg> {
+        vec![&mut self.rs]
+    }
+}
+
 pub fn gen_fload_global(rd: Reg, symbol: String, rt: Reg) -> Vec<Box<dyn InstrTrait>> {
     assert!(rd.ty() == &Type::Float);
     assert!(rt.ty() == &Type::Int);
