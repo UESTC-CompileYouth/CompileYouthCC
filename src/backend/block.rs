@@ -600,8 +600,9 @@ impl Block {
                 if float_arg_size > RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
                     stack_passed += float_arg_size - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT;
                 }
-                if stack_passed % 2 == 1 {
-                    stack_passed += 1;
+                if stack_passed % ADDRESS_SIZE as usize != 0 {
+                    stack_passed +=
+                        (ADDRESS_SIZE as usize) - (stack_passed % ADDRESS_SIZE as usize);
                 }
 
                 if stack_passed > 0 {
