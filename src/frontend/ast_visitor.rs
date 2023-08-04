@@ -1834,15 +1834,34 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             let addr = return_content.into_exp().unwrap().into_ssa_value().unwrap();
             // println!("addr: {:?}", addr);
             if addr.is_array_addr() {
-                log::trace!("visit_primaryExp2_2 end");
-                return AstReturnContent::Exp(AstExp::SSAValue(addr)).into();
+                if addr.is_global() {
+                    let reg = SSARightValue::new_addr(
+                        self.cur_function().alloc_ssa_id(),
+                        addr.get_type(),
+                        addr.addr_shape().unwrap(),
+                    );
+                    let gep_global_array = Instruction::new(
+                        Box::new(Gep::new(
+                            addr,
+                            reg.clone(),
+                            SSARightValue::new_imme(Immediate::Int(0)),
+                        )),
+                        self.cur_bb.unwrap(),
+                    );
+                    self.cur_function().add_inst2bb(gep_global_array);
+                    log::trace!("visit_primaryExp2_2 end");
+                    return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
+                } else {
+                    log::trace!("visit_primaryExp2_3 end");
+                    return AstReturnContent::Exp(AstExp::SSAValue(addr)).into();
+                }
             } else {
                 let reg =
                     SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), addr.get_type());
                 let load_value =
                     Instruction::new(Box::new(Load::new(addr, reg.clone())), self.cur_bb.unwrap());
                 self.cur_function().add_inst2bb(load_value);
-                log::trace!("visit_primaryExp2_3 end");
+                log::trace!("visit_primaryExp2_4 end");
                 return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
             }
         }

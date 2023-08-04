@@ -81,6 +81,14 @@ impl SSARightValue {
         }
     }
 
+    /// for address
+    pub fn new_addr(id: i32, ty: Type, shape: Vec<i32>) -> Self {
+        Self {
+            inner: SSARightValueInner::Address(id, ty, shape, AddrType::Local, false),
+            origin_id_and_version: None,
+        }
+    }
+
     pub fn get_type(&self) -> Type {
         let ty = match self.inner {
             SSARightValueInner::Immediate(imme) => imme.get_type(),
