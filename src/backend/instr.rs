@@ -1243,7 +1243,7 @@ impl InstrTrait for CallInstr {
         vec![] // todo!("regs use for call instr")
     }
     fn get_operands(&self) -> (i32, i32, i32) {
-        (0, 0, 0)
+        (10, 0, 0)
     }
 }
 

@@ -98,9 +98,9 @@ impl InterferenceGraph {
                 ig.add_node(x);
                 ig.add_node(y);
                 ig.add_node(z);
-                if let Some(x) = inst.as_any().downcast_ref::<RegInstr>() {
-                    let u = *x.uses()[0].id();
-                    let d = *x.defs()[0].id();
+                if inst.as_any().downcast_ref::<RegInstr>().is_some() {
+                    let u = y;
+                    let d = x;
 
                     if u != d && !ig.has_edge_in_graph(u, d) {
                         ig.add_move_edge(u, d);
@@ -1489,7 +1489,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/59_sort_test5.sy")
+        let contents = std::fs::read_to_string("test/functional/78_side_effect.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
@@ -1548,25 +1548,25 @@ mod tests {
 
             // println!("CALLEE  SAVED: {:?}", func.callee_saved_regs());
 
-            // println!("BEFORE PEEP HOLE: ");
-            // for b in func.blocks().iter() {
-            //     println!("{}:", b.name());
-            //     for i in b.instrs().iter() {
-            //         print!("\t{}", i.gen_asm());
-            //     }
-            // }
+            println!("BEFORE PEEP HOLE: ");
+            for b in func.blocks().iter() {
+                println!("{}:", b.name());
+                for i in b.instrs().iter() {
+                    print!("\t{}", i.gen_asm());
+                }
+            }
 
             {
                 let mut peephole_cnt = 0;
                 while peephole(func) {
-                    // println!("PEEPHOLE {}: ", peephole_cnt);
-                    // peephole_cnt += 1;
-                    // for b in func.blocks().iter() {
-                    //     println!("{}:", b.name());
-                    //     for i in b.instrs().iter() {
-                    //         print!("\t{}", i.gen_asm());
-                    //     }
-                    // }
+                    println!("PEEPHOLE {}: ", peephole_cnt);
+                    peephole_cnt += 1;
+                    for b in func.blocks().iter() {
+                        println!("{}:", b.name());
+                        for i in b.instrs().iter() {
+                            print!("\t{}", i.gen_asm());
+                        }
+                    }
                     // if peephole_cnt == 3 {
                     //     break;
                     // }
