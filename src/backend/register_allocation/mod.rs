@@ -1559,22 +1559,22 @@ mod tests {
                 }
             }
 
-            {
-                let mut _peephole_cnt = 0;
-                while peephole(func) {
-                    println!("PEEPHOLE {}: ", peephole_cnt);
-                    peephole_cnt += 1;
-                    for b in func.blocks().iter() {
-                        println!("{}:", b.name());
-                        for i in b.instrs().iter() {
-                            print!("\t{}", i.gen_asm());
-                        }
-                    }
-                    // if peephole_cnt == 3 {
-                    //     break;
-                    // }
-                }
-            }
+            // {
+            //     let mut _peephole_cnt = 0;
+            //     while peephole(func) {
+            //         println!("PEEPHOLE {}: ", peephole_cnt);
+            //         peephole_cnt += 1;
+            //         for b in func.blocks().iter() {
+            //             println!("{}:", b.name());
+            //             for i in b.instrs().iter() {
+            //                 print!("\t{}", i.gen_asm());
+            //             }
+            //         }
+            //         // if peephole_cnt == 3 {
+            //         //     break;
+            //         // }
+            //     }
+            // }
 
             insert_prologue(func);
             insert_epilogue(func);
