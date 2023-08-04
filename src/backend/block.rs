@@ -274,7 +274,7 @@ impl Block {
                         risc_v_instrs.push(Box::new(LoadGlobalInstr::new(rd, symbol)))
                     } else {
                         let rt = mapping_info.new_reg(Type::Int);
-                        risc_v_instrs.push(Box::new(FLoadGlobalInstr::new(rd, symbol, rt)))
+                        risc_v_instrs.extend(gen_fload_global(rd, symbol, rt))
                     }
                 } else {
                     let rs1 = mapping_info.from_ssa_rvalue(addr);
@@ -283,7 +283,12 @@ impl Block {
                     } else if *rd.ty() == Type::Int {
                         risc_v_instrs.push(Box::new(LoadInstr::new(rd, rs1, 0, LoadType::Lw)));
                     } else if *rd.ty() == Type::Float {
-                        risc_v_instrs.push(Box::new(FLoadInstr::new(rd, rs1, 0)));
+                        risc_v_instrs.push(Box::new(FLoadInstr::new(
+                            rd,
+                            rs1,
+                            ImmeValueType::Direct(0),
+                            None,
+                        )));
                     } else {
                         unreachable!();
                     }
@@ -323,18 +328,35 @@ impl Block {
                     let symbol = addr.global_name().unwrap().to_string();
                     let rt = mapping_info.new_reg(Type::Int);
                     if *rs.ty() == Type::Int {
-                        risc_v_instrs.push(Box::new(StoreGlobalInstr::new(rs, symbol, rt)));
+                        risc_v_instrs.extend(gen_store_global(rs, symbol, rt));
                     } else {
-                        risc_v_instrs.push(Box::new(FStoreGlobalInstr::new(rs, symbol, rt)));
+                        risc_v_instrs.extend(gen_fstore_global(rs, symbol, rt));
                     }
                 } else {
                     let rs1 = mapping_info.from_ssa_rvalue(addr);
                     if s1_ssa.is_addr() {
-                        risc_v_instrs.push(Box::new(StoreInstr::new(rs1, rs, 0, StoreType::Sd)));
+                        risc_v_instrs.push(Box::new(StoreInstr::new(
+                            rs1,
+                            rs,
+                            ImmeValueType::Direct(0),
+                            None,
+                            StoreType::Sd,
+                        )));
                     } else if *rs.ty() == Type::Int {
-                        risc_v_instrs.push(Box::new(StoreInstr::new(rs1, rs, 0, StoreType::Sw)));
+                        risc_v_instrs.push(Box::new(StoreInstr::new(
+                            rs1,
+                            rs,
+                            ImmeValueType::Direct(0),
+                            None,
+                            StoreType::Sw,
+                        )));
                     } else if *rs.ty() == Type::Float {
-                        risc_v_instrs.push(Box::new(FStoreInstr::new(rs1, rs, 0)));
+                        risc_v_instrs.push(Box::new(FStoreInstr::new(
+                            rs1,
+                            rs,
+                            ImmeValueType::Direct(0),
+                            None,
+                        )));
                     } else {
                         unreachable!()
                     }
@@ -619,20 +641,26 @@ impl Block {
                                 risc_v_instrs.push(Box::new(StoreInstr::new(
                                     Reg::new_int(SP),
                                     *rs,
-                                    ADDRESS_SIZE as i32
-                                        * (int_arg_cnt
-                                            - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT)
-                                            as i32,
+                                    ImmeValueType::Direct(
+                                        ADDRESS_SIZE as i32
+                                            * (int_arg_cnt
+                                                - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT)
+                                                as i32,
+                                    ),
+                                    None,
                                     StoreType::Sd,
                                 )));
                             } else {
                                 risc_v_instrs.push(Box::new(StoreInstr::new(
                                     Reg::new_int(SP),
                                     *rs,
-                                    ADDRESS_SIZE as i32
-                                        * (int_arg_cnt
-                                            - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT)
-                                            as i32,
+                                    ImmeValueType::Direct(
+                                        ADDRESS_SIZE as i32
+                                            * (int_arg_cnt
+                                                - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT)
+                                                as i32,
+                                    ),
+                                    None,
                                     StoreType::Sw,
                                 )));
                             }
@@ -652,10 +680,13 @@ impl Block {
                             risc_v_instrs.push(Box::new(FStoreInstr::new(
                                 Reg::new_int(SP),
                                 *rs,
-                                ADDRESS_SIZE as i32
-                                    * (float_arg_cnt
-                                        - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT)
-                                        as i32,
+                                ImmeValueType::Direct(
+                                    ADDRESS_SIZE as i32
+                                        * (float_arg_cnt
+                                            - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT)
+                                            as i32,
+                                ),
+                                None,
                             )));
                         } else {
                             risc_v_instrs.push(Box::new(FRegInstr::new(
