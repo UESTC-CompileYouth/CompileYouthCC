@@ -1437,7 +1437,7 @@ impl InstrTrait for FRegRegInstr {
             FRegRegConvertType::FcvtWS => {
                 assert!(self.rd.ty() == &Type::Int);
                 assert!(self.rs.ty() == &Type::Float);
-                format!("fcvt.w.s {}, {}", self.rd, self.rs)
+                format!("fcvt.w.s {}, {}, rtz", self.rd, self.rs)
             }
             FRegRegConvertType::FclassS => {
                 assert!(self.rd.ty() == &Type::Int);
