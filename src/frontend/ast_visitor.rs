@@ -88,6 +88,7 @@ impl SysYAstVisitor<'_> {
         &mut self,
         ctx: &ListConstInitValContext,
         shape: &mut Vec<i32>,
+        ty: Type,
         result: &mut Vec<Immediate>,
     ) {
         if shape.len() == 0 {
@@ -116,7 +117,9 @@ impl SysYAstVisitor<'_> {
                     scalar_child.constExp().unwrap().accept(self);
                     let return_content = self.return_content();
                     result.push(match return_content.into_exp().unwrap() {
-                        AstExp::StaticValue(immediate) => immediate,
+                        AstExp::StaticValue(immediate) => {
+                            Self::convert_imme2needed_type(immediate, ty)
+                        }
                         _ => panic!("Invalid Init List"),
                     });
                     cnt += 1;
@@ -125,15 +128,34 @@ impl SysYAstVisitor<'_> {
                     if cnt % child_size != 0 || cnt + child_size > total_size {
                         panic!("Invalid Init List");
                     }
-                    self.dfs_const_init(list_child, &mut child_shape, result);
+                    self.dfs_const_init(list_child, &mut child_shape, ty, result);
                     cnt += child_size;
                 }
                 ConstInitValContextAll::Error(_) => {}
             }
         }
         while cnt < total_size {
-            result.push(Immediate::Int(0));
+            if ty == Type::Float {
+                result.push(Immediate::Float(0.0));
+            } else {
+                result.push(Immediate::Int(0));
+            }
             cnt += 1;
+        }
+    }
+
+    #[inline(always)]
+    fn convert_imme2needed_type(imme: Immediate, ty: Type) -> Immediate {
+        assert!(imme.get_type() != Type::Void);
+        assert!(ty != Type::Void);
+        if imme.get_type() == ty {
+            imme
+        } else if imme.get_type() == Type::Int && ty == Type::Float {
+            Immediate::Float(imme.into_int().unwrap() as f32)
+        } else if imme.get_type() == Type::Float && ty == Type::Int {
+            Immediate::Int(imme.into_float().unwrap() as i32)
+        } else {
+            panic!("Invalid Type Conversion")
         }
     }
 
@@ -141,6 +163,7 @@ impl SysYAstVisitor<'_> {
         &mut self,
         ctx: &ConstInitValContextAll,
         shape: &mut Vec<i32>,
+        ty: Type,
     ) -> Vec<Immediate> {
         let mut result = Vec::new();
         match ctx {
@@ -151,12 +174,12 @@ impl SysYAstVisitor<'_> {
                 ctx.constExp().unwrap().accept(self);
                 let return_content = self.return_content();
                 result.push(match return_content.into_exp().unwrap() {
-                    AstExp::StaticValue(immediate) => immediate,
+                    AstExp::StaticValue(immediate) => Self::convert_imme2needed_type(immediate, ty),
                     _ => panic!("Invalid Init List"),
                 });
             }
             ConstInitValContextAll::ListConstInitValContext(ctx) => {
-                self.dfs_const_init(ctx, shape, &mut result);
+                self.dfs_const_init(ctx, shape, ty, &mut result);
             }
             ConstInitValContextAll::Error(_) => {
                 panic!("Invalid Init List");
@@ -642,7 +665,11 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 }
             })
             .collect::<Vec<_>>();
-        let init_value = self.parse_const_init(&*ctx.constInitVal().unwrap(), &mut shape);
+        let init_value = self.parse_const_init(
+            &*ctx.constInitVal().unwrap(),
+            &mut shape,
+            self.cur_type.clone(),
+        );
         let rvalue_vec: Vec<SSARightValue> = init_value
             .iter()
             .map(|i| SSARightValue::new_imme(*i))
