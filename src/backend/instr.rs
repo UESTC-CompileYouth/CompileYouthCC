@@ -1523,7 +1523,10 @@ impl InstrTrait for FLoadGlobalInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rd.ty() == Type::Float);
         assert!(*self.rt.ty() == Type::Int);
-        format!("flw {}, {}, {}\n", self.rd, self.symbol, self.rt)
+        format!(
+            "lui {}, %hi({})\nflw {}, %lo({})({})\n",
+            self.rt, self.symbol, self.rd, self.symbol, self.rt
+        )
     }
     fn uses(&self) -> Vec<Reg> {
         vec![]
