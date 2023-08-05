@@ -23,8 +23,8 @@ if [ ! -f $qemu_riscv64_path ]; then
 	exit 1
 fi
 
-gcc_path=$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-gcc
-as_path=$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-as
+gcc_path=riscv64-linux-gnu-gcc #$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-gcc
+as_path=riscv64-linux-gnu-as #$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-as
 
 rm -rf $output_path
 mkdir -p $output_path
