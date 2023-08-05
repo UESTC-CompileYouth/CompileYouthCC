@@ -231,7 +231,8 @@ impl SysYAstVisitor<'_> {
                     if cnt + child_size > total_size {
                         panic!("Invalid Init List");
                     }
-                    let cur_ceil = (result.len() / (child_size as usize) + 1) * (child_size as usize);
+                    let cur_ceil =
+                        (result.len() / (child_size as usize) + 1) * (child_size as usize);
                     let need = cur_ceil - result.len();
                     let mut child_result = Vec::new();
                     self.dfs_var_init(list_child, &mut child_shape, &mut child_result);
