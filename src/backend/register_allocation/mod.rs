@@ -765,7 +765,7 @@ pub(crate) fn backpatch_arg_stack_offset(func: &mut Function) {
     for so in func.caller_stack_objects_mut().iter_mut() {
         let mut so = so.borrow_mut();
         so.set_position((framesize + offset) as i32);
-        offset += 8;
+        offset += *so.size() as usize;
     }
 }
 
