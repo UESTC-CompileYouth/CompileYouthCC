@@ -766,7 +766,7 @@ pub(crate) fn backpatch_arg_stack_offset(func: &mut Function) {
     for so in func.caller_stack_objects_mut().iter_mut() {
         let mut so = so.borrow_mut();
         so.set_position((framesize + offset) as i32);
-        offset += *so.size() as usize;
+        offset += 8;
     }
 }
 
@@ -1426,7 +1426,7 @@ mod tests {
             register_allocation::{
                 allocate_load_stack, backpatch_arg_stack_offset, insert_epilogue, insert_prologue,
                 register_allocate, save_callee_saved_regs, save_caller_saved_regs,
-                InterferenceGraph,
+                InterferenceGraph, peephole,
             },
         },
         frontend::{
@@ -1492,7 +1492,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/89_many_globals.sy")
+        let contents = std::fs::read_to_string("test/functional/95_float.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
@@ -1551,13 +1551,13 @@ mod tests {
 
             // println!("CALLEE  SAVED: {:?}", func.callee_saved_regs());
 
-            println!("BEFORE PEEP HOLE: ");
-            for b in func.blocks().iter() {
-                println!("{}:", b.name());
-                for i in b.instrs().iter() {
-                    print!("\t{}", i.gen_asm());
-                }
-            }
+            // println!("BEFORE PEEP HOLE: ");
+            // for b in func.blocks().iter() {
+            //     println!("{}:", b.name());
+            //     for i in b.instrs().iter() {
+            //         print!("\t{}", i.gen_asm());
+            //     }
+            // }
 
             {
                 let mut peephole_cnt = 0;
