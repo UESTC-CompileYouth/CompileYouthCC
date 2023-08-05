@@ -27,17 +27,17 @@ struct CompilerOptions {
     #[structopt(short, help = "output assembly file")]
     output_file: Option<String>,
     #[structopt(long, default_value = "INFO", help = "config log filter level")]
-    log_level: String,
+    _log_level: String,
     #[structopt(short = "O", default_value = "0", help = "optimization level")]
     _optimization_level: u8,
 }
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
-    simple_logger::init_with_level(
-        log::Level::from_str(&cmdline_options.log_level).expect("wrong log level"),
-    )
-    .expect("cannot init logger");
+    // simple_logger::init_with_level(
+    //     log::Level::from_str(&cmdline_options.log_level).expect("wrong log level"),
+    // )
+    // .expect("cannot init logger");
     let contents =
         std::fs::read_to_string(cmdline_options.input_file).expect("cannot open source file");
     let input = InputStream::new(contents.as_bytes());
