@@ -66,16 +66,14 @@ for file in $functional_test_path/*.sy $hidden_functional_test_path/*.sy; do
 		exit 1
 	fi
 
-	# todo: stdin
-	stdin_file=${file%%.sy}.in
-	if [ -f $stdin_file ]; then
-		echo "$file_basename need stdin, jump to next test"
-		continue
-	fi
-
 	# run
 	output_stdout_file=$output_path/temp.out
-	$qemu_riscv64_path $output_exe_file >$output_stdout_file
+	stdin_file=${file%%.sy}.in
+	if [ -f $stdin_file ]; then
+		$qemu_riscv64_path $output_exe_file >$output_stdout_file <$stdin_file
+	else
+		$qemu_riscv64_path $output_exe_file >$output_stdout_file
+	fi
 	echo -e "\n$?" >>$output_stdout_file
 
 	# compare

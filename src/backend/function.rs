@@ -6,7 +6,7 @@ use super::{
     register::Reg,
 };
 use crate::common::{
-    constant::{BLOCK_LABEL_PREFIX, ENTRY_BLOCK_LABEL_PREFIX, FLOAT_SIZE, INT_SIZE},
+    constant::{BLOCK_LABEL_PREFIX, ENTRY_BLOCK_LABEL_PREFIX},
     r#type::Type,
 };
 use crate::frontend::llvm::function::Function as LLVMFunction;
@@ -85,6 +85,7 @@ pub struct Function {
     #[new(default)]
     stack_objects: Vec<Rc<RefCell<StackObject>>>,
     #[new(default)]
+    #[getset(get = "pub", get_mut = "pub")]
     caller_stack_objects: Vec<Rc<RefCell<StackObject>>>,
     // context
     #[new(default)]
@@ -113,10 +114,6 @@ pub struct Function {
     #[new(default)]
     #[getset(get = "pub", get_mut = "pub")]
     sf: Rc<RefCell<StackFrame>>,
-    // #[new(default)]
-    // reg_def: Vec<OccurPoint>,
-    // #[new(default)]
-    // reg_use: Vec<OccurPoint>,
 }
 
 impl Function {
@@ -134,9 +131,9 @@ impl Function {
     ) {
         let mut int_arg_count = 0;
         let mut float_arg_count = 0;
-        for (_, arg_data) in llvm_function.arg_list().iter() {
-            let cur_reg = if arg_data.get_type() == Type::Int {
-                let cur_reg = mapping_info.new_reg(Type::Int);
+        for arg_data in llvm_function.arg_list().as_normal().unwrap().iter() {
+            let cur_reg = mapping_info.from_ssa_rvalue(&arg_data.to_arg_rvalue());
+            if arg_data.get_type() == Type::Int || arg_data.is_array_arg() {
                 if int_arg_count < RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
                     entry_block.push_back(Box::new(RegInstr::new_move(
                         cur_reg,
@@ -144,37 +141,34 @@ impl Function {
                     )));
                 } else {
                     let caller_stack_object_rc_refcell =
-                        Rc::new(RefCell::new(StackObject::new(-1, INT_SIZE)));
+                        Rc::new(RefCell::new(StackObject::new(-1, arg_data.size())));
                     entry_block.push_back(Box::new(LoadStackInstr::new(
                         cur_reg,
-                        0,
+                        -1,
                         caller_stack_object_rc_refcell.clone(),
                     )));
                     self.caller_stack_objects
                         .push(caller_stack_object_rc_refcell.clone());
                 };
                 int_arg_count += 1;
-                cur_reg
             } else if arg_data.get_type() == Type::Float {
-                let cur_reg = mapping_info.new_reg(Type::Float);
                 if float_arg_count < RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
-                    entry_block.push_back(Box::new(RegInstr::new_move(
+                    entry_block.push_back(Box::new(FRegInstr::new_fmove(
                         cur_reg,
                         Reg::new_float(RegConvention::<f32>::ARGUMENT_REGISTERS[float_arg_count]),
                     )));
                 } else {
                     let caller_stack_object_rc_refcell =
-                        Rc::new(RefCell::new(StackObject::new(-1, FLOAT_SIZE)));
+                        Rc::new(RefCell::new(StackObject::new(-1, arg_data.size())));
                     entry_block.push_back(Box::new(LoadStackInstr::new(
                         cur_reg,
-                        0,
+                        -1,
                         caller_stack_object_rc_refcell.clone(),
                     )));
                     self.caller_stack_objects
                         .push(caller_stack_object_rc_refcell.clone());
                 };
                 float_arg_count += 1;
-                cur_reg
             } else {
                 panic!("Unsupported type for function argument");
             };
@@ -189,8 +183,10 @@ impl Function {
     ) {
         self.arg_reg_ids = llvm_function
             .arg_list()
+            .as_normal()
+            .unwrap()
             .iter()
-            .map(|(_, value)| *value.id())
+            .map(|value| *value.id())
             .collect();
 
         let name = llvm_function.name().to_string();
@@ -206,7 +202,9 @@ impl Function {
             mapping_info
                 .obj_mapping_mut()
                 .insert(*mem_object.id(), stack_object_rc_refcell.clone());
-            self.stack_objects.push(stack_object_rc_refcell);
+            if !*mem_object.is_arg() {
+                self.stack_objects.push(stack_object_rc_refcell);
+            }
         }
 
         let entry_block_id = *block_num;
@@ -244,15 +242,20 @@ impl Function {
             .block_mapping()
             .get(&llvm_function.entry_bb_id())
             .unwrap();
-        if real_entry_block_id != 1 {
+        // fsrm
+        if name == "main" {
+            let rtz_reg = mapping_info.new_reg(Type::Int);
+            entry_block.push_back(Box::new(ImmeInstr::new_load_immediate(rtz_reg, 0b001)));
+            entry_block.push_back(Box::new(FsrmInstr::new(rtz_reg)));
+        }
+
+        if real_entry_block_id != 1 + entry_block_id {
             entry_block.push_back(Box::new(JumpInstr::new_jump(
                 BLOCK_LABEL_PREFIX.to_string() + real_entry_block_id.to_string().as_str(),
             )));
         }
         entry_block.add_out_edge(real_entry_block_id);
         blocks_vec[0].add_in_edge(entry_block_id);
-
-        let mut cmp_infos = HashMap::new();
         for self_block_id in start_block_id..end_block_id {
             let next_block_id = if self_block_id == end_block_id - 1 {
                 None
@@ -267,7 +270,6 @@ impl Function {
                 self,
                 llvm_function,
                 &mut mapping_info,
-                &mut cmp_infos,
             )
         }
         self.blocks = blocks_vec;
