@@ -918,18 +918,24 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
 
 pub(crate) fn save_caller_saved_regs(func: &mut Function) {
     let mut save_caller_saved_regs = |reg_type| {
-        let l = LivenessAnalysis::of(&func, reg_type);
+        let l = LivenessAnalysis::of(func, reg_type);
         let sf = func.sf().clone();
         let mut sf = sf.borrow_mut();
 
         for block in func.blocks_mut().iter_mut() {
             let mut insert_pos = vec![];
             let mut insert_store_reg_offset_map = HashMap::new();
+
             for (inst_id, inst) in block.instrs().iter().enumerate() {
+                let mut need_push_args_to_stack = false;
                 let block_id = *block.id();
                 let block_liveness = l.block_liveness_map[&block_id].borrow();
                 {
-                    if !inst.as_any().downcast_ref::<CallInstr>().is_some() {
+                    if let Some(call) = inst.as_any().downcast_ref::<CallInstr>() {
+                        if *call.int_arg_cnt() > 8 || *call.float_arg_cnt() > 8 {
+                            need_push_args_to_stack = true;
+                        }
+                    } else {
                         continue;
                     }
                 }
@@ -955,10 +961,10 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
                     store_reg_offset.push((reg_id, pos));
                 }
 
-                insert_pos.push(inst_id);
+                insert_pos.push((inst_id, need_push_args_to_stack));
                 insert_store_reg_offset_map.insert(inst_id, store_reg_offset);
             }
-            for pos in insert_pos.iter().rev() {
+            for (pos, need_push_args_to_stack) in insert_pos.iter().rev() {
                 let store_reg_offset = &insert_store_reg_offset_map[pos];
 
                 // restore after function call
@@ -981,7 +987,9 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
                         ))
                     };
 
-                    block.instrs_mut().insert(*pos + 1, load);
+                    block
+                        .instrs_mut()
+                        .insert(*pos + if *need_push_args_to_stack { 2 } else { 1 }, load);
                 }
 
                 // store before function call
@@ -1010,7 +1018,14 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
                         ))
                     };
 
-                    block.instrs_mut().insert(*pos, store);
+                    block.instrs_mut().insert(
+                        if *need_push_args_to_stack {
+                            *pos - 1
+                        } else {
+                            *pos
+                        },
+                        store,
+                    );
                 }
             }
         }
@@ -1545,8 +1560,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents =
-            std::fs::read_to_string("test/homemade/float.sy").expect("cannot open source file");
+        let contents = std::fs::read_to_string("test/functional/87_many_params.sy")
+            .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
