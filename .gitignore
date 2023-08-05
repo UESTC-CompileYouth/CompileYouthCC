@@ -13,3 +13,8 @@ Cargo.lock
 .github
 .git
 /llvm
+/cfg
+/*.o
+/*.s
+/*.elf
+/tmp

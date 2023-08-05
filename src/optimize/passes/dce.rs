@@ -4,7 +4,7 @@ use std::collections::{HashSet, VecDeque};
 pub fn construct_def_vec(func: &Function) -> Vec<i32> {
     let mut def_vec = vec![-1; func.id() as usize];
     // argument
-    for (_, arg) in func.arg_list() {
+    for arg in func.arg_list().as_normal().unwrap().iter() {
         def_vec[*arg.id() as usize] = 0; // instruction id 0 is reserved
     }
 

@@ -1,4 +1,5 @@
 pub mod bb_ops;
+pub mod check_ir;
 pub mod dce;
 pub mod dom;
 pub mod liveness;

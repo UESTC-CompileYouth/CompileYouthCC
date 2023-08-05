@@ -19,7 +19,6 @@ hexf-parse = "0.2.1"
 simple_logger = "4.1.0"
 structopt = "0.3.26"
 enum_dispatch = "0.3.11"
-
 antlr-rust = "0.3.0-beta"
 
 
@@ -45,6 +44,5 @@ path = "./src/compiler.rs"
 
 
 [profile.release]
-opt-level = 3
+opt-level = 2
 debug = true
-lto = true

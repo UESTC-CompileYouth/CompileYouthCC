@@ -1,12 +1,14 @@
+use std::collections::HashSet;
+
 use super::{
     arch_info::{RegConvention, A0, FA0, SP, ZERO},
     function::Function,
     instr::*,
-    misc::{CmpInfo, InstCond, MappingInfo},
+    misc::{InstCond, MappingInfo},
     register::Reg,
 };
 use crate::common::{
-    constant::{BLOCK_LABEL_PREFIX, FLOAT_SIZE, INT_SIZE},
+    constant::{ADDRESS_SIZE, BLOCK_LABEL_PREFIX, FLOAT_SIZE, INT_SIZE},
     immediate::Immediate,
     r#type::Type,
 };
@@ -17,12 +19,11 @@ use crate::frontend::llvm::{
 };
 use derive_new::new;
 use getset::{Getters, MutGetters, Setters};
-use std::collections::HashMap;
 
 pub(crate) type BlockId = i32;
 #[derive(new, Getters, Setters, MutGetters)]
 pub struct Block {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     id: BlockId,
     // #[getset(get = "pub")]
     // idx: BlockId, // position in function block vec
@@ -40,7 +41,7 @@ pub struct Block {
     #[getset(get = "pub")]
     in_edges: Vec<BlockId>,
     #[new(default)]
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     out_edges: Vec<BlockId>,
     // context
     // def: Vec<Reg>,
@@ -57,7 +58,6 @@ impl Block {
         function: &mut Function,
         llvm_function: &LLVMFunction,
         mapping_info: &mut MappingInfo,
-        cmp_infos: &mut HashMap<Reg, CmpInfo>,
     ) {
         let self_bb_id = *mapping_info
             .rev_block_mapping()
@@ -104,7 +104,7 @@ impl Block {
                         let ty = match unary_instr.unary_op() {
                             UnaryOp::Neg => RegType::Negw,
                             UnaryOp::Mov => RegType::Mv,
-                            UnaryOp::Not => RegType::Not,
+                            UnaryOp::Not => RegType::Seqz,
                             _ => unreachable!(),
                         };
                         risc_v_instrs.push(Box::new(RegInstr::new(rd, rs, ty)));
@@ -112,26 +112,46 @@ impl Block {
                     UnaryOp::FMov => {
                         let rd = mapping_info.from_ssa_rvalue(unary_instr.des_register().unwrap());
                         let s1_ssa = unary_instr.s1();
-                        if s1_ssa.is_immediate() {
-                            let rs = mapping_info.new_reg(s1_ssa.ty());
-                            let imme = s1_ssa.get_value().unwrap().into_float().unwrap().to_bits();
-                            risc_v_instrs
-                                .push(Box::new(ImmeInstr::new_load_immediate(rd, imme as _)));
+                        assert!(s1_ssa.ty().is_float());
+                        let rs = if s1_ssa.is_immediate() {
+                            let imme = s1_ssa.get_value().unwrap().into_float().unwrap();
+                            let int_s1 = mapping_info.new_reg(Type::Int);
+                            risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(
+                                int_s1,
+                                imme.to_bits() as _,
+                            )));
+                            let float_s1 = mapping_info.new_reg(Type::Float);
                             risc_v_instrs.push(Box::new(FRegRegInstr::new(
-                                rd,
-                                rs,
+                                float_s1,
+                                int_s1,
                                 FRegRegConvertType::FmvWX,
                             )));
+                            float_s1
                         } else {
-                            let rs = mapping_info.from_ssa_rvalue(s1_ssa);
-                            risc_v_instrs.push(Box::new(FRegInstr::new(rd, rs, FRegType::FmvS)));
+                            mapping_info.from_ssa_rvalue(s1_ssa)
                         };
+                        risc_v_instrs.push(Box::new(FRegInstr::new(rd, rs, FRegType::FmvS)));
                     }
                     UnaryOp::Fptosi => {
                         let s1_ssa = unary_instr.s1();
-                        assert!(!s1_ssa.is_immediate());
                         assert!(s1_ssa.ty().is_float());
-                        let rs = mapping_info.from_ssa_rvalue(s1_ssa);
+                        let rs = if s1_ssa.is_immediate() {
+                            let imme = s1_ssa.get_value().unwrap().into_float().unwrap();
+                            let int_s1 = mapping_info.new_reg(Type::Int);
+                            risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(
+                                int_s1,
+                                imme.to_bits() as _,
+                            )));
+                            let float_s1 = mapping_info.new_reg(Type::Float);
+                            risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                                float_s1,
+                                int_s1,
+                                FRegRegConvertType::FmvWX,
+                            )));
+                            float_s1
+                        } else {
+                            mapping_info.from_ssa_rvalue(s1_ssa)
+                        };
                         let d1_ssa = unary_instr.des_register().unwrap();
                         assert!(d1_ssa.ty().is_int());
                         let rd = mapping_info.from_ssa_rvalue(d1_ssa);
@@ -143,9 +163,15 @@ impl Block {
                     }
                     UnaryOp::Sitofp => {
                         let s1_ssa = unary_instr.s1();
-                        assert!(!s1_ssa.is_immediate());
                         assert!(s1_ssa.ty().is_int());
-                        let rs = mapping_info.from_ssa_rvalue(s1_ssa);
+                        let rs = if s1_ssa.is_immediate() {
+                            let rs = mapping_info.new_reg(s1_ssa.ty());
+                            let imme = s1_ssa.get_value().unwrap().into_int().unwrap();
+                            risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(rs, imme)));
+                            rs
+                        } else {
+                            mapping_info.from_ssa_rvalue(s1_ssa)
+                        };
                         let d1_ssa = unary_instr.des_register().unwrap();
                         assert!(d1_ssa.ty().is_float());
                         let rd = mapping_info.from_ssa_rvalue(d1_ssa);
@@ -239,45 +265,101 @@ impl Block {
                 }
             } else if let Some(load_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Load>()
             {
+                let d1 = load_instr.d1();
+                let rd = mapping_info.from_ssa_rvalue(d1);
                 let addr = load_instr.addr();
                 if addr.is_global() {
                     let symbol = addr.global_name().unwrap().to_string();
-                    risc_v_instrs.push(Box::new(LoadGlobalInstr::new(
-                        mapping_info.from_ssa_rvalue(load_instr.d1()),
-                        symbol,
-                    )))
+                    if *rd.ty() == Type::Int {
+                        risc_v_instrs.push(Box::new(LoadGlobalInstr::new(rd, symbol)))
+                    } else {
+                        let rt = mapping_info.new_reg(Type::Int);
+                        risc_v_instrs.extend(gen_fload_global(rd, symbol, rt))
+                    }
                 } else {
-                    risc_v_instrs.push(Box::new(LoadInstr::new(
-                        mapping_info.from_ssa_rvalue(load_instr.d1()),
-                        mapping_info.from_ssa_rvalue(addr),
-                        0,
-                        LoadType::Lw,
-                    )));
+                    let rs1 = mapping_info.from_ssa_rvalue(addr);
+                    if d1.is_addr() {
+                        risc_v_instrs.push(Box::new(LoadInstr::new(rd, rs1, 0, LoadType::Ld)));
+                    } else if *rd.ty() == Type::Int {
+                        risc_v_instrs.push(Box::new(LoadInstr::new(rd, rs1, 0, LoadType::Lw)));
+                    } else if *rd.ty() == Type::Float {
+                        risc_v_instrs.push(Box::new(FLoadInstr::new(
+                            rd,
+                            rs1,
+                            ImmeValueType::Direct(0),
+                            None,
+                        )));
+                    } else {
+                        unreachable!();
+                    }
                 }
             } else if let Some(store_instr) =
                 llvm_instr.as_any().downcast_ref::<llvm::instr::Store>()
             {
                 let s1_ssa = store_instr.s1();
                 let rs = if s1_ssa.is_immediate() {
-                    let rs = mapping_info.new_reg(s1_ssa.ty());
-                    let imme = s1_ssa.get_value().unwrap().into_int().unwrap();
-                    risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(rs, imme)));
-                    rs
+                    if s1_ssa.ty() == Type::Int {
+                        let rs = mapping_info.new_reg(s1_ssa.ty());
+                        let imme = s1_ssa.get_value().unwrap().into_int().unwrap();
+                        risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(rs, imme)));
+                        rs
+                    } else if s1_ssa.ty() == Type::Float {
+                        let imme = s1_ssa.get_value().unwrap().into_float().unwrap();
+                        let int_rs = mapping_info.new_reg(Type::Int);
+                        risc_v_instrs.push(Box::new(ImmeInstr::new_load_immediate(
+                            int_rs,
+                            imme.to_bits() as _,
+                        )));
+                        let rs = mapping_info.new_reg(Type::Float);
+                        risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                            rs,
+                            int_rs,
+                            FRegRegConvertType::FmvWX,
+                        )));
+                        rs
+                    } else {
+                        unreachable!()
+                    }
                 } else {
                     mapping_info.from_ssa_rvalue(s1_ssa)
                 };
                 let addr = store_instr.addr();
                 if addr.is_global() {
-                    let rt = mapping_info.new_reg(Type::Int);
                     let symbol = addr.global_name().unwrap().to_string();
-                    risc_v_instrs.push(Box::new(StoreGlobalInstr::new(rs, symbol, rt)));
+                    let rt = mapping_info.new_reg(Type::Int);
+                    if *rs.ty() == Type::Int {
+                        risc_v_instrs.extend(gen_store_global(rs, symbol, rt));
+                    } else {
+                        risc_v_instrs.extend(gen_fstore_global(rs, symbol, rt));
+                    }
                 } else {
-                    risc_v_instrs.push(Box::new(StoreInstr::new(
-                        mapping_info.from_ssa_rvalue(store_instr.addr()),
-                        rs,
-                        0,
-                        StoreType::Sw,
-                    )));
+                    let rs1 = mapping_info.from_ssa_rvalue(addr);
+                    if s1_ssa.is_addr() {
+                        risc_v_instrs.push(Box::new(StoreInstr::new(
+                            rs1,
+                            rs,
+                            ImmeValueType::Direct(0),
+                            None,
+                            StoreType::Sd,
+                        )));
+                    } else if *rs.ty() == Type::Int {
+                        risc_v_instrs.push(Box::new(StoreInstr::new(
+                            rs1,
+                            rs,
+                            ImmeValueType::Direct(0),
+                            None,
+                            StoreType::Sw,
+                        )));
+                    } else if *rs.ty() == Type::Float {
+                        risc_v_instrs.push(Box::new(FStoreInstr::new(
+                            rs1,
+                            rs,
+                            ImmeValueType::Direct(0),
+                            None,
+                        )));
+                    } else {
+                        unreachable!()
+                    }
                 }
             } else if let Some(gep_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Gep>() {
                 // todo: address
@@ -337,15 +419,14 @@ impl Block {
                     mapping_info.from_ssa_rvalue(s2_ssa)
                 };
                 let rd = mapping_info.from_ssa_rvalue(icmp_instr.d1());
-                cmp_infos.insert(
+                let cmp_instrs = gen_icmp_riscv_instrs(
+                    rs1,
+                    rs2,
+                    InstCond::from_llvm_cmp_type(icmp_instr.cmp_type()),
                     rd,
-                    CmpInfo::new(
-                        rs1,
-                        rs2,
-                        false,
-                        InstCond::from_llvm_cmp_type(icmp_instr.cmp_type()),
-                    ),
+                    mapping_info,
                 );
+                risc_v_instrs.extend(cmp_instrs);
             } else if let Some(fcmp_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Fcmp>()
             {
                 let s1_ssa = fcmp_instr.s1();
@@ -385,15 +466,13 @@ impl Block {
                     mapping_info.from_ssa_rvalue(s2_ssa)
                 };
                 let rd = mapping_info.from_ssa_rvalue(fcmp_instr.d1());
-                cmp_infos.insert(
+                let cmp_instrs = gen_fcmp_riscv_instr(
+                    rs1,
+                    rs2,
+                    InstCond::from_llvm_cmp_type(fcmp_instr.cmp_type()),
                     rd,
-                    CmpInfo::new(
-                        rs1,
-                        rs2,
-                        true,
-                        InstCond::from_llvm_cmp_type(fcmp_instr.cmp_type()),
-                    ),
                 );
+                risc_v_instrs.extend(cmp_instrs);
             } else if let Some(ret_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Ret>() {
                 if let Some(ret_value) = ret_instr.value() {
                     if ret_value.ty().is_float() {
@@ -411,10 +490,10 @@ impl Block {
                             )));
                         } else {
                             let float_ret_value = mapping_info.from_ssa_rvalue(ret_value);
-                            risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                            risc_v_instrs.push(Box::new(FRegInstr::new(
                                 Reg::new(FA0, Type::Float), // f10 f11 are return value register
                                 float_ret_value,
-                                FRegRegConvertType::FmvWX,
+                                FRegType::FmvS,
                             )));
                         }
                     } else if ret_value.ty().is_int() {
@@ -440,70 +519,28 @@ impl Block {
             } else if let Some(branch_instr) =
                 llvm_instr.as_any().downcast_ref::<llvm::instr::Branch>()
             {
-                let mut true_target_block_id = *mapping_info
+                let true_target_block_id = *mapping_info
                     .block_mapping()
                     .get(&branch_instr.label1)
                     .unwrap();
                 if let Some(cond) = &branch_instr.cond {
                     let rd = mapping_info.from_ssa_rvalue(&cond);
-                    let mut false_target_block_id = *mapping_info
+                    let false_target_block_id = *mapping_info
                         .block_mapping()
                         .get(&branch_instr.label2.unwrap())
                         .unwrap();
-                    let cmp_info = cmp_infos.get(&rd).unwrap();
-                    if *cmp_info.is_float() {
-                        let (lhs, ty, rhs) = cmp_info.to_risc_v_fcmp();
-                        risc_v_instrs.push(Box::new(FcmpInstr::new(rd, lhs, rhs, ty)));
-                        let (true_target_block_id, false_target_block_id) =
-                            if *cmp_info.cond() == InstCond::Ne {
-                                false_target_block_id = true_target_block_id;
-                                true_target_block_id = *mapping_info
-                                    .block_mapping()
-                                    .get(&branch_instr.label2.unwrap())
-                                    .unwrap();
-                                (true_target_block_id, false_target_block_id)
-                            } else {
-                                let false_target_block_id = *mapping_info
-                                    .block_mapping()
-                                    .get(&branch_instr.label2.unwrap())
-                                    .unwrap();
-                                (true_target_block_id, false_target_block_id)
-                            };
-                        if next_block_id.is_none() || true_target_block_id != next_block_id.unwrap()
-                        {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + true_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(BranchInstr::new(
-                                rd,
-                                Reg::new(ZERO, Type::Int),
-                                label,
-                                BranchType::Bne,
-                            )));
-                        }
-                        if next_block_id.is_none()
-                            || false_target_block_id != next_block_id.unwrap()
-                        {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + false_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
-                        }
-                    } else {
-                        let (lhs, ty, rhs) = cmp_info.to_risc_v_branch();
-                        // println!("NNN {}   {} {}", next_block_id.is_none(), true_target_block_id, next_block_id.unwrap());
-                        // if next_block_id.is_none() || true_target_block_id != next_block_id.unwrap()
-                        if true {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + true_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(BranchInstr::new(lhs, rhs, label, ty)));
-                            // println!("DDDDDDDDDDDDDDDDDDDDDDDDDD");
-                        }
-                        if next_block_id.is_none()
-                            || false_target_block_id != next_block_id.unwrap()
-                        {
-                            let label = BLOCK_LABEL_PREFIX.to_string()
-                                + false_target_block_id.to_string().as_str();
-                            risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
-                        }
+                    let label =
+                        BLOCK_LABEL_PREFIX.to_string() + true_target_block_id.to_string().as_str();
+                    risc_v_instrs.push(Box::new(BranchInstr::new(
+                        rd,
+                        Reg::new(ZERO, Type::Int),
+                        label,
+                        BranchType::Bne,
+                    )));
+                    if next_block_id.is_none() || false_target_block_id != next_block_id.unwrap() {
+                        let label = BLOCK_LABEL_PREFIX.to_string()
+                            + false_target_block_id.to_string().as_str();
+                        risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
                     }
                     blocks[(self_block_id - block_id_offset) as usize]
                         .add_out_edge(true_target_block_id);
@@ -527,35 +564,21 @@ impl Block {
                 }
             } else if let Some(call_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Call>()
             {
+                let mut is_addr_set = HashSet::new();
                 let mut int_arg_cnt = 0;
                 let mut float_arg_cnt = 0;
-                for arg in call_instr.args() {
-                    if arg.ty().is_int() {
-                        int_arg_cnt += 1;
-                    } else if arg.ty().is_float() {
-                        float_arg_cnt += 1;
-                    } else {
-                        unimplemented!("unimplemented arg type: {:?}", arg.ty());
-                    }
-                }
-                let int_arg_size = int_arg_cnt;
-                let float_arg_size = float_arg_cnt;
-                let mut stack_passed = 0;
-                if int_arg_size > RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
-                    stack_passed += int_arg_size - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT;
-                }
-                if float_arg_size > RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
-                    stack_passed += float_arg_size - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT;
-                }
-                if stack_passed % 2 == 1 {
-                    stack_passed += 1;
-                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(INT_SIZE as i32 * -1)));
-                }
                 let arg_reg_vec = call_instr
                     .args()
                     .iter()
                     .map(|arg| {
                         if arg.is_immediate() {
+                            if arg.ty().is_int() {
+                                int_arg_cnt += 1;
+                            } else if arg.ty().is_float() {
+                                float_arg_cnt += 1;
+                            } else {
+                                unimplemented!("unimplemented arg type: {:?}", arg.ty());
+                            }
                             let imme = arg.get_value().unwrap();
                             match imme {
                                 Immediate::Int(int) => {
@@ -580,24 +603,63 @@ impl Block {
                                 }
                             }
                         } else {
-                            mapping_info.from_ssa_rvalue(arg)
+                            let reg = mapping_info.from_ssa_rvalue(arg);
+                            if arg.is_addr() {
+                                is_addr_set.insert(reg);
+                                int_arg_cnt += 1;
+                            } else if arg.ty().is_int() {
+                                int_arg_cnt += 1;
+                            } else if arg.ty().is_float() {
+                                float_arg_cnt += 1;
+                            } else {
+                                unimplemented!("unimplemented arg type: {:?}", arg.ty());
+                            }
+                            reg
                         }
                     })
                     .collect::<Vec<_>>();
+                let int_arg_size = int_arg_cnt;
+                let float_arg_size = float_arg_cnt;
+                let mut stack_passed = 0;
+                if int_arg_size > RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
+                    for stack_arg in &arg_reg_vec[RegConvention::<i32>::ARGUMENT_REGISTER_COUNT..] {
+                        if is_addr_set.contains(stack_arg) {
+                            stack_passed += ADDRESS_SIZE as i32;
+                        } else {
+                            stack_passed += INT_SIZE as i32;
+                        }
+                    }
+                }
+                if float_arg_size > RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
+                    stack_passed += (float_arg_size - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT)
+                        as i32
+                        * FLOAT_SIZE as i32;
+                }
+
+                let mut offset = 0;
                 for rs in arg_reg_vec.iter().rev() {
-                    // TODO: store address, size not right
                     if rs.ty().is_int() {
                         int_arg_cnt -= 1;
                         if int_arg_cnt >= RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
-                            // todo: check whether is right
-                            risc_v_instrs.push(Box::new(StoreInstr::new(
-                                Reg::new_int(SP),
-                                *rs,
-                                INT_SIZE as i32
-                                    * (int_arg_cnt - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT)
-                                        as i32,
-                                StoreType::Sw,
-                            )));
+                            if is_addr_set.contains(&rs) {
+                                offset -= ADDRESS_SIZE as i32;
+                                risc_v_instrs.push(Box::new(StoreInstr::new(
+                                    Reg::new_int(SP),
+                                    *rs,
+                                    ImmeValueType::Direct(offset),
+                                    None,
+                                    StoreType::Sd,
+                                )));
+                            } else {
+                                offset -= INT_SIZE as i32;
+                                risc_v_instrs.push(Box::new(StoreInstr::new(
+                                    Reg::new_int(SP),
+                                    *rs,
+                                    ImmeValueType::Direct(offset),
+                                    None,
+                                    StoreType::Sw,
+                                )));
+                            }
                         } else {
                             risc_v_instrs.push(Box::new(RegInstr::new(
                                 Reg::new_int(
@@ -610,14 +672,12 @@ impl Block {
                     } else if rs.ty().is_float() {
                         float_arg_cnt -= 1;
                         if float_arg_cnt >= RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
-                            // todo: check whether is right
+                            offset -= FLOAT_SIZE as i32;
                             risc_v_instrs.push(Box::new(FStoreInstr::new(
                                 Reg::new_int(SP),
                                 *rs,
-                                FLOAT_SIZE as i32
-                                    * (float_arg_cnt
-                                        - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT)
-                                        as i32,
+                                ImmeValueType::Direct(offset),
+                                None,
                             )));
                         } else {
                             risc_v_instrs.push(Box::new(FRegInstr::new(
@@ -633,24 +693,27 @@ impl Block {
                         unimplemented!("unimplemented arg type: {:?}", rs.ty());
                     }
                 }
+                assert!(offset == (stack_passed as i32 * -1));
+
+                if stack_passed > 0 {
+                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(stack_passed * -1)));
+                }
                 risc_v_instrs.push(Box::new(CallInstr::new(
                     call_instr.func_name().to_string(),
                     int_arg_size,
                     float_arg_size,
                 )));
-
                 if stack_passed > 0 {
-                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(
-                        INT_SIZE as i32 * stack_passed as i32,
-                    )));
+                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(stack_passed)));
                 }
+
                 if let Some(ret) = call_instr.ret() {
                     let rd = mapping_info.from_ssa_rvalue(ret);
                     if ret.ty().is_float() {
-                        risc_v_instrs.push(Box::new(FRegRegInstr::new(
+                        risc_v_instrs.push(Box::new(FRegInstr::new(
                             rd,
                             Reg::new(FA0, Type::Float),
-                            FRegRegConvertType::FmvWX,
+                            FRegType::FmvS,
                         )));
                     } else if ret.ty().is_int() {
                         risc_v_instrs.push(Box::new(RegInstr::new(

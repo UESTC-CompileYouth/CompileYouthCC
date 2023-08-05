@@ -70,6 +70,8 @@ impl Program {
             register_allocation::allocate_load_stack(func);
             register_allocation::save_caller_saved_regs(func);
             register_allocation::save_callee_saved_regs(func);
+            register_allocation::backpatch_arg_stack_offset(func);
+            while register_allocation::peephole(func) {}
             register_allocation::insert_prologue(func);
             register_allocation::insert_epilogue(func);
         }

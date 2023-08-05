@@ -1,3 +1,4 @@
+use crate::common::constant::ADDRESS_SIZE;
 use crate::common::{immediate::Immediate, r#type::Type};
 use enum_as_inner::EnumAsInner;
 use getset::{Getters, Setters};
@@ -80,6 +81,14 @@ impl SSARightValue {
         }
     }
 
+    /// for address
+    pub fn new_addr(id: i32, ty: Type, shape: Vec<i32>) -> Self {
+        Self {
+            inner: SSARightValueInner::Address(id, ty, shape, AddrType::Local, false),
+            origin_id_and_version: None,
+        }
+    }
+
     pub fn get_type(&self) -> Type {
         let ty = match self.inner {
             SSARightValueInner::Immediate(imme) => imme.get_type(),
@@ -121,6 +130,13 @@ impl SSARightValue {
     pub fn is_addr(&self) -> bool {
         match self.inner {
             SSARightValueInner::Address(_, _, _, _, _) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_array_addr(&self) -> bool {
+        match &self.inner {
+            SSARightValueInner::Address(_, _, shape, _, _) => shape.len() > 0,
             _ => false,
         }
     }
@@ -190,7 +206,7 @@ pub struct SSALeftValue {
     #[getset(get = "pub")]
     name: String,
     #[getset(get = "pub")]
-    is_arg: bool,
+    is_arg: bool, // logical arg or arg on stack
     #[getset(get = "pub")]
     is_const: bool,
     #[getset(get = "pub")]
@@ -207,6 +223,9 @@ pub struct SSALeftValue {
     offset: i32,
     #[getset(get = "pub", set = "pub")]
     is_volatile: bool,
+    #[getset(get = "pub")]
+    is_omit_first_dim: bool, // 1. is_arg == true && is_omit_first_dim == true for array argument
+                             // 2. is_arg == true && is_omit_first_dim == false for array in function
 }
 
 impl Eq for SSALeftValue {}
@@ -230,12 +249,28 @@ impl SSALeftValue {
             init_value: None,
             offset: 0,
             is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
-
-    pub fn new_arg(id: i32, ty: Type) -> Self {
+    // normal variable with name and shape, not arg or global or const
+    pub fn new_normal(id: i32, ty: Type, name: String, shape: Vec<i32>) -> Self {
         Self {
-            name: String::new(),
+            name,
+            is_arg: false,
+            is_const: false,
+            is_global: false,
+            shape,
+            id,
+            ty,
+            init_value: None,
+            offset: 0,
+            is_volatile: false,
+            is_omit_first_dim: false,
+        }
+    }
+    pub fn new_arg_scalar(name: String, id: i32, ty: Type) -> Self {
+        Self {
+            name,
             is_arg: true,
             is_const: false,
             is_global: false,
@@ -245,10 +280,41 @@ impl SSALeftValue {
             init_value: None,
             offset: 0,
             is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
-
-    pub fn new_shape(id: i32, ty: Type, shape: Vec<i32>) -> Self {
+    pub fn new_arg_array(name: String, id: i32, ty: Type, shape: Vec<i32>) -> Self {
+        Self {
+            name,
+            is_arg: true,
+            is_const: false,
+            is_global: false,
+            shape,
+            id,
+            ty,
+            init_value: None,
+            offset: 0,
+            is_volatile: false,
+            is_omit_first_dim: true,
+        }
+    }
+    pub fn new_arg_unknown_length_array(name: String, id: i32, ty: Type) -> Self {
+        Self {
+            name,
+            is_arg: true,
+            is_const: false,
+            is_global: false,
+            shape: vec![-1],
+            ty,
+            id,
+            init_value: None,
+            offset: 0,
+            is_volatile: false,
+            is_omit_first_dim: true,
+        }
+    }
+    /// gep source address gen a new address
+    pub fn new_addr(id: i32, ty: Type, shape: Vec<i32>) -> Self {
         Self {
             name: String::new(),
             is_arg: false,
@@ -260,25 +326,11 @@ impl SSALeftValue {
             init_value: None,
             offset: 0,
             is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
 
-    pub fn new_name_shape(id: i32, ty: Type, name: String, shape: Vec<i32>) -> Self {
-        Self {
-            name,
-            is_arg: false,
-            is_const: false,
-            is_global: false,
-            shape,
-            id,
-            ty,
-            init_value: None,
-            offset: 0,
-            is_volatile: false,
-        }
-    }
-
-    pub fn new_name_shape_init_value(
+    pub fn new_const_array(
         id: i32,
         ty: Type,
         name: String,
@@ -288,7 +340,7 @@ impl SSALeftValue {
         Self {
             name,
             is_arg: false,
-            is_const: false,
+            is_const: true,
             is_global: false,
             shape,
             id,
@@ -296,58 +348,12 @@ impl SSALeftValue {
             init_value: Some(init_value),
             offset: 0,
             is_volatile: false,
-        }
-    }
-
-    pub fn new_name_shape_arg(
-        id: i32,
-        ty: Type,
-        name: String,
-        shape: Vec<i32>,
-        is_arg: bool,
-    ) -> Self {
-        Self {
-            name,
-            is_arg,
-            is_const: false,
-            is_global: false,
-            shape,
-            id,
-            ty,
-            init_value: None,
-            offset: 0,
-            is_volatile: false,
-        }
-    }
-
-    pub fn new_name_shape_value_const(
-        id: i32,
-        ty: Type,
-        name: String,
-        shape: Vec<i32>,
-        init_value: Vec<Immediate>,
-        is_const: bool,
-    ) -> Self {
-        Self {
-            name,
-            is_arg: false,
-            is_const,
-            is_global: false,
-            shape,
-            id,
-            ty,
-            init_value: Some(init_value),
-            offset: 0,
-            is_volatile: false,
+            is_omit_first_dim: false,
         }
     }
 
     pub fn is_promotable(&self) -> bool {
         !self.is_global && !self.is_arg && self.shape.is_empty() // && self.size == bitwidth 32
-    }
-
-    pub fn is_init(&self) -> bool {
-        self.init_value.is_some()
     }
 
     pub fn set_global(&mut self) {
@@ -370,7 +376,13 @@ impl SSALeftValue {
         *self = value;
     }
 
-    pub fn to_rvalue(&self) -> SSARightValue {
+    pub fn gen_save_arg_lvalue(&self, id: i32) -> Self {
+        let mut new_lvalue = self.clone();
+        new_lvalue.id = id;
+        new_lvalue
+    }
+
+    pub fn to_address(&self) -> SSARightValue {
         if self.is_global {
             SSARightValue {
                 inner: SSARightValueInner::Address(
@@ -396,8 +408,32 @@ impl SSALeftValue {
         }
     }
 
+    /// if arg is address, keep arg shape
+    pub fn to_arg_rvalue(&self) -> SSARightValue {
+        assert!(self.is_arg);
+        if self.is_omit_first_dim {
+            // array arg
+            self.to_address()
+        } else {
+            // scalar arg
+            SSARightValue {
+                inner: SSARightValueInner::Normal(self.id, self.ty),
+                origin_id_and_version: None,
+            }
+        }
+    }
+
     pub fn size(&self) -> u32 {
-        self.ty.size() * self.shape.iter().product::<i32>() as u32
+        if self.is_omit_first_dim {
+            // array arg, must be address, but memory stack not in callee stack, so size is address size
+            ADDRESS_SIZE
+        } else {
+            self.ty.size() * self.shape.iter().product::<i32>() as u32
+        }
+    }
+
+    pub fn is_array_arg(&self) -> bool {
+        self.is_arg && self.shape.len() > 0
     }
 }
 

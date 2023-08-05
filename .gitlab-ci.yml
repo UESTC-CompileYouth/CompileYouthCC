@@ -14,6 +14,8 @@ pre_check:
   stage: check
   script:
     - rustc --version
+    - cargo update
+    - cargo update -p time@0.3.25 --precise 0.3.23
     - cargo fmt --all --check
     - cargo check --release
     - cargo check --tests --release
@@ -24,16 +26,24 @@ pre_check:
 unit_test:
   stage: test
   script:
-    - cargo test --release
-    
+    - cargo update
+    - cargo update -p time@0.3.25 --precise 0.3.23
+    - cargo test
+
+
 # test SysYCC correctness 
 functional_test:
   stage: test
   script:
-    - cargo build --release
+    - rm -rf ci_output
+    - cargo clean
+    - cargo update
+    - cargo update -p time@0.3.25 --precise 0.3.23
+    - cargo build -r --bin compiler
+    - bash scripts/ci_functional_test.sh /home/gitlab-runner/Tools/qemu/riscv-gnu-toolchain/opt-riscv-rv64/bin /usr/bin/qemu-riscv64-static
     
 # test SysYCC optimization performance 
 performance_test:
   stage: test
   script:
-    - cargo build --release
+    - echo "todo"

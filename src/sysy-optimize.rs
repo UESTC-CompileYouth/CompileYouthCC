@@ -12,6 +12,7 @@ use sysycc_compiler::frontend::{
     error_listener::SysYErrorListener, llvm::llvm_module::LLVMModule,
 };
 use sysycc_compiler::optimize::passes::{
+    check_ir::check_module,
     dce::remove_unused_def,
     mem2reg::{mem2reg, remove_unreachable_bb_module},
 };
@@ -60,7 +61,9 @@ fn main() {
     // println!("{}", llvm_module);
     remove_unreachable_bb_module(&mut llvm_module);
     mem2reg(&mut llvm_module);
+    check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);
+    check_module(&llvm_module);
 
     if let Some(output_path) = cmdline_options.output_file {
         let mut output_file = File::create(output_path).expect("cannot open output file");

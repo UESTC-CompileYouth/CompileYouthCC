@@ -6,7 +6,12 @@ use super::{
 };
 use crate::common::{error::SemanticError, immediate::Immediate, r#type::Type};
 use crate::frontend::{
-    llvm::{function::Function, instr::*, llvm_module::*, ssa::*},
+    llvm::{
+        function::{ArgumentList, Function},
+        instr::*,
+        llvm_module::*,
+        ssa::*,
+    },
     return_content::AstExp,
 };
 use antlr_rust::tree::{ParseTree, ParseTreeVisitorCompat, Tree, Visitable};
@@ -83,6 +88,7 @@ impl SysYAstVisitor<'_> {
         &mut self,
         ctx: &ListConstInitValContext,
         shape: &mut Vec<i32>,
+        ty: Type,
         result: &mut Vec<Immediate>,
     ) {
         if shape.len() == 0 {
@@ -111,7 +117,9 @@ impl SysYAstVisitor<'_> {
                     scalar_child.constExp().unwrap().accept(self);
                     let return_content = self.return_content();
                     result.push(match return_content.into_exp().unwrap() {
-                        AstExp::StaticValue(immediate) => immediate,
+                        AstExp::StaticValue(immediate) => {
+                            Self::convert_imme2needed_type(immediate, ty)
+                        }
                         _ => panic!("Invalid Init List"),
                     });
                     cnt += 1;
@@ -120,15 +128,34 @@ impl SysYAstVisitor<'_> {
                     if cnt % child_size != 0 || cnt + child_size > total_size {
                         panic!("Invalid Init List");
                     }
-                    self.dfs_const_init(list_child, &mut child_shape, result);
+                    self.dfs_const_init(list_child, &mut child_shape, ty, result);
                     cnt += child_size;
                 }
                 ConstInitValContextAll::Error(_) => {}
             }
         }
         while cnt < total_size {
-            result.push(Immediate::Int(0));
+            if ty == Type::Float {
+                result.push(Immediate::Float(0.0));
+            } else {
+                result.push(Immediate::Int(0));
+            }
             cnt += 1;
+        }
+    }
+
+    #[inline(always)]
+    fn convert_imme2needed_type(imme: Immediate, ty: Type) -> Immediate {
+        assert!(imme.get_type() != Type::Void);
+        assert!(ty != Type::Void);
+        if imme.get_type() == ty {
+            imme
+        } else if imme.get_type() == Type::Int && ty == Type::Float {
+            Immediate::Float(imme.into_int().unwrap() as f32)
+        } else if imme.get_type() == Type::Float && ty == Type::Int {
+            Immediate::Int(imme.into_float().unwrap() as i32)
+        } else {
+            panic!("Invalid Type Conversion")
         }
     }
 
@@ -136,6 +163,7 @@ impl SysYAstVisitor<'_> {
         &mut self,
         ctx: &ConstInitValContextAll,
         shape: &mut Vec<i32>,
+        ty: Type,
     ) -> Vec<Immediate> {
         let mut result = Vec::new();
         match ctx {
@@ -146,12 +174,12 @@ impl SysYAstVisitor<'_> {
                 ctx.constExp().unwrap().accept(self);
                 let return_content = self.return_content();
                 result.push(match return_content.into_exp().unwrap() {
-                    AstExp::StaticValue(immediate) => immediate,
+                    AstExp::StaticValue(immediate) => Self::convert_imme2needed_type(immediate, ty),
                     _ => panic!("Invalid Init List"),
                 });
             }
             ConstInitValContextAll::ListConstInitValContext(ctx) => {
-                self.dfs_const_init(ctx, shape, &mut result);
+                self.dfs_const_init(ctx, shape, ty, &mut result);
             }
             ConstInitValContextAll::Error(_) => {
                 panic!("Invalid Init List");
@@ -285,7 +313,7 @@ impl SysYAstVisitor<'_> {
                         bb_id,
                     ));
                     ir_vec.push(Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                        Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                         bb_id,
                     ));
                 } else if lvalue.get_type() == Type::Float && rvalue_vec[0].get_type() == Type::Int
@@ -296,12 +324,12 @@ impl SysYAstVisitor<'_> {
                         bb_id,
                     ));
                     ir_vec.push(Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                        Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                         bb_id,
                     ));
                 } else {
                     ir_vec.push(Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), rvalue_vec[0].clone())),
+                        Box::new(Store::new(lvalue.to_address(), rvalue_vec[0].clone())),
                         bb_id,
                     ));
                 }
@@ -315,15 +343,15 @@ impl SysYAstVisitor<'_> {
                 child_size *= new_shape[i];
             }
             for index in 0..shape[0] {
-                let new_lvalue = SSALeftValue::new_shape(
+                let new_lvalue = SSALeftValue::new_addr(
                     self.cur_function().alloc_ssa_id(),
                     lvalue.get_type(),
                     new_shape.to_vec(),
                 );
                 ir_vec.push(Instruction::new(
                     Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        new_lvalue.to_rvalue(),
+                        lvalue.to_address(),
+                        new_lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Int(index as i32)),
                     )),
                     bb_id,
@@ -349,13 +377,13 @@ impl SysYAstVisitor<'_> {
             if lvalue.get_type() == Type::Int {
                 let new_rvalue = SSARightValue::new_imme(Immediate::Int(0));
                 ir_vec.push(Instruction::new(
-                    Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                    Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                     bb_id,
                 ));
             } else if lvalue.get_type() == Type::Float {
                 let new_rvalue = SSARightValue::new_imme(Immediate::Float(0.0));
                 ir_vec.push(Instruction::new(
-                    Box::new(Store::new(lvalue.to_rvalue(), new_rvalue)),
+                    Box::new(Store::new(lvalue.to_address(), new_rvalue)),
                     bb_id,
                 ));
             } else {
@@ -365,15 +393,15 @@ impl SysYAstVisitor<'_> {
             // array
             let new_shape = shape[1..].to_vec();
             for index in 0..shape[0] {
-                let new_lvalue = SSALeftValue::new_shape(
+                let new_lvalue = SSALeftValue::new_addr(
                     self.cur_function().alloc_ssa_id(),
                     lvalue.get_type(),
                     new_shape.to_vec(),
                 );
                 ir_vec.push(Instruction::new(
                     Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        new_lvalue.to_rvalue(),
+                        lvalue.to_address(),
+                        new_lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Int(index as i32)),
                     )),
                     bb_id,
@@ -410,35 +438,83 @@ impl SysYAstVisitor<'_> {
 
     fn register_lib_func(&mut self) {
         // get from i/o
-        self.module.register_lib_func("getint", Type::Int);
-        self.module.register_lib_func("getch", Type::Int);
-        self.module.register_lib_func("getfloat", Type::Int);
-
-        // time
-        self.module.register_lib_func("starttime", Type::Void);
-        self.module.register_lib_func("stoptime", Type::Void);
-
-        // todo: arg list
-        self.module.register_lib_func("getarray", Type::Int);
-        self.module.register_lib_func("getfarray", Type::Int);
+        self.module
+            .register_lib_func("getint", Type::Int, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("getch", Type::Int, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("getfloat", Type::Float, ArgumentList::Normal(vec![]));
+        self.module.register_lib_func(
+            "getarray",
+            Type::Int,
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_unknown_length_array(
+                String::from("arg_0"),
+                0,
+                Type::Int,
+            )]),
+        );
+        self.module.register_lib_func(
+            "getfarray",
+            Type::Int,
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_unknown_length_array(
+                String::from("arg_0"),
+                0,
+                Type::Float,
+            )]),
+        );
 
         // put to i/o
-        let putint = self.module.register_lib_func("putint", Type::Void);
-        let putint_arg_list = vec![Type::Int];
-        putint.set_lib_func_arg_list(putint_arg_list);
+        self.module.register_lib_func(
+            "putint",
+            Type::Void,
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(
+                String::from("arg_0"),
+                0,
+                Type::Int,
+            )]),
+        );
+        self.module.register_lib_func(
+            "putch",
+            Type::Void,
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(
+                String::from("arg_0"),
+                0,
+                Type::Int,
+            )]),
+        );
+        self.module.register_lib_func(
+            "putfloat",
+            Type::Void,
+            ArgumentList::Normal(vec![SSALeftValue::new_arg_scalar(
+                String::from("arg_0"),
+                0,
+                Type::Float,
+            )]),
+        );
+        self.module.register_lib_func(
+            "putarray",
+            Type::Void,
+            ArgumentList::Normal(vec![
+                SSALeftValue::new_arg_scalar(String::from("arg_0"), 0, Type::Int),
+                SSALeftValue::new_arg_unknown_length_array(String::from("arg_1"), 1, Type::Int),
+            ]),
+        );
+        self.module.register_lib_func(
+            "putfarray",
+            Type::Void,
+            ArgumentList::Normal(vec![
+                SSALeftValue::new_arg_scalar(String::from("arg_0"), 0, Type::Int),
+                SSALeftValue::new_arg_unknown_length_array(String::from("arg_1"), 1, Type::Float),
+            ]),
+        );
+        self.module
+            .register_lib_func("putf", Type::Void, ArgumentList::Variadic);
 
-        let putch = self.module.register_lib_func("putch", Type::Void);
-        let putch_arg_list = vec![Type::Int];
-        putch.set_lib_func_arg_list(putch_arg_list);
-
-        let putfloat = self.module.register_lib_func("putfloat", Type::Void);
-        let putfloat_arg_list = vec![Type::Float];
-        putfloat.set_lib_func_arg_list(putfloat_arg_list);
-
-        // todo: arg list
-        self.module.register_lib_func("putarray", Type::Void);
-        self.module.register_lib_func("putfarray", Type::Void);
-        self.module.register_lib_func("putf", Type::Void);
+        // time
+        self.module
+            .register_lib_func("starttime", Type::Void, ArgumentList::Normal(vec![]));
+        self.module
+            .register_lib_func("stoptime", Type::Void, ArgumentList::Normal(vec![]));
     }
 
     #[inline(always)]
@@ -589,19 +665,22 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 }
             })
             .collect::<Vec<_>>();
-        let init_value = self.parse_const_init(&*ctx.constInitVal().unwrap(), &mut shape);
+        let init_value = self.parse_const_init(
+            &*ctx.constInitVal().unwrap(),
+            &mut shape,
+            self.cur_type.clone(),
+        );
         let rvalue_vec: Vec<SSARightValue> = init_value
             .iter()
             .map(|i| SSARightValue::new_imme(*i))
             .collect();
         let left_id = self.new_id();
-        let mut entry = VariableEntry::new_name_shape_value_const(
+        let mut entry = VariableEntry::new_const_array(
             left_id,
             self.cur_type.clone(),
             ident_name.clone(),
             shape,
             init_value,
-            true,
         );
 
         if self.cur_func_name == "_init" {
@@ -616,7 +695,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             let mut instrs: Vec<Instruction> = vec![];
             if cur_bb_id != entry_bb_id {
                 instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
+                    Box::new(Alloca::new(entry.to_address())),
                     entry_bb_id,
                 ));
                 self.generate_lvalue_zero_init_ir(entry_bb_id, entry.clone(), &mut instrs);
@@ -626,10 +705,10 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 self.cur_function().add_insts2bb(instrs);
             } else {
                 instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    cur_bb_id,
+                    Box::new(Alloca::new(entry.to_address())),
+                    entry_bb_id,
                 ));
-                self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), rvalue_vec, &mut instrs);
+                self.generate_lvalue_init_ir(entry_bb_id, entry.clone(), rvalue_vec, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             }
             let func = self.cur_function();
@@ -729,26 +808,16 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             self.value_mode = ValueMode::Normal;
         }
         let mut entry =
-            VariableEntry::new_name_shape(self.new_id(), self.cur_type, ident_name.clone(), shape);
+            VariableEntry::new_normal(self.new_id(), self.cur_type, ident_name.clone(), shape);
 
         if self.cur_func_name != "_init" {
-            let entry_bb_id = self.cur_function().entry_bb_id();
             let cur_bb_id = self.cur_bb.unwrap();
-            let mut instrs: Vec<Instruction> = vec![];
+            let entry_bb_id = self.cur_function().entry_bb_id();
+            let instr = Instruction::new(Box::new(Alloca::new(entry.to_address())), entry_bb_id);
             if cur_bb_id != entry_bb_id {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    entry_bb_id,
-                ));
-                // self.generate_lvalue_zero_init_ir(entry_bb_id, entry.clone(), &mut instrs);
-                self.cur_function().add_instrs2bb_at_front(instrs);
+                self.cur_function().add_instr2bb_at_front(instr);
             } else {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    cur_bb_id,
-                ));
-                // self.generate_lvalue_zero_init_ir(cur_bb_id, entry.clone(), &mut instrs);
-                self.cur_function().add_insts2bb(instrs);
+                self.cur_function().add_inst2bb(instr);
             }
             self.cur_function()
                 .mem_scope_mut()
@@ -784,12 +853,11 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 panic!("visit_initVarDef: identifier already exist")
             }
         } else {
-            if self.module.have_function(&ident_name)
-                || match &self.cur_vtable {
-                    Some(vtable) => vtable.is_exist(&ident_name),
-                    None => false,
-                }
-            {
+            // allow duplicate local variable name with function name
+            if match &self.cur_vtable {
+                Some(vtable) => vtable.is_exist(&ident_name),
+                None => false,
+            } {
                 panic!("visit_initVarDef: identifier already exist")
             }
         }
@@ -820,7 +888,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let init_vals = self.parse_var_init(ctx.initVal().unwrap().as_ref(), &mut shape);
 
         let mut entry: SSALeftValue =
-            VariableEntry::new_name_shape(self.new_id(), self.cur_type, ident_name.clone(), shape);
+            VariableEntry::new_normal(self.new_id(), self.cur_type, ident_name.clone(), shape);
 
         if self.cur_func_name == "_init" {
             entry.set_global();
@@ -836,21 +904,16 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             let entry_bb_id = self.cur_function().entry_bb_id();
             let cur_bb_id = self.cur_bb.unwrap();
             let mut instrs: Vec<Instruction> = vec![];
+            instrs.push(Instruction::new(
+                Box::new(Alloca::new(entry.to_address())),
+                entry_bb_id,
+            ));
             if cur_bb_id != entry_bb_id {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    entry_bb_id,
-                ));
-                // self.generate_lvalue_zero_init_ir(entry_bb_id, entry.clone(), &mut instrs);
                 self.cur_function().add_instrs2bb_at_front(instrs);
                 let mut instrs: Vec<Instruction> = vec![];
                 self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), init_vals, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             } else {
-                instrs.push(Instruction::new(
-                    Box::new(Alloca::new(entry.to_rvalue())),
-                    cur_bb_id,
-                ));
                 self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), init_vals, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             }
@@ -919,54 +982,48 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         if is_have_args {
             let ret = self.return_content();
             let args = ret.into_func_f_params().unwrap();
-            if args.len() != 0 {
-                let func_entry = self.module.functions_mut().get_mut(&func_name).unwrap();
-                func_entry.set_arg_list(args.clone());
-                // TODO: 这段代码逻辑混乱，到时候要重写，难绷
-                for (arg_idx, (arg_name, mut arg_lvalue)) in args.into_iter().enumerate() {
-                    // TODO: 分别考虑ScalarType和ArrayType, 做不同处理
-                    let id = func_entry.alloc_ssa_id();
-                    let lvalue = SSALeftValue::new_arg(id, arg_lvalue.get_type());
-                    let alloca_ir = Instruction::new(
-                        Box::new(Alloca::new(lvalue.to_rvalue())),
-                        self.cur_bb.unwrap(),
-                    );
-                    // func_entry.mem_scope_mut().new_mem_object(lvalue.clone());
-                    func_entry.add_inst2bb(alloca_ir);
-                    let rvalue = SSARightValue::new_reg(*arg_lvalue.id(), arg_lvalue.get_type());
-                    let store_ir = Instruction::new(
-                        Box::new(Store::new(lvalue.to_rvalue(), rvalue)),
-                        self.cur_bb.unwrap(),
-                    );
-                    func_entry.add_inst2bb(store_ir);
-                    arg_lvalue.set_id(id);
-                    self.cur_vtable
-                        .as_mut()
-                        .unwrap()
-                        .append(arg_name, arg_lvalue.clone());
-                    func_entry
-                        .mem_scope_mut()
-                        .new_argument(arg_idx, arg_lvalue.clone())
-                }
+            let func_entry = self.module.functions_mut().get_mut(&func_name).unwrap();
+            func_entry.set_arg_list(ArgumentList::Normal(
+                args.iter().map(|(_, i)| i.clone()).collect::<Vec<_>>(),
+            ));
+            for (arg_idx, (arg_name, arg)) in args.into_iter().enumerate() {
+                let id = func_entry.alloc_ssa_id();
+                let lvalue = arg.gen_save_arg_lvalue(id);
+                let alloca_ir = Instruction::new(
+                    Box::new(Alloca::new(lvalue.to_address())),
+                    self.cur_bb.unwrap(),
+                );
+                func_entry.add_inst2bb(alloca_ir);
+                let store_ir = Instruction::new(
+                    Box::new(Store::new(lvalue.to_address(), arg.to_arg_rvalue())),
+                    self.cur_bb.unwrap(),
+                );
+                func_entry.add_inst2bb(store_ir);
+                self.cur_vtable
+                    .as_mut()
+                    .unwrap()
+                    .append(arg_name, lvalue.clone()); // arg is saved in lvalue after alloca and store
+                func_entry.mem_scope_mut().new_mem_object(lvalue);
+                func_entry.mem_scope_mut().new_argument(arg_idx, arg);
             }
         }
 
         if func_type != Type::Void {
             let id = self.cur_function().alloc_ssa_id();
             let lvalue = SSALeftValue::new(id, func_type);
-            self.ret_value_opt = Some(lvalue.clone());
             let alloca = Instruction::new(
-                Box::new(Alloca::new(lvalue.to_rvalue())),
+                Box::new(Alloca::new(lvalue.to_address())),
                 self.cur_bb.unwrap(),
             );
             self.cur_function().add_inst2bb(alloca);
+            self.ret_value_opt = Some(lvalue.clone());
             self.cur_function()
                 .mem_scope_mut()
                 .new_mem_object(lvalue.clone());
             let store = if func_type == Type::Int {
                 Instruction::new(
                     Box::new(Store::new(
-                        lvalue.to_rvalue(),
+                        lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Int(0)),
                     )),
                     self.cur_bb.unwrap(),
@@ -974,7 +1031,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             } else {
                 Instruction::new(
                     Box::new(Store::new(
-                        lvalue.to_rvalue(),
+                        lvalue.to_address(),
                         SSARightValue::new_imme(Immediate::Float(0.0)),
                     )),
                     self.cur_bb.unwrap(),
@@ -983,7 +1040,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             self.cur_function().add_inst2bb(store);
         }
 
+        self.depth += 1;
         ctx.block().unwrap().accept(self);
+        self.depth -= 1;
 
         if let Some(ret_bb) = self.ret_bb_opt.clone() {
             if func_type != Type::Void {
@@ -992,7 +1051,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
 
                 let load = Instruction::new(
                     Box::new(Load::new(
-                        self.ret_value_opt.clone().unwrap().to_rvalue(),
+                        self.ret_value_opt.clone().unwrap().to_address(),
                         ret_rvalue.clone(),
                     )),
                     ret_bb,
@@ -1007,6 +1066,12 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             } else {
                 let ret = Instruction::new(Box::new(Ret::new(None)), ret_bb);
                 self.cur_function().add_inst2bb(ret);
+                let cur_bb_id = self.cur_bb.unwrap();
+                let cur_bb = self.cur_function().bb(cur_bb_id).unwrap();
+                if !cur_bb.have_exit() {
+                    let br = Instruction::new(Box::new(Branch::new_label(ret_bb)), cur_bb_id);
+                    self.cur_function().add_inst2bb(br);
+                }
             }
         } else {
             if !self.has_return {
@@ -1066,34 +1131,26 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let ty = Type::from_str(ctx.bType().unwrap().get_text().as_str()).unwrap();
         let name = ctx.Identifier().unwrap().get_text().to_string();
         let mut shape: Vec<i32> = vec![];
-        // todo:
         if ctx.Lbrkt_all().len() > 0 {
-            shape.push(1 << 16);
+            shape.push(-1);
         }
         self.value_mode = ValueMode::Const;
-        self.cur_type = ty.clone();
-        let _ = ctx
-            .constExp_all()
-            .iter()
-            .map(|x| {
-                x.accept(self);
-                let ret = self.return_content();
-                let dim = match ret.into_exp().unwrap() {
-                    AstExp::StaticValue(Immediate::Int(i)) => i,
-                    _ => unreachable!(),
-                };
-                shape.push(dim);
-            })
-            .collect::<Vec<_>>();
+        self.cur_type = ty;
+        ctx.constExp_all().iter().for_each(|x| {
+            x.accept(self);
+            let ret = self.return_content();
+            let dim = match ret.into_exp().unwrap() {
+                AstExp::StaticValue(Immediate::Int(i)) => i,
+                _ => unreachable!(),
+            };
+            shape.push(dim);
+        });
         self.value_mode = ValueMode::Normal;
-        let cur_func = self.cur_function();
-        let entry = SSALeftValue::new_name_shape_arg(
-            cur_func.alloc_ssa_id(),
-            ty.clone(),
-            name.clone(),
-            shape,
-            true,
-        );
+        let entry = if shape.len() == 0 {
+            SSALeftValue::new_arg_scalar(name.clone(), self.cur_function().alloc_ssa_id(), ty)
+        } else {
+            SSALeftValue::new_arg_array(name.clone(), self.cur_function().alloc_ssa_id(), ty, shape)
+        };
         log::trace!("leave_funcFParam");
         AstReturnContent::FuncFParam((name, entry)).into()
     }
@@ -1104,9 +1161,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     #[allow(non_snake_case)]
     fn visit_block(&mut self, ctx: &BlockContext<'input>) -> Self::Return {
         log::trace!("visit_block");
-        self.depth += 1;
         let res = self.visit_children(ctx);
-        self.depth -= 1;
         log::trace!("leave_block");
         res
     }
@@ -1133,7 +1188,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         log::trace!("visit_assignment");
         ctx.lVal().unwrap().accept(self);
         let return_content = self.return_content();
-        let lvalue = return_content.into_lvalue().unwrap();
+        let lvalue_addr = return_content.into_exp().unwrap().into_ssa_value().unwrap();
         ctx.exp().unwrap().accept(self);
         let return_content = self.return_content();
         let rvalue = match return_content {
@@ -1143,9 +1198,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         if self.cur_bb.is_none() {
             panic!("cur_bb is None");
         }
-        let rvalue = self.convert_type(rvalue, lvalue.get_type());
+        let rvalue = self.convert_type(rvalue, lvalue_addr.get_type());
         let store = Instruction::new(
-            Box::new(Store::new(lvalue.to_rvalue(), rvalue)),
+            Box::new(Store::new(lvalue_addr, rvalue)),
             self.cur_bb.unwrap(),
         );
         self.cur_function().add_inst2bb(store);
@@ -1198,7 +1253,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .bb_mut(self.cur_bb.unwrap())
             .unwrap()
             .set_alias("if.then".to_string());
+        self.depth += 1;
         ctx.stmt().unwrap().accept(self);
+        self.depth -= 1;
         let cur_func = self
             .module
             .functions_mut()
@@ -1244,7 +1301,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .bb_mut(self.cur_bb.unwrap())
             .unwrap()
             .set_alias("if.then".to_string());
+        self.depth += 1;
         ctx.stmt(0).unwrap().accept(self);
+        self.depth -= 1;
         let true_branch_last_bb = self.cur_bb;
         let false_branch_bb = Some(*self.false_bb_stack.last().unwrap());
         self.cur_bb = false_branch_bb;
@@ -1255,7 +1314,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .bb_mut(self.cur_bb.unwrap())
             .unwrap()
             .set_alias("if.else".to_string());
+        self.depth += 1;
         ctx.stmt(1).unwrap().accept(self);
+        self.depth -= 1;
         let false_branch_last_bb = self.cur_bb;
         self.true_bb_stack.pop();
         self.false_bb_stack.pop();
@@ -1355,7 +1416,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         self.cur_bb = Some(*self.true_bb_stack.last().unwrap());
         let cur_block = cur_func.bb_mut(self.cur_bb.unwrap()).unwrap();
         cur_block.set_alias("while.true".to_string());
+        self.depth += 1;
         ctx.stmt().unwrap().accept(self);
+        self.depth -= 1;
         let cur_func = self
             .module
             .functions_mut()
@@ -1484,7 +1547,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                             .convert_type(rvalue, self.ret_value_opt.as_ref().unwrap().get_type());
                         let store = Instruction::new(
                             Box::new(Store::new(
-                                self.ret_value_opt.clone().unwrap().to_rvalue(),
+                                self.ret_value_opt.clone().unwrap().to_address(),
                                 rvalue,
                             )),
                             self.cur_bb.unwrap(),
@@ -1523,7 +1586,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                         self.convert_type(rvalue, self.ret_value_opt.as_ref().unwrap().get_type());
                     let store_ir = Instruction::new(
                         Box::new(Store::new(
-                            self.ret_value_opt.clone().unwrap().to_rvalue(),
+                            self.ret_value_opt.clone().unwrap().to_address(),
                             rvalue,
                         )),
                         self.cur_bb.unwrap(),
@@ -1711,6 +1774,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 panic!("variable not found");
             }
         } else {
+            let cur_bb = self.cur_bb.unwrap();
             let mut lvalue = self
                 .cur_vtable
                 .as_mut()
@@ -1719,19 +1783,34 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 .expect("variable not found")
                 .clone();
 
-            let cur_bb = self.cur_bb.unwrap();
-            let cur_func = self.cur_function();
+            if *lvalue.is_omit_first_dim() {
+                // arg is a pointer, make a fake lvalue(lvalue is in another function stack frame)
+                let new_lvalue = SSALeftValue::new_addr(
+                    self.cur_function().alloc_ssa_id(),
+                    lvalue.get_type(),
+                    lvalue.get_shape(),
+                );
+                let load_address_from_mem = Instruction::new(
+                    Box::new(Load::new(lvalue.to_address(), new_lvalue.to_address())),
+                    cur_bb,
+                );
+                self.cur_function().add_inst2bb(load_address_from_mem);
+                lvalue = new_lvalue;
+            } else {
+                // arg is a value
+            };
+
             let ty = lvalue.get_type();
-            for i in indexs.iter() {
+            let cur_func = self.cur_function();
+            for index in indexs.into_iter() {
                 let new_shape = lvalue.get_shape()[1..].to_vec();
                 let new_lvalue =
-                    SSALeftValue::new_shape(cur_func.alloc_ssa_id(), ty.clone(), new_shape);
-
+                    SSALeftValue::new_addr(cur_func.alloc_ssa_id(), ty.clone(), new_shape.clone());
                 let gepir = Instruction::new(
                     Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        new_lvalue.to_rvalue(),
-                        i.clone(),
+                        lvalue.to_address(),
+                        new_lvalue.to_address(),
+                        index,
                     )),
                     cur_bb,
                 );
@@ -1739,7 +1818,8 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 lvalue = new_lvalue;
             }
             log::trace!("leaveLVal_1");
-            return AstReturnContent::Lvalue(lvalue).into();
+            return AstReturnContent::Exp(AstExp::SSAValue(lvalue.to_address())).into();
+            // return lvalue address
         }
     }
 
@@ -1769,51 +1849,49 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     #[allow(non_snake_case)]
     fn visit_primaryExp2(&mut self, ctx: &PrimaryExp2Context<'input>) -> Self::Return {
         log::trace!("visit_primaryExp2 start");
-        if self.value_mode != ValueMode::Const {
+        if self.value_mode == ValueMode::Const {
+            let res = self.visit_children(ctx);
+            log::trace!("visit_primaryExp2_1 end");
+            res
+        } else {
+            // let res = self.visit_children(ctx);
+            // log::trace!("visit_primaryExp2_2 end");
+            // res
             ctx.lVal().unwrap().accept(self);
             let return_content = self.return_content();
-            let lvalue = match return_content {
-                AstReturnContent::Lvalue(lvalue) => lvalue,
-                _ => panic!("primaryExp2: not a lvalue"),
-            };
-            // TODO: i dont know why do this
-            if lvalue.get_shape().len() != 0 {
-                // address pointer
-                let new_shape = lvalue.get_shape();
-                let new_shape = new_shape[1..].to_vec();
-                let d1 = SSALeftValue::new_shape(self.new_id(), lvalue.get_type(), new_shape);
-
-                let gepir = Instruction::new(
-                    Box::new(Gep::new(
-                        lvalue.to_rvalue(),
-                        d1.to_rvalue(),
-                        SSARightValue::new_imme(Immediate::Int(0)),
-                    )),
-                    self.cur_bb.unwrap(),
-                );
-                self.cur_function().add_inst2bb(gepir);
-                log::trace!("leavePrimaryExp2_0");
-                return AstReturnContent::Exp(AstExp::SSAValue(d1.to_rvalue())).into();
+            let addr = return_content.into_exp().unwrap().into_ssa_value().unwrap();
+            // println!("addr: {:?}", addr);
+            if addr.is_array_addr() {
+                if addr.is_global() {
+                    let reg = SSARightValue::new_addr(
+                        self.cur_function().alloc_ssa_id(),
+                        addr.get_type(),
+                        addr.addr_shape().unwrap(),
+                    );
+                    let gep_global_array = Instruction::new(
+                        Box::new(Gep::new(
+                            addr,
+                            reg.clone(),
+                            SSARightValue::new_imme(Immediate::Int(0)),
+                        )),
+                        self.cur_bb.unwrap(),
+                    );
+                    self.cur_function().add_inst2bb(gep_global_array);
+                    log::trace!("visit_primaryExp2_2 end");
+                    return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
+                } else {
+                    log::trace!("visit_primaryExp2_3 end");
+                    return AstReturnContent::Exp(AstExp::SSAValue(addr)).into();
+                }
             } else {
-                // if *lvalue.is_arg() {
-                //     log::trace!("leavePrimaryExp2_1");
-                //     return AstReturnContent::Exp(AstExp::SSAValue(lvalue.to_rvalue())).into();
-                // } else {
-                // scalar value
-                let d1 = self.cur_function().new_reg(lvalue.get_type());
-                let loadir = Instruction::new(
-                    Box::new(Load::new(lvalue.to_rvalue(), d1.clone())),
-                    self.cur_bb.unwrap(),
-                );
-                self.cur_function().add_inst2bb(loadir);
-                log::trace!("leavePrimaryExp2_1");
-                return AstReturnContent::Exp(AstExp::SSAValue(d1)).into();
-                // }
+                let reg =
+                    SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), addr.get_type());
+                let load_value =
+                    Instruction::new(Box::new(Load::new(addr, reg.clone())), self.cur_bb.unwrap());
+                self.cur_function().add_inst2bb(load_value);
+                log::trace!("visit_primaryExp2_4 end");
+                return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
             }
-        } else {
-            let res = self.visit_children(ctx);
-            log::trace!("visit_primaryExp2 end");
-            res
         }
     }
 
@@ -1891,9 +1969,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             panic!("function call occurs in compile-time constant expression");
         } else {
             let func_name = ctx.Identifier().unwrap().get_text();
-            let callee_entry_type = *self.module.function(&func_name).ret_type();
-            // todo func args
-            let args: Vec<SSARightValue> = match ctx.funcRParams() {
+            let mut args: Vec<SSARightValue> = match ctx.funcRParams() {
                 Some(v) => {
                     v.accept(self);
                     self.return_content().into_func_rparams().unwrap()
@@ -1903,6 +1979,36 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 }
             };
             let cur_bb = self.cur_bb.unwrap();
+            let callee_entry_type = *self.module.function(&func_name).ret_type();
+            let callee_arg_list = self.module.function(&func_name).arg_list().clone();
+            // cvt between float and int
+            if callee_arg_list.is_normal() {
+                let callee_arg_list = callee_arg_list.as_normal().unwrap();
+                assert!(callee_arg_list.len() == args.len());
+                for (i, arg) in args.iter_mut().enumerate() {
+                    let arg_ty = arg.get_type();
+                    let callee_arg_ty = callee_arg_list[i].get_type();
+                    if arg_ty == Type::Int && callee_arg_ty == Type::Float {
+                        let reg =
+                            SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), Type::Float);
+                        let sitofp = Instruction::new(
+                            Box::new(Sitofp::new(reg.clone(), arg.clone())),
+                            cur_bb,
+                        );
+                        self.cur_function().add_inst2bb(sitofp);
+                        *arg = reg;
+                    } else if arg_ty == Type::Float && callee_arg_ty == Type::Int {
+                        let reg =
+                            SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), Type::Int);
+                        let fptosi = Instruction::new(
+                            Box::new(Fptosi::new(reg.clone(), arg.clone())),
+                            cur_bb,
+                        );
+                        self.cur_function().add_inst2bb(fptosi);
+                        *arg = reg;
+                    }
+                }
+            }
             let caller_entry = self.cur_function();
             if callee_entry_type != Type::Void {
                 let ret_value = caller_entry.new_reg(callee_entry_type);
@@ -2466,8 +2572,49 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         self.cur_bb = Some(true_branch_bb);
         ctx.eqExp().unwrap().accept(self);
         let ret = self.return_content();
-        log::trace!("leave lAnd2");
-        ret.into()
+        let res = match ret.into_exp().unwrap() {
+            AstExp::SSAValue(v) => v,
+            AstExp::StaticValue(immediate) => SSARightValue::new_imme(immediate),
+        };
+        let cur_bb = self.cur_bb.unwrap();
+        let cur_func = self.cur_function();
+        let last_instr_id = cur_func.layout().block_node(cur_bb).last_inst();
+        if last_instr_id.is_none()
+            || !cur_func
+                .instructions()
+                .get(&last_instr_id.unwrap())
+                .unwrap()
+                .is_cmp()
+        {
+            let ret_ssa = cur_func.new_reg(Type::Int);
+            let cmp_ir = if res.get_type().is_float() {
+                Instruction::new(
+                    Box::new(Fcmp {
+                        d1: ret_ssa.clone(),
+                        s1: res,
+                        s2: SSARightValue::new_imme(Immediate::Float(0.0)),
+                        cmp_type: CmpType::NEQ,
+                    }),
+                    cur_bb,
+                )
+            } else {
+                Instruction::new(
+                    Box::new(Icmp {
+                        d1: ret_ssa.clone(),
+                        s1: res,
+                        s2: SSARightValue::new_imme(Immediate::Int(0)),
+                        cmp_type: CmpType::NEQ,
+                    }),
+                    cur_bb,
+                )
+            };
+            cur_func.add_inst2bb(cmp_ir);
+            log::trace!("leave_lAnd2_0");
+            return AstReturnContent::Exp(AstExp::SSAValue(ret_ssa)).into();
+        } else {
+            log::trace!("leave lAnd2_1");
+            return AstReturnContent::Exp(AstExp::SSAValue(res)).into();
+        }
     }
 
     /**
