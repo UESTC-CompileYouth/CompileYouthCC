@@ -6,14 +6,19 @@ use std::{
     vec,
 };
 
-use crate::backend::{block::Block, function::Function, instr::InstrTrait};
+use crate::backend::{
+    block::Block,
+    function::Function,
+    instr::{InstrTrait, RegType},
+};
+use crate::common::r#type::Type;
 
 pub(crate) struct LivenessAnalysis {
     pub block_liveness_map: HashMap<i32, Rc<RefCell<BlockLiveness>>>,
 }
 
 impl LivenessAnalysis {
-    pub fn of(function: &Function) -> LivenessAnalysis {
+    pub fn of(function: &Function, reg_type: Type) -> LivenessAnalysis {
         let mut res = LivenessAnalysis {
             block_liveness_map: HashMap::new(),
         };
@@ -38,7 +43,7 @@ impl LivenessAnalysis {
             // 构造block_liveness
             res.block_liveness_map.insert(
                 *block.id(),
-                Rc::new(RefCell::new(BlockLiveness::new(insts))),
+                Rc::new(RefCell::new(BlockLiveness::new(insts, reg_type))),
             );
         }
 
@@ -91,7 +96,7 @@ impl Display for BlockLiveness {
 }
 
 impl BlockLiveness {
-    pub(crate) fn new(insts: Vec<(i32, Box<&dyn InstrTrait>)>) -> BlockLiveness {
+    pub(crate) fn new(insts: Vec<(i32, Box<&dyn InstrTrait>)>, reg_type: Type) -> BlockLiveness {
         let mut block_liveness = BlockLiveness {
             inst_gen_map: HashMap::new(),
             inst_kill_map: HashMap::new(),
@@ -101,7 +106,7 @@ impl BlockLiveness {
         };
 
         for (inst_id, i) in insts {
-            let (kill, gen1, gen2) = i.get_operands();
+            let (kill, gen1, gen2) = i.get_operands(reg_type);
 
             let mut gen = HashSet::new();
             if gen1 != 0 {

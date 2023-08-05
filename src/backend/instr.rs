@@ -67,22 +67,22 @@ pub trait InstrTrait: Debug {
     fn is_relate(&self, reg: &Reg) -> bool {
         self.is_use(reg) || self.is_def(reg)
     }
-    fn get_operands(&self) -> (i32, i32, i32) {
+    fn get_operands(&self, reg_type: Type) -> (i32, i32, i32) {
         let mut kill = 0;
         let mut gen1 = 0;
         let mut gen2 = 0;
 
         let ds = self.defs();
-        if ds.len() != 0 {
+        if ds.len() != 0 && *ds[0].ty() == reg_type {
             kill = *ds[0].id();
         }
 
         let us = self.uses();
         if us.len() != 0 {
-            if us.len() >= 1 {
+            if us.len() >= 1 && *us[0].ty() == reg_type {
                 gen1 = *us[0].id();
             }
-            if us.len() >= 2 {
+            if us.len() >= 2 && *us[1].ty() == reg_type {
                 gen2 = *us[1].id();
             }
         }
@@ -99,6 +99,7 @@ pub trait InstrTrait: Debug {
 
         (kill, gen1, gen2)
     }
+
     fn as_any(&self) -> &dyn std::any::Any;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
@@ -1250,7 +1251,7 @@ impl InstrTrait for CallInstr {
     fn regs_mut(&mut self) -> Vec<&mut Reg> {
         vec![] // todo!("regs use for call instr")
     }
-    fn get_operands(&self) -> (i32, i32, i32) {
+    fn get_operands(&self, _reg_type: Type) -> (i32, i32, i32) {
         (10, 0, 0)
     }
 }

@@ -1,4 +1,5 @@
 pub mod liveness;
+use crate::common::r#type::Type;
 use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 
@@ -78,8 +79,8 @@ const UNCOLORED: i32 = i32::MIN;
 const _SPECIAL_COLOR_OFFSET: i32 = -100;
 
 impl InterferenceGraph {
-    pub(crate) fn build(func: &Function, max_reg_cnt: usize) -> Self {
-        let liveness = LivenessAnalysis::of(func);
+    pub(crate) fn build(func: &Function, max_reg_cnt: usize, reg_type: Type) -> Self {
+        let liveness = LivenessAnalysis::of(func, reg_type);
         let mut ig = InterferenceGraph {
             k: max_reg_cnt,
             nodes: HashMap::new(),
@@ -94,7 +95,7 @@ impl InterferenceGraph {
             for inst_id in block_liveness.insts.iter() {
                 // try to allocate with same reg for reg instr, i.e. y = f(x)
                 let inst = &func.block(*blockid).instrs()[*inst_id as usize];
-                let (x, y, z) = inst.get_operands();
+                let (x, y, z) = inst.get_operands(reg_type);
                 ig.add_node(x);
                 ig.add_node(y);
                 ig.add_node(z);
@@ -541,7 +542,7 @@ impl InterferenceGraph {
     }
 }
 
-pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32) {
+pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32, reg_type: Type) {
     let sf = f.sf().clone();
     let mut sf = sf.borrow_mut();
 
@@ -553,7 +554,7 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32) {
 
     for block in f.blocks_mut().iter_mut() {
         for inst in block.instrs_mut().iter_mut() {
-            let (kill, gen1, gen2) = inst.get_operands();
+            let (kill, gen1, gen2) = inst.get_operands(reg_type);
             // update max reg id
             max_reg_id = max(max(max_reg_id, kill), max(gen1, gen2));
         }
@@ -570,7 +571,7 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32) {
     for (bb_idx, block) in f.blocks_mut().iter_mut().enumerate() {
         let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
-            let (kill, _, _) = inst.get_operands();
+            let (kill, _, _) = inst.get_operands(reg_type);
             if kill == spill_reg {
                 let mut r = inst.regs_mut();
                 for reg in r.iter_mut() {
@@ -612,7 +613,7 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32) {
     for (bb_id, block) in f.blocks_mut().iter_mut().enumerate() {
         let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
-            let (_, gen1, gen2) = inst.get_operands();
+            let (_, gen1, gen2) = inst.get_operands(reg_type);
             if gen1 == spill_reg || gen2 == spill_reg {
                 let mut r = inst.regs_mut();
 
@@ -659,94 +660,86 @@ fn replace_regs(function: &mut Function, reg_map: &HashMap<i32, i32>) {
 }
 
 pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
-    // add 32 to all reg id except a0-a7
-    // for block in func.blocks_mut().iter_mut() {
-    //     for inst in block.instrs_mut().iter_mut() {
-    //         for reg in inst.regs_mut().iter_mut() {
-    //             let reg_id = *reg.id();
-    //             if !(reg_id <= A7 && reg_id >= A0) && reg_id < 32 {
-    //                 reg.set_id(reg_id + 32);
-    //             }
-    //         }
-    //     }
-    // }
-
-    for block in func.blocks_mut() {
-        if block.instrs().len() == 0 {
-            block.instrs_mut().push(Box::new(RegInstr::new_move(
-                Reg::new_int(0),
-                Reg::new_int(0),
-            )));
-        }
-    }
-
-    let mut allocation = HashMap::new();
-
-    // 1. build  interference graph
-    let mut ig = InterferenceGraph::build(func, MAX_USABLE_REG_CNT);
-    ig.assign_special();
-
-    // println!("{:?}", ig);
-
-    let mut stk = vec![];
-
-    loop {
-        // 2. simplify the graph
-        stk.extend(ig.simplify().into_iter());
-
-        // println!("{:?}", stk);
-
-        // 3. coalesce move edges
-        if ig.try_coalesce() {
-            continue;
+    let mut register_allocate = |reg_type| {
+        for block in func.blocks_mut() {
+            if block.instrs().len() == 0 {
+                block.instrs_mut().push(Box::new(RegInstr::new_move(
+                    Reg::new_int(0),
+                    Reg::new_int(0),
+                )));
+            }
         }
 
-        // 4. freeze move edges related to small degree node
-        if ig.try_freeze() {
-            continue;
-        }
+        let mut allocation = HashMap::new();
 
-        let mut spill_set = HashSet::new();
+        // 1. build  interference graph
+        let mut ig = InterferenceGraph::build(func, MAX_USABLE_REG_CNT, reg_type);
+        ig.assign_special();
 
-        if stk.len() != ig.nodes.len() {
-            stk.extend(ig.simplify_optimistic());
-        }
+        // println!("{:?}", ig);
 
-        // 5. assign color
-        while !stk.is_empty() {
-            let n = stk.pop().unwrap();
-            let c = ig.assign_color(n);
-            if c == UNCOLORED {
-                spill_set.insert(n);
+        let mut stk = vec![];
+
+        loop {
+            // 2. simplify the graph
+            stk.extend(ig.simplify().into_iter());
+
+            // println!("{:?}", stk);
+
+            // 3. coalesce move edges
+            if ig.try_coalesce() {
+                continue;
+            }
+
+            // 4. freeze move edges related to small degree node
+            if ig.try_freeze() {
+                continue;
+            }
+
+            let mut spill_set = HashSet::new();
+
+            if stk.len() != ig.nodes.len() {
+                stk.extend(ig.simplify_optimistic());
+            }
+
+            // 5. assign color
+            while !stk.is_empty() {
+                let n = stk.pop().unwrap();
+                let c = ig.assign_color(n);
+                if c == UNCOLORED {
+                    spill_set.insert(n);
+                    break;
+                }
+            }
+
+            if !spill_set.is_empty() {
+                let n = spill_set.iter().next().unwrap();
+                spill_rewrite(func, *n, reg_type);
+
+                // restart the whole process
+                stk.clear();
+                ig = InterferenceGraph::build(func, MAX_USABLE_REG_CNT, reg_type);
+                ig.assign_special();
+                continue;
+            } else {
+                // println!("FINISHED REG ALLOC!!!");
+                for (reg_id, node) in ig.nodes.iter() {
+                    let c = node.color;
+                    allocation.insert(*reg_id, c + 5);
+                }
+                for &v in ig.combined_mapping.keys() {
+                    let mapped = ig.map_combine(v);
+                    allocation.insert(v, *allocation.get(&mapped).unwrap());
+                }
                 break;
             }
         }
 
-        if !spill_set.is_empty() {
-            let n = spill_set.iter().next().unwrap();
-            spill_rewrite(func, *n);
-
-            // restart the whole process
-            stk.clear();
-            ig = InterferenceGraph::build(func, MAX_USABLE_REG_CNT);
-            ig.assign_special();
-            continue;
-        } else {
-            // println!("FINISHED REG ALLOC!!!");
-            for (reg_id, node) in ig.nodes.iter() {
-                let c = node.color;
-                allocation.insert(*reg_id, c + 5);
-            }
-            for &v in ig.combined_mapping.keys() {
-                let mapped = ig.map_combine(v);
-                allocation.insert(v, *allocation.get(&mapped).unwrap());
-            }
-            break;
-        }
-    }
-
-    // println!("{:?}", ig);
-    replace_regs(func, &allocation);
+        // println!("{:?}", ig);
+        replace_regs(func, &allocation);
+    };
+    register_allocate(Type::Int);
+    register_allocate(Type::Float);
 }
 
 pub(crate) fn allocate_load_stack(function: &mut Function) {
@@ -880,111 +873,150 @@ pub(crate) fn insert_epilogue(function: &mut Function) {
 }
 
 pub(crate) fn save_callee_saved_regs(func: &mut Function) {
-    let sf = func.sf().clone();
-    let mut sf = sf.borrow_mut();
+    let mut save_callee_saved_regs = |reg_type| {
+        let sf = func.sf().clone();
+        let mut sf = sf.borrow_mut();
 
-    // collect_callee_saved_regs
-    let mut regs = HashSet::new();
-    // if there is a call, then it is not a leaf function
-    let mut is_leaf = true;
-    for block in func.blocks().iter() {
-        for inst in block.instrs().iter() {
-            if inst.as_any().downcast_ref::<CallInstr>().is_some() {
-                is_leaf = false;
-            }
-            let t = inst.get_operands();
-            let v = vec![t.0, t.1, t.2];
-            for reg_id in v.iter() {
-                if *reg_id < 32
-                    && RegConvention::<i32>::REGISTER_USAGE[*reg_id as usize]
-                        == RegisterUsage::CalleeSaved
-                {
-                    regs.insert(*reg_id);
+        // collect_callee_saved_regs
+        let mut regs = HashSet::new();
+        // if there is a call, then it is not a leaf function
+        let mut is_leaf = true;
+        for block in func.blocks().iter() {
+            for inst in block.instrs().iter() {
+                if inst.as_any().downcast_ref::<CallInstr>().is_some() {
+                    is_leaf = false;
+                }
+                let t = inst.get_operands(reg_type);
+                let v = vec![t.0, t.1, t.2];
+                for reg_id in v.iter() {
+                    if *reg_id < 32
+                        && RegConvention::<i32>::REGISTER_USAGE[*reg_id as usize]
+                            == RegisterUsage::CalleeSaved
+                    {
+                        regs.insert(*reg_id);
+                    }
                 }
             }
         }
-    }
 
-    for ele in regs {
-        func.callee_saved_regs_mut().insert(ele, 0);
-    }
+        for ele in regs {
+            func.callee_saved_regs_mut().insert(ele, 0);
+        }
 
-    for reg in func.callee_saved_regs().clone().keys() {
-        let idx = sf.push_dword();
-        func.callee_saved_regs_mut().insert(*reg, idx);
-    }
+        for reg in func.callee_saved_regs().clone().keys() {
+            let idx = sf.push_dword();
+            func.callee_saved_regs_mut().insert(*reg, idx);
+        }
 
-    if !is_leaf {
-        func.callee_saved_regs_mut().insert(RA, sf.push_dword()); // reserved for ra
-    }
+        if !is_leaf {
+            func.callee_saved_regs_mut().insert(RA, sf.push_dword()); // reserved for ra
+        }
+    };
+    save_callee_saved_regs(Type::Int);
+    save_callee_saved_regs(Type::Float)
 }
 
 pub(crate) fn save_caller_saved_regs(func: &mut Function) {
-    let l = LivenessAnalysis::of(&func);
-    let sf = func.sf().clone();
-    let mut sf = sf.borrow_mut();
+    let mut save_caller_saved_regs = |reg_type| {
+        let l = LivenessAnalysis::of(&func, reg_type);
+        let sf = func.sf().clone();
+        let mut sf = sf.borrow_mut();
 
-    for block in func.blocks_mut().iter_mut() {
-        let mut insert_pos = vec![];
-        let mut insert_store_reg_offset_map = HashMap::new();
-        for (inst_id, inst) in block.instrs().iter().enumerate() {
-            let block_id = *block.id();
-            let block_liveness = l.block_liveness_map[&block_id].borrow();
-            {
-                if !inst.as_any().downcast_ref::<CallInstr>().is_some() {
-                    continue;
+        for block in func.blocks_mut().iter_mut() {
+            let mut insert_pos = vec![];
+            let mut insert_store_reg_offset_map = HashMap::new();
+            for (inst_id, inst) in block.instrs().iter().enumerate() {
+                let block_id = *block.id();
+                let block_liveness = l.block_liveness_map[&block_id].borrow();
+                {
+                    if !inst.as_any().downcast_ref::<CallInstr>().is_some() {
+                        continue;
+                    }
+                }
+
+                let mut out = block_liveness.get_inst_out(inst_id as i32).clone();
+                // return value can be changed
+                out.remove(&A0);
+                out.retain(|x| {
+                    *x < 32
+                        && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
+                            == RegisterUsage::CallerSaved
+                });
+
+                // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
+                let mut store_reg_offset = vec![];
+
+                // calculate the position to store regs
+                for reg_id in out {
+                    let so_idx = sf.push_dword();
+                    let so = sf.get_stack_object(so_idx);
+                    let pos = *so.borrow().position();
+
+                    store_reg_offset.push((reg_id, pos));
+                }
+
+                insert_pos.push(inst_id);
+                insert_store_reg_offset_map.insert(inst_id, store_reg_offset);
+            }
+            for pos in insert_pos.iter().rev() {
+                let store_reg_offset = &insert_store_reg_offset_map[pos];
+
+                // restore after function call
+                for &(reg_id, offset) in store_reg_offset.iter() {
+                    let reg = if matches!(reg_type, Type::Int) {
+                        Reg::new_int(reg_id)
+                    } else {
+                        Reg::new_float(reg_id)
+                    };
+                    let sp = Reg::new_int(SP);
+
+                    let load: Box<dyn InstrTrait> = if matches!(reg_type, Type::Int) {
+                        Box::new(LoadInstr::new(reg, sp, offset, LoadType::Ld))
+                    } else {
+                        Box::new(FLoadInstr::new(
+                            reg,
+                            sp,
+                            ImmeValueType::Direct(offset),
+                            None,
+                        ))
+                    };
+
+                    block.instrs_mut().insert(*pos + 1, load);
+                }
+
+                // store before function call
+                for &(reg_id, offset) in store_reg_offset.iter() {
+                    let reg = if matches!(reg_type, Type::Int) {
+                        Reg::new_int(reg_id)
+                    } else {
+                        Reg::new_float(reg_id)
+                    };
+                    let sp = Reg::new_int(SP);
+
+                    let store: Box<dyn InstrTrait> = if matches!(reg_type, Type::Int) {
+                        Box::new(StoreInstr::new(
+                            sp,
+                            reg,
+                            ImmeValueType::Direct(offset),
+                            None,
+                            StoreType::Sd,
+                        ))
+                    } else {
+                        Box::new(FStoreInstr::new(
+                            sp,
+                            reg,
+                            ImmeValueType::Direct(offset),
+                            None,
+                        ))
+                    };
+
+                    block.instrs_mut().insert(*pos, store);
                 }
             }
-
-            let mut out = block_liveness.get_inst_out(inst_id as i32).clone();
-            // return value can be changed
-            out.remove(&A0);
-            out.retain(|x| {
-                *x < 32
-                    && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
-                        == RegisterUsage::CallerSaved
-            });
-
-            // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
-            let mut store_reg_offset = vec![];
-
-            // calculate the position to store regs
-            for reg_id in out {
-                let so_idx = sf.push_dword();
-                let so = sf.get_stack_object(so_idx);
-                let pos = *so.borrow().position();
-
-                store_reg_offset.push((reg_id, pos));
-            }
-
-            insert_pos.push(inst_id);
-            insert_store_reg_offset_map.insert(inst_id, store_reg_offset);
         }
-        for pos in insert_pos.iter().rev() {
-            let store_reg_offset = &insert_store_reg_offset_map[pos];
-
-            // restore after function call
-            for &(reg_id, offset) in store_reg_offset.iter() {
-                let reg = Reg::new_int(reg_id);
-                let sp = Reg::new_int(SP);
-
-                let load = LoadInstr::new(reg, sp, offset, LoadType::Ld);
-
-                block.instrs_mut().insert(*pos + 1, Box::new(load));
-            }
-
-            // store before function call
-            for &(reg_id, offset) in store_reg_offset.iter() {
-                let reg = Reg::new_int(reg_id);
-                let sp = Reg::new_int(SP);
-
-                let store =
-                    StoreInstr::new(sp, reg, ImmeValueType::Direct(offset), None, StoreType::Sd);
-
-                block.instrs_mut().insert(*pos, Box::new(store));
-            }
-        }
-    }
+    };
+    save_caller_saved_regs(Type::Int);
+    save_caller_saved_regs(Type::Float);
 }
 
 pub fn peephole(func: &mut Function) -> bool {
@@ -995,13 +1027,13 @@ pub fn peephole(func: &mut Function) -> bool {
         let mut insts_to_remove = vec![];
         for (i, inst) in block.instrs_mut().iter_mut().enumerate() {
             if let Some(x) = inst.as_any().downcast_ref::<RegInstr>() {
-                let (u, v, _) = x.get_operands();
-                if matches!(x.ty(), RegType::Mv) && u == v {
+                let (u, v, _) = x.get_operands(Type::Int);
+                if matches!(x.ty(), RegType::Mv) && u == v && u != 0 {
                     insts_to_remove.push(i);
                 }
             } else if let Some(x) = inst.as_any().downcast_ref::<FRegInstr>() {
-                let (u, v, _) = x.get_operands();
-                if matches!(x.ty(), FRegType::FmvS) && u == v {
+                let (u, v, _) = x.get_operands(Type::Float);
+                if matches!(x.ty(), FRegType::FmvS) && u == v && u != 0 {
                     insts_to_remove.push(i);
                 }
             }
@@ -1144,187 +1176,195 @@ pub fn peephole(func: &mut Function) -> bool {
         }
     }
 
-    // constant propagation for li
-    for block in func.blocks_mut().iter_mut() {
-        let mut li_map = HashMap::new();
-        let mut rewrite_inst_map: HashMap<usize, Box<dyn InstrTrait>> = HashMap::new();
+    let mut constant_propagation_for_li = |reg_type| {
+        for block in func.blocks_mut().iter_mut() {
+            let mut li_map = HashMap::new();
+            let mut rewrite_inst_map: HashMap<usize, Box<dyn InstrTrait>> = HashMap::new();
 
-        for (inst_idx, inst) in block.instrs_mut().iter_mut().enumerate() {
-            let (d, u1, u2) = inst.get_operands();
-            if inst.as_any().downcast_ref::<CallInstr>().is_some() {
-                // li stop propagation when meeting a call
-                li_map.clear();
-            } else if let Some(imme_inst) = inst.as_any().downcast_ref::<ImmeInstr>() {
-                if matches!(imme_inst.ty(), ImmeType::Li) {
-                    if let ImmeValueType::Direct(val) = imme_inst.imme() {
-                        li_map.insert(*imme_inst.rd().id(), *val);
+            for (inst_idx, inst) in block.instrs_mut().iter_mut().enumerate() {
+                let (d, u1, u2) = inst.get_operands(reg_type);
+                if inst.as_any().downcast_ref::<CallInstr>().is_some() {
+                    // li stop propagation when meeting a call
+                    li_map.clear();
+                } else if let Some(imme_inst) = inst.as_any().downcast_ref::<ImmeInstr>() {
+                    if matches!(imme_inst.ty(), ImmeType::Li) {
+                        if let ImmeValueType::Direct(val) = imme_inst.imme() {
+                            li_map.insert(*imme_inst.rd().id(), *val);
+                        }
                     }
-                }
-            } else {
-                if let Some(reg_reg_inst) = inst.as_any().downcast_ref::<RegRegInstr>() {
-                    let u1_in_map = li_map.contains_key(&u1);
-                    let u2_in_map = li_map.contains_key(&u2);
-                    if u1 != 0 && u2 != 0 && u1_in_map && u2_in_map {
-                        // we can calculate the result directly
-                        let x = li_map[&u1];
-                        let y = li_map[&u2];
-                        let res = match reg_reg_inst.ty() {
-                            RegRegType::Add => x + y,
-                            RegRegType::Addw => x + y,
-                            RegRegType::Sub => x - y,
-                            RegRegType::Subw => x - y,
-                            RegRegType::Mul => x * y,
-                            RegRegType::Mulw => x * y,
-                            RegRegType::Div => x / y,
-                            RegRegType::Divw => x / y,
-                            RegRegType::Rem => x % y,
-                            RegRegType::Remw => x % y,
-                            RegRegType::Sll => ((x as u64) << (y as u64)) as i32,
-                            RegRegType::Sllw => ((x as u32) << (y as u32)) as i32,
-                            RegRegType::Srl => ((x as u64) >> (y as u64)) as i32,
-                            RegRegType::Srlw => ((x as u32) >> (y as u32)) as i32,
-                            RegRegType::Sra => x >> y,
-                            RegRegType::Sraw => x >> y,
-                            RegRegType::And => x & y,
-                            RegRegType::Or => x | y,
-                        };
+                } else {
+                    if let Some(reg_reg_inst) = inst.as_any().downcast_ref::<RegRegInstr>() {
+                        let u1_in_map = li_map.contains_key(&u1);
+                        let u2_in_map = li_map.contains_key(&u2);
+                        if u1 != 0 && u2 != 0 && u1_in_map && u2_in_map {
+                            // we can calculate the result directly
+                            let x = li_map[&u1];
+                            let y = li_map[&u2];
+                            let res = match reg_reg_inst.ty() {
+                                RegRegType::Add => x + y,
+                                RegRegType::Addw => x + y,
+                                RegRegType::Sub => x - y,
+                                RegRegType::Subw => x - y,
+                                RegRegType::Mul => x * y,
+                                RegRegType::Mulw => x * y,
+                                RegRegType::Div => x / y,
+                                RegRegType::Divw => x / y,
+                                RegRegType::Rem => x % y,
+                                RegRegType::Remw => x % y,
+                                RegRegType::Sll => ((x as u64) << (y as u64)) as i32,
+                                RegRegType::Sllw => ((x as u32) << (y as u32)) as i32,
+                                RegRegType::Srl => ((x as u64) >> (y as u64)) as i32,
+                                RegRegType::Srlw => ((x as u32) >> (y as u32)) as i32,
+                                RegRegType::Sra => x >> y,
+                                RegRegType::Sraw => x >> y,
+                                RegRegType::And => x & y,
+                                RegRegType::Or => x | y,
+                            };
 
-                        let new_inst = ImmeInstr::new_load_immediate(*reg_reg_inst.rd(), res);
-                        rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
-                    } else if u1_in_map && u1 != 0 || u2_in_map && u2 != 0 {
-                        let li_u = if u1_in_map { u1 } else { u2 };
-                        let mut imme = li_map[&li_u];
-                        let ty = match reg_reg_inst.ty() {
-                            RegRegType::Add => Some(RegImmeType::Addi),
-                            RegRegType::Addw => Some(RegImmeType::Addiw),
-                            RegRegType::Sub => {
-                                if u2_in_map {
-                                    imme = -imme;
-                                    Some(RegImmeType::Addi)
-                                } else {
-                                    None
-                                }
-                            }
-                            RegRegType::Subw => {
-                                if u2_in_map {
-                                    imme = -imme;
-                                    Some(RegImmeType::Addiw)
-                                } else {
-                                    None
-                                }
-                            }
-                            RegRegType::Sll => Some(RegImmeType::Slli),
-                            RegRegType::Sllw => Some(RegImmeType::Slliw),
-                            RegRegType::Srl => Some(RegImmeType::Srli),
-                            RegRegType::Srlw => Some(RegImmeType::Srliw),
-                            RegRegType::Sra => Some(RegImmeType::Srai),
-                            RegRegType::Sraw => Some(RegImmeType::Sraiw),
-                            _ => None,
-                        };
-
-                        if imme >= -2048 && imme < 2048 {
-                            // we can use addi/slli/srli/srai
-                            if let Some(ty) = ty {
-                                let new_inst = RegImmeInstr::new(
-                                    reg_reg_inst.rd().clone(),
-                                    if u1_in_map {
-                                        reg_reg_inst.rs2().clone()
+                            let new_inst = ImmeInstr::new_load_immediate(*reg_reg_inst.rd(), res);
+                            rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
+                        } else if u1_in_map && u1 != 0 || u2_in_map && u2 != 0 {
+                            let li_u = if u1_in_map { u1 } else { u2 };
+                            let mut imme = li_map[&li_u];
+                            let ty = match reg_reg_inst.ty() {
+                                RegRegType::Add => Some(RegImmeType::Addi),
+                                RegRegType::Addw => Some(RegImmeType::Addiw),
+                                RegRegType::Sub => {
+                                    if u2_in_map {
+                                        imme = -imme;
+                                        Some(RegImmeType::Addi)
                                     } else {
-                                        reg_reg_inst.rs1().clone()
-                                    },
-                                    ImmeValueType::Direct(imme),
-                                    ty,
-                                    None,
-                                );
+                                        None
+                                    }
+                                }
+                                RegRegType::Subw => {
+                                    if u2_in_map {
+                                        imme = -imme;
+                                        Some(RegImmeType::Addiw)
+                                    } else {
+                                        None
+                                    }
+                                }
+                                RegRegType::Sll => Some(RegImmeType::Slli),
+                                RegRegType::Sllw => Some(RegImmeType::Slliw),
+                                RegRegType::Srl => Some(RegImmeType::Srli),
+                                RegRegType::Srlw => Some(RegImmeType::Srliw),
+                                RegRegType::Sra => Some(RegImmeType::Srai),
+                                RegRegType::Sraw => Some(RegImmeType::Sraiw),
+                                _ => None,
+                            };
+
+                            if imme >= -2048 && imme < 2048 {
+                                // we can use addi/slli/srli/srai
+                                if let Some(ty) = ty {
+                                    let new_inst = RegImmeInstr::new(
+                                        reg_reg_inst.rd().clone(),
+                                        if u1_in_map {
+                                            reg_reg_inst.rs2().clone()
+                                        } else {
+                                            reg_reg_inst.rs1().clone()
+                                        },
+                                        ImmeValueType::Direct(imme),
+                                        ty,
+                                        None,
+                                    );
+                                    rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
+                                }
+                            }
+                        }
+                    } else if let Some(reg_inst) = inst.as_any().downcast_ref::<RegInstr>() {
+                        if li_map.contains_key(&u1) && u1 != 0 {
+                            let x = li_map[&u1];
+                            let res = match reg_inst.ty() {
+                                RegType::Mv => x,
+                                RegType::Negw => -x,
+                                RegType::Seqz => (x == 0) as i32,
+                                RegType::Snez => (x != 0) as i32,
+                                RegType::Sgtz => (x > 0) as i32,
+                                RegType::Sltz => (x < 0) as i32,
+                            };
+                            let new_inst = ImmeInstr::new_load_immediate(*reg_inst.rd(), res);
+                            rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
+                        }
+                    } else if let Some(reg_imme_inst) = inst.as_any().downcast_ref::<RegImmeInstr>()
+                    {
+                        if li_map.contains_key(&u1) && u1 != 0 {
+                            let x = li_map[&u1];
+                            if let ImmeValueType::Direct(y) = reg_imme_inst.offset() {
+                                let y = *y;
+                                let res = match reg_imme_inst.ty() {
+                                    RegImmeType::Addi => x + y,
+                                    RegImmeType::Addiw => x + y,
+                                    RegImmeType::Slli => ((x as u64) << (y as u32)) as i32,
+                                    RegImmeType::Slliw => ((x as u32) << (y as u32)) as i32,
+                                    RegImmeType::Srli => ((x as u64) >> (y as u32)) as i32,
+                                    RegImmeType::Srliw => ((x as u32) >> (y as u32)) as i32,
+                                    RegImmeType::Srai => x >> (y as u32),
+                                    RegImmeType::Sraiw => x >> (y as u32),
+                                };
+
+                                let new_inst =
+                                    ImmeInstr::new_load_immediate(*reg_imme_inst.rd(), res);
                                 rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
                             }
                         }
                     }
-                } else if let Some(reg_inst) = inst.as_any().downcast_ref::<RegInstr>() {
-                    if li_map.contains_key(&u1) && u1 != 0 {
-                        let x = li_map[&u1];
-                        let res = match reg_inst.ty() {
-                            RegType::Mv => x,
-                            RegType::Negw => -x,
-                            RegType::Seqz => (x == 0) as i32,
-                            RegType::Snez => (x != 0) as i32,
-                            RegType::Sgtz => (x > 0) as i32,
-                            RegType::Sltz => (x < 0) as i32,
-                        };
-                        let new_inst = ImmeInstr::new_load_immediate(*reg_inst.rd(), res);
-                        rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
-                    }
-                } else if let Some(reg_imme_inst) = inst.as_any().downcast_ref::<RegImmeInstr>() {
-                    if li_map.contains_key(&u1) && u1 != 0 {
-                        let x = li_map[&u1];
-                        if let ImmeValueType::Direct(y) = reg_imme_inst.offset() {
-                            let y = *y;
-                            let res = match reg_imme_inst.ty() {
-                                RegImmeType::Addi => x + y,
-                                RegImmeType::Addiw => x + y,
-                                RegImmeType::Slli => ((x as u64) << (y as u32)) as i32,
-                                RegImmeType::Slliw => ((x as u32) << (y as u32)) as i32,
-                                RegImmeType::Srli => ((x as u64) >> (y as u32)) as i32,
-                                RegImmeType::Srliw => ((x as u32) >> (y as u32)) as i32,
-                                RegImmeType::Srai => x >> (y as u32),
-                                RegImmeType::Sraiw => x >> (y as u32),
-                            };
-
-                            let new_inst = ImmeInstr::new_load_immediate(*reg_imme_inst.rd(), res);
-                            rewrite_inst_map.insert(inst_idx, Box::new(new_inst));
-                        }
-                    }
+                    li_map.remove(&d);
                 }
-                li_map.remove(&d);
+            }
+
+            for (i, inst) in rewrite_inst_map {
+                block.instrs_mut()[i] = inst;
+                changed = true;
             }
         }
-
-        for (i, inst) in rewrite_inst_map {
-            block.instrs_mut()[i] = inst;
-            changed = true;
-        }
-    }
+    };
+    constant_propagation_for_li(Type::Int);
+    constant_propagation_for_li(Type::Float);
 
     // remove unused def
-    let analysis = LivenessAnalysis::of(func);
-    for (block_id, liveness) in analysis.block_liveness_map.iter() {
-        let block = func.block_mut(*block_id);
-        let mut remove_idx = vec![];
-        let liveness = liveness.borrow();
-        for (inst_idx, inst) in block.instrs().iter().enumerate() {
-            let out = liveness.get_inst_out(inst_idx as i32);
-            let (d, _, _) = inst.get_operands();
+    // let mut remove_unused_def = |reg_type| {
+    //     let analysis = LivenessAnalysis::of(func, reg_type);
+    //     for (block_id, liveness) in analysis.block_liveness_map.iter() {
+    //         let block = func.block_mut(*block_id);
+    //         let mut remove_idx = vec![];
+    //         let liveness = liveness.borrow();
+    //         for (inst_idx, inst) in block.instrs().iter().enumerate() {
+    //             let out = liveness.get_inst_out(inst_idx as i32);
+    //             let (d, _, _) = inst.get_operands(reg_type);
 
-            // no def
-            if d == 0 {
-                continue;
-            }
+    //             // no def
+    //             if d == 0 {
+    //                 continue;
+    //             }
 
-            // store instruction is special
-            if inst.as_any().downcast_ref::<StoreInstr>().is_some() {
-                continue;
-            }
+    //             // store instruction is special
+    //             if inst.as_any().downcast_ref::<StoreInstr>().is_some() {
+    //                 continue;
+    //             }
 
-            // maybe define a return value or args, it's difficult to analyze whether it's used
-            // todo: optimize this
-            if d >= A0 && d <= A7
-                || RegConvention::<i32>::REGISTER_USAGE[d as usize] == RegisterUsage::Special
-            {
-                continue;
-            }
+    //             // maybe define a return value or args, it's difficult to analyze whether it's used
+    //             // todo: optimize this
+    //             if d >= A0 && d <= A7
+    //                 || RegConvention::<i32>::REGISTER_USAGE[d as usize] == RegisterUsage::Special
+    //             {
+    //                 continue;
+    //             }
 
-            if d != 0 && !out.contains(&d) {
-                // println!("remove {}", inst.gen_asm());
-                remove_idx.push(inst_idx);
-            }
-        }
+    //             if d != 0 && !out.contains(&d) {
+    //                 // println!("remove {}", inst.gen_asm());
+    //                 remove_idx.push(inst_idx);
+    //             }
+    //         }
 
-        for idx in remove_idx.iter().rev() {
-            block.instrs_mut().remove(*idx);
-            changed = true;
-        }
-    }
-
+    //         for idx in remove_idx.iter().rev() {
+    //             block.instrs_mut().remove(*idx);
+    //             changed = true;
+    //         }
+    //     }
+    // };
+    // remove_unused_def(Type::Int);
+    // remove_unused_def(Type::Float);
     // // remove mov
     // let analysis = LivenessAnalysis::of(func);
     // let mut push_map = vec![];
@@ -1438,8 +1478,8 @@ mod tests {
             program::Program,
             register_allocation::{
                 allocate_load_stack, backpatch_arg_stack_offset, insert_epilogue, insert_prologue,
-                register_allocate, save_callee_saved_regs, save_caller_saved_regs,
-                InterferenceGraph, peephole,
+                peephole, register_allocate, save_callee_saved_regs, save_caller_saved_regs,
+                InterferenceGraph,
             },
         },
         frontend::{
@@ -1505,8 +1545,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/95_float.sy")
-            .expect("cannot open source file");
+        let contents =
+            std::fs::read_to_string("test/homemade/float.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
