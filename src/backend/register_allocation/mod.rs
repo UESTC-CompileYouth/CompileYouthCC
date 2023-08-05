@@ -596,7 +596,13 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32) {
             8 => StoreType::Sd,
             _ => panic!("invalid size"),
         };
-        let store = Box::new(StoreInstr::new(sp, reg_to_store, offset, ty));
+        let store = Box::new(StoreInstr::new(
+            sp,
+            reg_to_store,
+            ImmeValueType::Direct(offset),
+            None,
+            ty,
+        ));
         f.blocks_mut()[bb_idx]
             .instrs_mut()
             .insert(inst_index, store);
@@ -803,7 +809,13 @@ pub(crate) fn insert_prologue(function: &mut Function) {
         for (reg_id, so_idx) in callee_saved_regs.iter() {
             let reg = Reg::new_int(*reg_id);
             let so = sf.get_stack_object(*so_idx);
-            let store = StoreInstr::new(sp, reg, *so.borrow().position(), StoreType::Sd);
+            let store = StoreInstr::new(
+                sp,
+                reg,
+                ImmeValueType::Direct(*so.borrow().position()),
+                None,
+                StoreType::Sd,
+            );
             insts.insert(insert_idx, Box::new(store));
             insert_idx += 1;
         }
@@ -966,7 +978,8 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
                 let reg = Reg::new_int(reg_id);
                 let sp = Reg::new_int(SP);
 
-                let store = StoreInstr::new(sp, reg, offset, StoreType::Sd);
+                let store =
+                    StoreInstr::new(sp, reg, ImmeValueType::Direct(offset), None, StoreType::Sd);
 
                 block.instrs_mut().insert(*pos, Box::new(store));
             }

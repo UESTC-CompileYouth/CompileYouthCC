@@ -10,6 +10,7 @@ use super::{
 };
 use crate::common::r#type::Type;
 use derive_new::new;
+use enum_as_inner::EnumAsInner;
 use getset::{Getters, MutGetters, Setters};
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
@@ -23,12 +24,12 @@ impl TruncType {
     pub(crate) fn gen_asm(&self) -> String {
         match self {
             TruncType::Lo => format!("%lo"),
-            TruncType::Hi => format!("&hi"),
+            TruncType::Hi => format!("%hi"),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, EnumAsInner, Clone)]
 pub(crate) enum ImmeValueType {
     Direct(i32),
     Symbol(String),
@@ -133,6 +134,26 @@ impl ImmeInstr {
             trunc: None,
         }
     }
+    pub fn new_auipc(rd: Reg, imme: ImmeValueType, trunc: Option<TruncType>) -> Self {
+        Self {
+            rd,
+            ty: ImmeType::Auipc,
+            imme,
+            trunc,
+        }
+    }
+    pub fn new_load_upper_immediate(
+        rd: Reg,
+        imme: ImmeValueType,
+        trunc: Option<TruncType>,
+    ) -> Self {
+        Self {
+            rd,
+            ty: ImmeType::Lui,
+            imme,
+            trunc,
+        }
+    }
 }
 
 impl InstrTrait for ImmeInstr {
@@ -160,12 +181,6 @@ impl InstrTrait for ImmeInstr {
                 asm.push_str(&format!("li {}, {}", self.rd, imme_string));
             }
             ImmeType::Lui => {
-                match self.imme {
-                    ImmeValueType::Direct(i) => {
-                        assert!(i <= (1 << 19) - 1 && i >= -(1 << 19));
-                    }
-                    _ => {}
-                }
                 asm.push_str(&format!("lui {}, {}", self.rd, imme_string));
             }
         }
@@ -599,9 +614,10 @@ pub(crate) enum StoreType {
 // M[x[rs1] + sext(offset)] = x[rs2][31: 0]
 #[derive(Debug, new)]
 pub(crate) struct StoreInstr {
-    rs1: Reg,
-    rs2: Reg,
-    offset: i32,
+    rs1: Reg, // base address
+    rs2: Reg, // value
+    offset: ImmeValueType,
+    trunc: Option<TruncType>,
     ty: StoreType,
 }
 
@@ -615,12 +631,52 @@ impl InstrTrait for StoreInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rs2.ty() == Type::Int);
-        // assert!(self.offset >= -2048 && self.offset <= 2047);
         let mut asm = String::new();
+        match &self.offset {
+            ImmeValueType::Symbol(_) => {
+                match self.ty {
+                    StoreType::Sb => {
+                        asm.push_str(&format!(
+                            "sb {}, {}({})",
+                            self.rs2,
+                            imme_string(&self.offset, &self.trunc),
+                            self.rs1
+                        ));
+                    }
+                    StoreType::Sh => {
+                        asm.push_str(&format!(
+                            "sh {}, {}({})",
+                            self.rs2,
+                            imme_string(&self.offset, &self.trunc),
+                            self.rs1
+                        ));
+                    }
+                    StoreType::Sw => {
+                        asm.push_str(&format!(
+                            "sw {}, {}({})",
+                            self.rs2,
+                            imme_string(&self.offset, &self.trunc),
+                            self.rs1
+                        ));
+                    }
+                    StoreType::Sd => {
+                        asm.push_str(&format!(
+                            "sd {}, {}({})",
+                            self.rs2,
+                            imme_string(&self.offset, &self.trunc),
+                            self.rs1
+                        ));
+                    }
+                }
+                asm.push_str("\n");
+                return asm;
+            }
+            _ => {}
+        }
 
         let mut steps = vec![];
         let step = 2032;
-        let mut offset = self.offset;
+        let mut offset = self.offset.clone().into_direct().unwrap();
         while offset < -2048 {
             asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, -step));
             offset += step;
@@ -908,39 +964,6 @@ impl InstrTrait for ReturnInstr {
     }
 }
 
-/* RV64F */
-// f[rd] = M[x[rs1] + sext(offset)][31:0]
-#[derive(Debug, new)]
-pub(crate) struct FLoadInstr {
-    rd: Reg,
-    rs1: Reg,
-    offset: i32,
-}
-
-impl InstrTrait for FLoadInstr {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn gen_asm(&self) -> String {
-        assert!(*self.rs1.ty() == Type::Int);
-        assert!(*self.rd.ty() == Type::Float);
-        assert!(self.offset >= -2048 && self.offset <= 2047);
-        format!("flw {}, {}({})\n", self.rd, self.offset, self.rs1)
-    }
-    fn uses(&self) -> Vec<Reg> {
-        vec![self.rs1]
-    }
-    fn defs(&self) -> Vec<Reg> {
-        vec![self.rd]
-    }
-    fn regs_mut(&mut self) -> Vec<&mut Reg> {
-        vec![&mut self.rd, &mut self.rs1]
-    }
-}
-
 // Homemade Pesudo Instruction: Load Stack
 #[derive(Debug, new)]
 pub(crate) struct LoadStackInstr {
@@ -1055,38 +1078,23 @@ impl InstrTrait for LoadGlobalInstr {
     }
 }
 
-// Pesudo Instruction: store global, most for global int variables
-#[derive(Debug, new)]
-pub(crate) struct StoreGlobalInstr {
-    rd: Reg,
-    symbol: String,
-    rt: Reg,
-}
-
-impl InstrTrait for StoreGlobalInstr {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn gen_asm(&self) -> String {
-        assert!(*self.rd.ty() == Type::Int);
-        assert!(*self.rt.ty() == Type::Int);
-        format!(
-            "lui {}, %hi({})\nsw {}, %lo({})({})\n",
-            self.rt, self.symbol, self.rd, self.symbol, self.rt
-        )
-    }
-    fn uses(&self) -> Vec<Reg> {
-        vec![self.rd, self.rt]
-    }
-    fn defs(&self) -> Vec<Reg> {
-        vec![]
-    }
-    fn regs_mut(&mut self) -> Vec<&mut Reg> {
-        vec![&mut self.rd, &mut self.rt]
-    }
+pub fn gen_store_global(rs: Reg, symbol: String, rt: Reg) -> Vec<Box<dyn InstrTrait>> {
+    let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
+    assert!(*rs.ty() == Type::Int);
+    assert!(*rt.ty() == Type::Int);
+    instrs.push(Box::new(ImmeInstr::new_load_upper_immediate(
+        rt,
+        ImmeValueType::Symbol(symbol.clone()),
+        Some(TruncType::Hi),
+    )));
+    instrs.push(Box::new(StoreInstr::new(
+        rt,
+        rs,
+        ImmeValueType::Symbol(symbol),
+        Some(TruncType::Lo),
+        StoreType::Sw,
+    )));
+    instrs
 }
 
 // bogus instruction, will be replaced by real instruction
@@ -1247,12 +1255,57 @@ impl InstrTrait for CallInstr {
     }
 }
 
+/* RV64F */
+// f[rd] = M[x[rs1] + sext(offset)][31:0]
+#[derive(Debug, new)]
+pub(crate) struct FLoadInstr {
+    rd: Reg,               // destination register
+    rs1: Reg,              // base address
+    offset: ImmeValueType, // 12 bits
+    trunc: Option<TruncType>,
+}
+
+impl InstrTrait for FLoadInstr {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+    fn gen_asm(&self) -> String {
+        assert!(*self.rs1.ty() == Type::Int);
+        assert!(*self.rd.ty() == Type::Float);
+        match self.offset {
+            ImmeValueType::Direct(i) => {
+                assert!(i <= 2047 && i >= -2048);
+            }
+            _ => {}
+        }
+        format!(
+            "flw {}, {}({})\n",
+            self.rd,
+            imme_string(&self.offset, &self.trunc),
+            self.rs1
+        )
+    }
+    fn uses(&self) -> Vec<Reg> {
+        vec![self.rs1]
+    }
+    fn defs(&self) -> Vec<Reg> {
+        vec![self.rd]
+    }
+    fn regs_mut(&mut self) -> Vec<&mut Reg> {
+        vec![&mut self.rd, &mut self.rs1]
+    }
+}
+
 // M[x[rs1] + sext(offset)] = f[rs2][31:0]
 #[derive(Debug, new)]
 pub(crate) struct FStoreInstr {
-    rs1: Reg,
-    rs2: Reg,
-    offset: i32,
+    rs1: Reg,              // base address
+    rs2: Reg,              // value
+    offset: ImmeValueType, // 12 bits
+    trunc: Option<TruncType>,
 }
 
 impl InstrTrait for FStoreInstr {
@@ -1265,8 +1318,18 @@ impl InstrTrait for FStoreInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rs2.ty() == Type::Float);
-        assert!(self.offset >= -2048 && self.offset <= 2047);
-        format!("fsw {}, {}({})\n", self.rs2, self.offset, self.rs1)
+        match self.offset {
+            ImmeValueType::Direct(i) => {
+                assert!(i <= 2047 && i >= -2048);
+            }
+            _ => {}
+        }
+        format!(
+            "fsw {}, {}({})\n",
+            self.rs2,
+            imme_string(&self.offset, &self.trunc),
+            self.rs1
+        )
     }
     fn uses(&self) -> Vec<Reg> {
         vec![self.rs1, self.rs2]
@@ -1374,7 +1437,7 @@ impl InstrTrait for FRegRegInstr {
             FRegRegConvertType::FcvtWS => {
                 assert!(self.rd.ty() == &Type::Int);
                 assert!(self.rs.ty() == &Type::Float);
-                format!("fcvt.w.s {}, {}", self.rd, self.rs)
+                format!("fcvt.w.s {}, {}, rtz", self.rd, self.rs)
             }
             FRegRegConvertType::FclassS => {
                 assert!(self.rd.ty() == &Type::Int);
@@ -1505,15 +1568,13 @@ impl InstrTrait for FcmpInstr {
     }
 }
 
-// Pesudo Instruction: floating-point load global, most for global float variables
+// Pseudo Instruction, Floating-point Swap Rounding Mode
 #[derive(Debug, new)]
-pub(crate) struct FLoadGlobalInstr {
-    rd: Reg,
-    symbol: String,
-    rt: Reg,
+pub(crate) struct FsrmInstr {
+    rs: Reg,
 }
 
-impl InstrTrait for FLoadGlobalInstr {
+impl InstrTrait for FsrmInstr {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
@@ -1521,53 +1582,55 @@ impl InstrTrait for FLoadGlobalInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        assert!(*self.rd.ty() == Type::Float);
-        assert!(*self.rt.ty() == Type::Int);
-        format!(
-            "lui {}, %hi({})\nflw {}, %lo({})({})\n",
-            self.rt, self.symbol, self.rd, self.symbol, self.rt
-        )
+        assert!(*self.rs.ty() == Type::Int);
+        let asm = format!("fsrm x0, {}\n", self.rs);
+        asm
     }
     fn uses(&self) -> Vec<Reg> {
-        vec![]
-    }
-    fn defs(&self) -> Vec<Reg> {
-        vec![self.rd, self.rt]
-    }
-    fn regs_mut(&mut self) -> Vec<&mut Reg> {
-        vec![&mut self.rd, &mut self.rt]
-    }
-}
-
-// Pesudo Instruction: floating-point store global, most for global float variables
-#[derive(Debug, new)]
-pub(crate) struct FStoreGlobalInstr {
-    rd: Reg,
-    symbol: String,
-    rt: Reg,
-}
-
-impl InstrTrait for FStoreGlobalInstr {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn gen_asm(&self) -> String {
-        assert!(*self.rd.ty() == Type::Float);
-        assert!(*self.rt.ty() == Type::Int);
-        format!("fsw {}, {}, {}\n", self.rd, self.symbol, self.rt)
-    }
-    fn uses(&self) -> Vec<Reg> {
-        vec![self.rd, self.rt]
+        vec![self.rs]
     }
     fn defs(&self) -> Vec<Reg> {
         vec![]
     }
     fn regs_mut(&mut self) -> Vec<&mut Reg> {
-        vec![&mut self.rd, &mut self.rt]
+        vec![&mut self.rs]
     }
+}
+
+pub fn gen_fload_global(rd: Reg, symbol: String, rt: Reg) -> Vec<Box<dyn InstrTrait>> {
+    assert!(rd.ty() == &Type::Float);
+    assert!(rt.ty() == &Type::Int);
+    let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
+    instrs.push(Box::new(ImmeInstr::new_load_upper_immediate(
+        rt,
+        ImmeValueType::Symbol(symbol.clone()),
+        Some(TruncType::Hi),
+    )));
+    instrs.push(Box::new(FLoadInstr::new(
+        rd,
+        rt,
+        ImmeValueType::Symbol(symbol),
+        Some(TruncType::Lo),
+    )));
+    instrs
+}
+
+pub fn gen_fstore_global(rs: Reg, symbol: String, rt: Reg) -> Vec<Box<dyn InstrTrait>> {
+    assert!(rs.ty() == &Type::Float);
+    assert!(rt.ty() == &Type::Int);
+    let mut instrs: Vec<Box<dyn InstrTrait>> = vec![];
+    instrs.push(Box::new(ImmeInstr::new_load_upper_immediate(
+        rt,
+        ImmeValueType::Symbol(symbol.clone()),
+        Some(TruncType::Hi),
+    )));
+    instrs.push(Box::new(FStoreInstr::new(
+        rt,
+        rs,
+        ImmeValueType::Symbol(symbol),
+        Some(TruncType::Lo),
+    )));
+    instrs
 }
 
 pub fn gen_icmp_riscv_instrs(

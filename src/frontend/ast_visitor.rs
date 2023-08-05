@@ -1968,9 +1968,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             panic!("function call occurs in compile-time constant expression");
         } else {
             let func_name = ctx.Identifier().unwrap().get_text();
-            let callee_entry_type = *self.module.function(&func_name).ret_type();
-            // todo func args
-            let args: Vec<SSARightValue> = match ctx.funcRParams() {
+            let mut args: Vec<SSARightValue> = match ctx.funcRParams() {
                 Some(v) => {
                     v.accept(self);
                     self.return_content().into_func_rparams().unwrap()
@@ -1980,6 +1978,36 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 }
             };
             let cur_bb = self.cur_bb.unwrap();
+            let callee_entry_type = *self.module.function(&func_name).ret_type();
+            let callee_arg_list = self.module.function(&func_name).arg_list().clone();
+            // cvt between float and int
+            if callee_arg_list.is_normal() {
+                let callee_arg_list = callee_arg_list.as_normal().unwrap();
+                assert!(callee_arg_list.len() == args.len());
+                for (i, arg) in args.iter_mut().enumerate() {
+                    let arg_ty = arg.get_type();
+                    let callee_arg_ty = callee_arg_list[i].get_type();
+                    if arg_ty == Type::Int && callee_arg_ty == Type::Float {
+                        let reg =
+                            SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), Type::Float);
+                        let sitofp = Instruction::new(
+                            Box::new(Sitofp::new(reg.clone(), arg.clone())),
+                            cur_bb,
+                        );
+                        self.cur_function().add_inst2bb(sitofp);
+                        *arg = reg;
+                    } else if arg_ty == Type::Float && callee_arg_ty == Type::Int {
+                        let reg =
+                            SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), Type::Int);
+                        let fptosi = Instruction::new(
+                            Box::new(Fptosi::new(reg.clone(), arg.clone())),
+                            cur_bb,
+                        );
+                        self.cur_function().add_inst2bb(fptosi);
+                        *arg = reg;
+                    }
+                }
+            }
             let caller_entry = self.cur_function();
             if callee_entry_type != Type::Void {
                 let ret_value = caller_entry.new_reg(callee_entry_type);
