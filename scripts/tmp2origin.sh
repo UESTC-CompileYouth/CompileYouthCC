@@ -14,6 +14,6 @@ if [ $# -gt 0 ]; then
 		mv $file ${file%%.tmp}
 	fi
 else
-	echo "use it like: sh scripts/tmp2syfile.sh ./test/functional/52_scope.sy.tmp \
-or $: sh scripts/tmp2syfile.sh test/functional"
+	echo "use it like: sh scripts/tmp2origin.sh ./test/functional/52_scope.sy.tmp \
+or $: sh scripts/tmp2origin.sh test/functional"
 fi
