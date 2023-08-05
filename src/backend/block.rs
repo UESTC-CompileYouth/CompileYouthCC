@@ -8,7 +8,7 @@ use super::{
     register::Reg,
 };
 use crate::common::{
-    constant::{ADDRESS_SIZE, BLOCK_LABEL_PREFIX},
+    constant::{ADDRESS_SIZE, BLOCK_LABEL_PREFIX, FLOAT_SIZE, INT_SIZE},
     immediate::Immediate,
     r#type::Type,
 };
@@ -565,11 +565,20 @@ impl Block {
             } else if let Some(call_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Call>()
             {
                 let mut is_addr_set = HashSet::new();
+                let mut int_arg_cnt = 0;
+                let mut float_arg_cnt = 0;
                 let arg_reg_vec = call_instr
                     .args()
                     .iter()
                     .map(|arg| {
                         if arg.is_immediate() {
+                            if arg.ty().is_int() {
+                                int_arg_cnt += 1;
+                            } else if arg.ty().is_float() {
+                                float_arg_cnt += 1;
+                            } else {
+                                unimplemented!("unimplemented arg type: {:?}", arg.ty());
+                            }
                             let imme = arg.get_value().unwrap();
                             match imme {
                                 Immediate::Int(int) => {
@@ -597,69 +606,60 @@ impl Block {
                             let reg = mapping_info.from_ssa_rvalue(arg);
                             if arg.is_addr() {
                                 is_addr_set.insert(reg);
+                                int_arg_cnt += 1;
+                            } else if arg.ty().is_int() {
+                                int_arg_cnt += 1;
+                            } else if arg.ty().is_float() {
+                                float_arg_cnt += 1;
+                            } else {
+                                unimplemented!("unimplemented arg type: {:?}", arg.ty());
                             }
                             reg
                         }
                     })
                     .collect::<Vec<_>>();
-                let mut int_arg_cnt = 0;
-                let mut float_arg_cnt = 0;
-                for arg in arg_reg_vec.iter() {
-                    if arg.ty().is_int() {
-                        int_arg_cnt += 1;
-                    } else if arg.ty().is_float() {
-                        float_arg_cnt += 1;
-                    } else {
-                        unimplemented!("unimplemented arg type: {:?}", arg.ty());
-                    }
-                }
                 let int_arg_size = int_arg_cnt;
                 let float_arg_size = float_arg_cnt;
                 let mut stack_passed = 0;
                 if int_arg_size > RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
-                    stack_passed += int_arg_size - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT;
+                    for stack_arg in &arg_reg_vec[RegConvention::<i32>::ARGUMENT_REGISTER_COUNT..] {
+                        if is_addr_set.contains(stack_arg) {
+                            stack_passed += ADDRESS_SIZE as usize;
+                        } else {
+                            stack_passed += INT_SIZE as usize;
+                        }
+                    }
                 }
                 if float_arg_size > RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
-                    stack_passed += float_arg_size - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT;
-                }
-                if stack_passed % ADDRESS_SIZE as usize != 0 {
-                    stack_passed +=
-                        (ADDRESS_SIZE as usize) - (stack_passed % ADDRESS_SIZE as usize);
+                    stack_passed += (float_arg_size
+                        - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT)
+                        * FLOAT_SIZE as usize;
                 }
 
                 if stack_passed > 0 {
-                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(
-                        (stack_passed as i32) * (ADDRESS_SIZE as i32) * -1,
-                    )));
+                    risc_v_instrs.push(Box::new(ChangeSPInstr::new((stack_passed as i32) * -1)));
                 }
 
+                let mut offset = stack_passed;
                 for rs in arg_reg_vec.iter().rev() {
                     if rs.ty().is_int() {
                         int_arg_cnt -= 1;
                         if int_arg_cnt >= RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
                             if is_addr_set.contains(&rs) {
+                                offset -= ADDRESS_SIZE as usize;
                                 risc_v_instrs.push(Box::new(StoreInstr::new(
                                     Reg::new_int(SP),
                                     *rs,
-                                    ImmeValueType::Direct(
-                                        ADDRESS_SIZE as i32
-                                            * (int_arg_cnt
-                                                - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT)
-                                                as i32,
-                                    ),
+                                    ImmeValueType::Direct(offset as i32),
                                     None,
                                     StoreType::Sd,
                                 )));
                             } else {
+                                offset -= INT_SIZE as usize;
                                 risc_v_instrs.push(Box::new(StoreInstr::new(
                                     Reg::new_int(SP),
                                     *rs,
-                                    ImmeValueType::Direct(
-                                        ADDRESS_SIZE as i32
-                                            * (int_arg_cnt
-                                                - RegConvention::<i32>::ARGUMENT_REGISTER_COUNT)
-                                                as i32,
-                                    ),
+                                    ImmeValueType::Direct(offset as i32),
                                     None,
                                     StoreType::Sw,
                                 )));
@@ -676,16 +676,11 @@ impl Block {
                     } else if rs.ty().is_float() {
                         float_arg_cnt -= 1;
                         if float_arg_cnt >= RegConvention::<f32>::ARGUMENT_REGISTER_COUNT {
-                            // todo: check whether is right
+                            offset -= FLOAT_SIZE as usize;
                             risc_v_instrs.push(Box::new(FStoreInstr::new(
                                 Reg::new_int(SP),
                                 *rs,
-                                ImmeValueType::Direct(
-                                    ADDRESS_SIZE as i32
-                                        * (float_arg_cnt
-                                            - RegConvention::<f32>::ARGUMENT_REGISTER_COUNT)
-                                            as i32,
-                                ),
+                                ImmeValueType::Direct(offset as i32),
                                 None,
                             )));
                         } else {
@@ -702,6 +697,8 @@ impl Block {
                         unimplemented!("unimplemented arg type: {:?}", rs.ty());
                     }
                 }
+                assert!(offset == 0);
+
                 risc_v_instrs.push(Box::new(CallInstr::new(
                     call_instr.func_name().to_string(),
                     int_arg_size,
@@ -709,10 +706,9 @@ impl Block {
                 )));
 
                 if stack_passed > 0 {
-                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(
-                        ADDRESS_SIZE as i32 * stack_passed as i32,
-                    )));
+                    risc_v_instrs.push(Box::new(ChangeSPInstr::new(stack_passed as i32)));
                 }
+
                 if let Some(ret) = call_instr.ret() {
                     let rd = mapping_info.from_ssa_rvalue(ret);
                     if ret.ty().is_float() {
