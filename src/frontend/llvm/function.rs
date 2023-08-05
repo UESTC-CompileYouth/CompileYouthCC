@@ -124,15 +124,23 @@ impl Function {
         bb_id
     }
 
-    pub fn add_inst2bb(&mut self, instr: Instruction) -> i32 {
+    pub fn add_inst2bb(&mut self, instr: Instruction) {
         let inst_id = self.alloc_inst_id();
         let bb_id = instr.bb_id();
+        if *self.bb_mut(bb_id).unwrap().have_exit() {
+            log::warn!(
+                "basic block {} already have exit, omit instruction: {:?}",
+                bb_id,
+                instr
+            );
+            return;
+        }
         if instr.is_branch() || instr.is_ret() {
-            if *self.bb_mut(bb_id).unwrap().have_exit() {
-                panic!("basic block {} already have exit", bb_id);
-            } else {
-                self.bb_mut(bb_id).unwrap().set_have_exit(true);
-            }
+            // if *self.bb_mut(bb_id).unwrap().have_exit() {
+            //     panic!("basic block {} already have exit", bb_id);
+            // } else {
+            self.bb_mut(bb_id).unwrap().set_have_exit(true);
+            //}
         }
         self.instructions.insert(inst_id, instr);
         let bb_node = self.layout.block_node(bb_id);
@@ -141,7 +149,6 @@ impl Function {
         } else {
             self.layout.append_inst(inst_id, bb_id);
         }
-        inst_id
     }
 
     pub fn add_insts2bb(&mut self, instrs: Vec<Instruction>) {
