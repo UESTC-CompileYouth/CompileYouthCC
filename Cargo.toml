@@ -16,27 +16,26 @@ itertools = "0.10.5"
 defaults = "0.2.0"
 enum-as-inner = "0.5.1"
 hexf-parse = "0.2.1"
-simple_logger = "4.1.0"
 structopt = "0.3.26"
 enum_dispatch = "0.3.11"
 antlr-rust = "0.3.0-beta"
 
 
-[[bin]]
-name = "sysy-frontend"
-path = "./src/sysy-frontend.rs"
+# [[bin]]
+# name = "sysy-frontend"
+# path = "./src/sysy-frontend.rs"
 
-[[bin]]
-name = "sysy-dominance"
-path = "./src/sysy-dominance.rs"
+# [[bin]]
+# name = "sysy-dominance"
+# path = "./src/sysy-dominance.rs"
 
-[[bin]]
-name = "sysy-optimize"
-path = "./src/sysy-optimize.rs"
+# [[bin]]
+# name = "sysy-optimize"
+# path = "./src/sysy-optimize.rs"
 
-[[bin]]
-name = "sysy-mem2reg"
-path = "./src/sysy-mem2reg.rs"
+# [[bin]]
+# name = "sysy-mem2reg"
+# path = "./src/sysy-mem2reg.rs"
 
 [[bin]]
 name = "compiler"
