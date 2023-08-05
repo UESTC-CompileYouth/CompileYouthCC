@@ -1041,7 +1041,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             self.cur_function().add_inst2bb(store);
         }
 
+        self.depth += 1;
         ctx.block().unwrap().accept(self);
+        self.depth -= 1;
 
         if let Some(ret_bb) = self.ret_bb_opt.clone() {
             if func_type != Type::Void {
@@ -1160,9 +1162,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     #[allow(non_snake_case)]
     fn visit_block(&mut self, ctx: &BlockContext<'input>) -> Self::Return {
         log::trace!("visit_block");
-        self.depth += 1;
         let res = self.visit_children(ctx);
-        self.depth -= 1;
         log::trace!("leave_block");
         res
     }
@@ -1417,7 +1417,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         self.cur_bb = Some(*self.true_bb_stack.last().unwrap());
         let cur_block = cur_func.bb_mut(self.cur_bb.unwrap()).unwrap();
         cur_block.set_alias("while.true".to_string());
+        self.depth += 1;
         ctx.stmt().unwrap().accept(self);
+        self.depth -= 1;
         let cur_func = self
             .module
             .functions_mut()
