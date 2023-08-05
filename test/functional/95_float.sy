@@ -63,26 +63,17 @@ void assert_not(int cond) {
 }
 
 int main() {
-  putch(49);
   assert_not(float_eq(HEX2, FACT));
-  putch(50);
   assert_not(float_eq(EVAL1, EVAL2));
-  putch(51);
   assert(float_eq(EVAL2, EVAL3));
-  putch(52);
   assert(float_eq(circle_area(RADIUS) /* f->i implicit conversion */,
                   circle_area(FIVE)));
-  putch(53);
   assert_not(float_eq(CONV1, CONV2) /* i->f implicit conversion */);
 
   // float conditional expressions
-  putch(54);
   if (1.5) ok();
-  putch(55);
   if (!!3.3) ok();
-  putch(56);
   if (.0 && 3) error();
-  putch(57);
   if (0 || 0.3) ok();
 
   // float array & I/O functions
