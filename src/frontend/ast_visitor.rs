@@ -853,12 +853,11 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 panic!("visit_initVarDef: identifier already exist")
             }
         } else {
-            if self.module.have_function(&ident_name)
-                || match &self.cur_vtable {
-                    Some(vtable) => vtable.is_exist(&ident_name),
-                    None => false,
-                }
-            {
+            // allow duplicate local variable name with function name
+            if match &self.cur_vtable {
+                Some(vtable) => vtable.is_exist(&ident_name),
+                None => false,
+            } {
                 panic!("visit_initVarDef: identifier already exist")
             }
         }
