@@ -1,11 +1,11 @@
         .bss
-b:
-        .zero   4
 c:
+        .zero   4
+a:
         .zero   4
 d:
         .zero   4
-a:
+b:
         .zero   4
 e:
         .zero   4
@@ -17,8 +17,8 @@ main:
 .entry_main:
 addi sp, sp, -56
 sd ra, 48(sp)
+sd s0, 40(sp)
 sd s1, 32(sp)
-sd s0, 24(sp)
 .L1:
 call getint
 lui t0, %hi(a)
@@ -56,8 +56,8 @@ j .L3
 .L3:
 mv a0, t0
 ld ra, 48(sp)
+ld s0, 40(sp)
 ld s1, 32(sp)
-ld s0, 24(sp)
 addi sp, sp, 56
 ret
 .L4:

@@ -92,9 +92,10 @@ impl InterferenceGraph {
 
         for (blockid, block_liveness) in liveness.block_liveness_map.iter() {
             let block_liveness = block_liveness.borrow();
-            for inst_id in block_liveness.insts.iter() {
+
+            for inst_id in 0..block_liveness.inst_cnt {
                 // try to allocate with same reg for reg instr, i.e. y = f(x)
-                let inst = &func.block(*blockid).instrs()[*inst_id as usize];
+                let inst = &func.block(*blockid).instrs()[inst_id];
                 let (x, y, z) = inst.get_operands(reg_type);
                 ig.add_node(x);
                 ig.add_node(y);
@@ -120,15 +121,15 @@ impl InterferenceGraph {
                         ig.add_move_edge(u, d);
                     }
 
-                    for v in block_liveness.get_inst_out(*inst_id).iter() {
+                    for v in block_liveness.get_inst_out(inst_id as i32).iter() {
                         if u != *v && *v != d {
                             ig.add_edge(d, *v);
                             ig.add_edge_in_graph(d, *v);
                         }
                     }
                 } else {
-                    for u in block_liveness.get_inst_kill(*inst_id).iter() {
-                        for v in block_liveness.get_inst_out(*inst_id).iter() {
+                    for u in block_liveness.get_inst_kill(inst_id as i32).iter() {
+                        for v in block_liveness.get_inst_out(inst_id as i32).iter() {
                             if u != v {
                                 ig.add_edge(*u, *v);
                                 ig.add_edge_in_graph(*u, *v);
@@ -701,7 +702,10 @@ pub(crate) fn register_allocate(func: &mut Function) {
         let mut allocation = HashMap::new();
 
         // 1. build  interference graph
+        // println!("BUILD GRAPH");
         let mut ig = InterferenceGraph::build(func, MAX_USABLE_REG_CNT, reg_type);
+
+        // println!("ASSIGN SPECIAL");
         ig.assign_special();
 
         // println!("{:?}", ig);
@@ -719,21 +723,29 @@ pub(crate) fn register_allocate(func: &mut Function) {
         }
 
         loop {
-            println!("1");
+            // println!("BEGIN LOOP");
             // 2. simplify the graph
             stk.extend(ig.simplify().into_iter());
+
+            // println!("PASS SIMPLIFY");
 
             // println!("{:?}", stk);
 
             // 3. coalesce move edges
             if ig.try_coalesce() {
+                // println!("3");
                 continue;
             }
 
+            // println!("PASS TRY COALESCE");
+
             // 4. freeze move edges related to small degree node
             if ig.try_freeze() {
+                // println!("4");
                 continue;
             }
+
+            // println!("PASS TRY FREEZE");
 
             let mut spill_set = HashSet::new();
 
@@ -751,12 +763,13 @@ pub(crate) fn register_allocate(func: &mut Function) {
             }
 
             if !spill_set.is_empty() {
-                println!("{:?}", spill_set);
+                // println!("{:?}", spill_set);
                 // for ele in &spill_set {
                 //     println!("{:?}", ele);
                 // }
                 // let n = spill_set.iter().next().unwrap();
                 for n in &spill_set {
+                    // println!("SPILL {}", n);
                     spill_rewrite(func, *n, reg_type, &mut max_reg_id);
                 }
 
@@ -781,7 +794,9 @@ pub(crate) fn register_allocate(func: &mut Function) {
 
         // println!("{:?}", ig);
         replace_regs(func, &allocation);
+        // println!("END LOOP");
     };
+
     register_allocate(Type::Int);
     register_allocate(Type::Float);
 }

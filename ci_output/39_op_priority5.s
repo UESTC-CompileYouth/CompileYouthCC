@@ -1,14 +1,14 @@
         .data
+a:
+        .word   1
+c:
+        .word   1
+e:
+        .word   4
 d:
         .word   2
 b:
         .word   0
-e:
-        .word   4
-c:
-        .word   1
-a:
-        .word   1
 
         .text
 .global main

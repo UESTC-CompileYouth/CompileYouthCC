@@ -1,7 +1,7 @@
         .bss
-a:
-        .zero   4
 b:
+        .zero   4
+a:
         .zero   4
 
         .text

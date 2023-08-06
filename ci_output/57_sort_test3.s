@@ -10,7 +10,7 @@ QuickSort:
 addi sp, sp, -88
 sd ra, 80(sp)
 sd s1, 72(sp)
-sd s0, 56(sp)
+sd s0, 64(sp)
 .L1:
 addi a3, sp, 0
 sd a0, 0(a3)
@@ -26,32 +26,32 @@ bne t0, zero, .L2
 j .L3
 .L2:
 lw t0, 0(s1)
-lw t2, 0(s0)
+lw t1, 0(s0)
 lw a1, 0(s1)
 ld a0, 0(a3)
-li t1, 4
-mul t1, a1, t1
-add t1, a0, t1
-lw t1, 0(t1)
+li t2, 4
+mul t2, a1, t2
+add t2, a0, t2
+lw t2, 0(t2)
 j .L4
 .L3:
 li a0, 0
 ld ra, 80(sp)
 ld s1, 72(sp)
-ld s0, 56(sp)
+ld s0, 64(sp)
 addi sp, sp, 88
 ret
 .L4:
-sub a0, t0, t2
+sub a0, t0, t1
 sltz a0, a0
 bne a0, zero, .L7
 j .L6
 .L6:
 ld a0, 0(a3)
-li t2, 4
-mul t2, t0, t2
-add t2, a0, t2
-sw t1, 0(t2)
+li t1, 4
+mul t1, t0, t1
+add t1, a0, t1
+sw t2, 0(t1)
 li t1, 1
 addiw t1, t0, -1
 ld a0, 0(a3)
@@ -70,27 +70,27 @@ lw a2, 0(s0)
 call QuickSort
 j .L3
 .L7:
-sub a0, t0, t2
+sub a0, t0, t1
 sltz a0, a0
 bne a0, zero, .L10
 j .L9
 .L8:
 li a0, 1
-addiw t2, t2, -1
+addiw t1, t1, -1
 j .L7
 .L9:
-sub a0, t0, t2
+sub a0, t0, t1
 sltz a0, a0
 bne a0, zero, .L11
 j .L13
 .L10:
 ld a1, 0(a3)
 li a0, 4
-mul a0, t2, a0
+mul a0, t1, a0
 add a0, a1, a0
 lw a1, 0(a0)
 li a0, 1
-addiw a0, t1, -1
+addiw a0, t2, -1
 sub a0, a1, a0
 sgtz a0, a0
 bne a0, zero, .L8
@@ -102,7 +102,7 @@ mul a0, t0, a0
 add a2, a1, a0
 ld a1, 0(a3)
 li a0, 4
-mul a0, t2, a0
+mul a0, t1, a0
 add a0, a1, a0
 lw a0, 0(a0)
 sw a0, 0(a2)
@@ -110,7 +110,7 @@ li a0, 1
 addiw t0, t0, 1
 j .L13
 .L13:
-sub a0, t0, t2
+sub a0, t0, t1
 sltz a0, a0
 bne a0, zero, .L16
 j .L15
@@ -119,7 +119,7 @@ li a0, 1
 addiw t0, t0, 1
 j .L13
 .L15:
-sub a0, t0, t2
+sub a0, t0, t1
 sltz a0, a0
 bne a0, zero, .L17
 j .L4
@@ -129,14 +129,14 @@ li a0, 4
 mul a0, t0, a0
 add a0, a1, a0
 lw a0, 0(a0)
-sub a0, a0, t1
+sub a0, a0, t2
 sltz a0, a0
 bne a0, zero, .L14
 j .L15
 .L17:
 ld a1, 0(a3)
 li a0, 4
-mul a0, t2, a0
+mul a0, t1, a0
 add a2, a1, a0
 ld a1, 0(a3)
 li a0, 4
@@ -145,7 +145,7 @@ add a0, a1, a0
 lw a0, 0(a0)
 sw a0, 0(a2)
 li a0, 1
-addiw t2, t2, -1
+addiw t1, t1, -1
 j .L4
 
 main:
@@ -246,11 +246,11 @@ ld t2, 56(sp)
 ld t1, 48(sp)
 li t0, 10
 li a0, 10
-sd t1, 72(sp)
-sd t2, 64(sp)
+sd t2, 72(sp)
+sd t1, 64(sp)
 call putch
-ld t1, 72(sp)
-ld t2, 64(sp)
+ld t2, 72(sp)
+ld t1, 64(sp)
 li t0, 1
 addiw t1, t1, 1
 j .L31

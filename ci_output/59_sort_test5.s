@@ -8,8 +8,8 @@ n:
 swap:
 .entry_swap:
 addi sp, sp, -48
-sd s1, 40(sp)
-sd s0, 32(sp)
+sd s0, 40(sp)
+sd s1, 32(sp)
 .L1:
 addi a3, sp, 0
 sd a0, 0(a3)
@@ -42,8 +42,8 @@ mul t1, s0, t1
 add t1, t2, t1
 sw t0, 0(t1)
 li a0, 0
-ld s1, 40(sp)
-ld s0, 32(sp)
+ld s0, 40(sp)
+ld s1, 32(sp)
 addi sp, sp, 48
 ret
 
@@ -51,8 +51,8 @@ heap_ajust:
 .entry_heap_ajust:
 addi sp, sp, -80
 sd ra, 72(sp)
-sd s1, 56(sp)
-sd s0, 48(sp)
+sd s1, 64(sp)
+sd s0, 56(sp)
 .L3:
 addi s0, sp, 0
 sd a0, 0(s0)
@@ -138,8 +138,8 @@ j .L4
 .L12:
 mv a0, t0
 ld ra, 72(sp)
-ld s1, 56(sp)
-ld s0, 48(sp)
+ld s1, 64(sp)
+ld s0, 56(sp)
 addi sp, sp, 80
 ret
 j .L4
@@ -184,34 +184,34 @@ j .L23
 .L25:
 lw t1, 0(s1)
 li t0, 1
-addiw t2, t1, -1
+addiw t0, t1, -1
 j .L26
 .L26:
-li t0, 0
-addi t0, t2, 0
-sgtz t0, t0
-bne t0, zero, .L27
+li t1, 0
+addi t1, t0, 0
+sgtz t1, t1
+bne t1, zero, .L27
 j .L28
 .L27:
-li t1, 0
+li t2, 0
 ld a0, 0(s0)
 li a1, 0
-mv a2, t2
+mv a2, t0
 sd t2, 28(sp)
-sd t1, 20(sp)
+sd t0, 20(sp)
 call swap
 ld t2, 28(sp)
-ld t1, 20(sp)
-li t0, 1
-addiw t0, t2, -1
+ld t0, 20(sp)
+li t1, 1
+addiw t1, t0, -1
 ld a0, 0(s0)
-mv a1, t1
-mv a2, t0
-sd t2, 36(sp)
+mv a1, t2
+mv a2, t1
+sd t0, 36(sp)
 call heap_ajust
-ld t2, 36(sp)
-li t0, 1
-addiw t2, t2, -1
+ld t0, 36(sp)
+li t1, 1
+addiw t0, t0, -1
 j .L26
 .L28:
 li a0, 0
@@ -296,34 +296,34 @@ mv a0, t2
 sd t2, 40(sp)
 call heap_sort
 ld t2, 40(sp)
-mv t1, a0
+mv t0, a0
 j .L35
 .L35:
-lw t0, n
-sub t0, t1, t0
-sltz t0, t0
-bne t0, zero, .L36
+lw t1, n
+sub t1, t0, t1
+sltz t1, t1
+bne t1, zero, .L36
 j .L37
 .L36:
-li t0, 4
-mul t0, t1, t0
-add t0, t2, t0
-lw t0, 0(t0)
-mv a0, t0
-sd t1, 56(sp)
+li t1, 4
+mul t1, t0, t1
+add t1, t2, t1
+lw t1, 0(t1)
+mv a0, t1
+sd t0, 56(sp)
 sd t2, 48(sp)
 call putint
-ld t1, 56(sp)
+ld t0, 56(sp)
 ld t2, 48(sp)
-li t0, 10
+li t1, 10
 li a0, 10
 sd t2, 72(sp)
-sd t1, 64(sp)
+sd t0, 64(sp)
 call putch
 ld t2, 72(sp)
-ld t1, 64(sp)
-li t0, 1
-addiw t1, t1, 1
+ld t0, 64(sp)
+li t1, 1
+addiw t0, t0, 1
 j .L35
 .L37:
 li a0, 0

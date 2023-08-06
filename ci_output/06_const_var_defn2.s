@@ -1,8 +1,8 @@
         .data
-b:
-        .word   5
 a:
         .word   10
+b:
+        .word   5
 
         .text
 .global main

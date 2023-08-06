@@ -14,33 +14,33 @@ main:
 .entry_main:
 addi sp, sp, -368
 sd ra, 356(sp)
-sd s1, 340(sp)
-sd s0, 332(sp)
+sd s1, 348(sp)
+sd s0, 340(sp)
 .L1:
 addi s1, sp, 0
 addi t2, sp, 140
 li t1, 1
 li t0, 3
 li a0, 3
-sd t2, 220(sp)
-sd t1, 212(sp)
+sd t1, 220(sp)
+sd t2, 212(sp)
 sd t0, 204(sp)
 call putint
-ld t2, 220(sp)
-ld t1, 212(sp)
+ld t1, 220(sp)
+ld t2, 212(sp)
 ld t0, 204(sp)
 mv a0, t0
-sd t1, 236(sp)
-sd t2, 228(sp)
+sd t2, 236(sp)
+sd t1, 228(sp)
 call putint
-ld t1, 236(sp)
-ld t2, 228(sp)
+ld t2, 236(sp)
+ld t1, 228(sp)
 mv a0, t1
-sd t1, 252(sp)
-sd t2, 244(sp)
+sd t2, 252(sp)
+sd t1, 244(sp)
 call putint
-ld t1, 252(sp)
-ld t2, 244(sp)
+ld t2, 252(sp)
+ld t1, 244(sp)
 li a0, 10
 sd t2, 268(sp)
 sd t1, 260(sp)
@@ -543,7 +543,7 @@ li a0, 10
 call putch
 li a0, 0
 ld ra, 356(sp)
-ld s1, 340(sp)
-ld s0, 332(sp)
+ld s1, 348(sp)
+ld s0, 340(sp)
 addi sp, sp, 368
 ret

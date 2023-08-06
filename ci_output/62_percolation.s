@@ -1,8 +1,8 @@
         .bss
-array:
-        .zero   440
 n:
         .zero   4
+array:
+        .zero   440
 
         .text
 .global main
@@ -11,8 +11,8 @@ findfa:
 .entry_findfa:
 addi sp, sp, -72
 sd ra, 60(sp)
-sd s1, 52(sp)
-sd s0, 36(sp)
+sd s0, 44(sp)
+sd s1, 36(sp)
 .L1:
 addi s1, sp, 0
 sw a0, 0(s1)
@@ -56,8 +56,8 @@ j .L4
 .L4:
 mv a0, t0
 ld ra, 60(sp)
-ld s1, 52(sp)
-ld s0, 36(sp)
+ld s0, 44(sp)
+ld s1, 36(sp)
 addi sp, sp, 72
 ret
 j .L4
@@ -66,7 +66,7 @@ mmerge:
 .entry_mmerge:
 addi sp, sp, -64
 sd ra, 56(sp)
-sd s0, 48(sp)
+sd s0, 40(sp)
 .L8:
 addi t1, sp, 0
 sw a0, 0(t1)
@@ -94,7 +94,7 @@ add t1, s0, t1
 sw t0, 0(t1)
 .L10:
 ld ra, 56(sp)
-ld s0, 48(sp)
+ld s0, 40(sp)
 addi sp, sp, 64
 ret
 
@@ -138,10 +138,10 @@ j .L13
 
 main:
 .entry_main:
-addi sp, sp, -552
-sd ra, 544(sp)
+addi sp, sp, -560
+sd ra, 552(sp)
+sd s0, 544(sp)
 sd s1, 528(sp)
-sd s0, 520(sp)
 .L19:
 li a4, 1
 j .L20
@@ -158,63 +158,65 @@ li t1, 4
 lui t0, %hi(n)
 sw t1, %lo(n)(t0)
 li a3, 10
-li s1, 0
 li t1, 0
+li a2, 0
 lw a0, n
-sd a4, 16(sp)
-sd t1, 8(sp)
+sd a4, 24(sp)
+sd t1, 16(sp)
+sd a2, 8(sp)
 sd a3, 0(sp)
 call init
-ld a4, 16(sp)
-ld t1, 8(sp)
+ld a4, 24(sp)
+ld t1, 16(sp)
+ld a2, 8(sp)
 ld a3, 0(sp)
 lw t2, n
 lw t0, n
 mulw t2, t2, t0
 li t0, 1
-addiw a2, t2, 1
+addiw s1, t2, 1
 j .L23
 .L22:
 li a0, 0
-ld ra, 544(sp)
+ld ra, 552(sp)
+ld s0, 544(sp)
 ld s1, 528(sp)
-ld s0, 520(sp)
-addi sp, sp, 552
+addi sp, sp, 560
 ret
 .L23:
-sub t0, s1, a3
+sub t0, t1, a3
 sltz t0, t0
 bne t0, zero, .L24
 j .L25
 .L24:
-sd a3, 48(sp)
+sd a2, 56(sp)
+sd a4, 48(sp)
 sd t1, 40(sp)
-sd a2, 32(sp)
-sd a4, 24(sp)
+sd a3, 32(sp)
 call getint
-ld a3, 48(sp)
+ld a2, 56(sp)
+ld a4, 48(sp)
 ld t1, 40(sp)
-ld a2, 32(sp)
-ld a4, 24(sp)
+ld a3, 32(sp)
 mv s0, a0
-sd a2, 80(sp)
-sd a3, 72(sp)
+sd t1, 88(sp)
+sd a3, 80(sp)
+sd a2, 72(sp)
 sd a4, 64(sp)
-sd t1, 56(sp)
 call getint
-ld a2, 80(sp)
-ld a3, 72(sp)
+ld t1, 88(sp)
+ld a3, 80(sp)
+ld a2, 72(sp)
 ld a4, 64(sp)
-ld t1, 56(sp)
 mv t2, a0
-seqz a0, t1
+seqz a0, a2
 li t0, 0
 addi t0, a0, 0
 snez t0, t0
 bne t0, zero, .L26
 j .L27
 .L25:
-seqz t1, t1
+seqz t1, a2
 li t0, 0
 addi t0, t1, 0
 snez t0, t0
@@ -238,7 +240,7 @@ bne a0, zero, .L28
 j .L29
 .L27:
 li t0, 1
-addiw s1, s1, 1
+addiw t1, t1, 1
 j .L23
 .L28:
 la a1, array
@@ -250,19 +252,19 @@ li a0, 0
 sw a0, 0(a1)
 mv a0, t0
 li a1, 0
-sd a3, 128(sp)
-sd a2, 120(sp)
-sd t0, 112(sp)
-sd a4, 104(sp)
+sd t2, 136(sp)
+sd a4, 128(sp)
+sd t0, 120(sp)
+sd a2, 112(sp)
+sd a3, 104(sp)
 sd t1, 96(sp)
-sd t2, 88(sp)
 call mmerge
-ld a3, 128(sp)
-ld a2, 120(sp)
-ld t0, 112(sp)
-ld a4, 104(sp)
+ld t2, 136(sp)
+ld a4, 128(sp)
+ld t0, 120(sp)
+ld a2, 112(sp)
+ld a3, 104(sp)
 ld t1, 96(sp)
-ld t2, 88(sp)
 .L29:
 lw a0, n
 sub a0, s0, a0
@@ -272,24 +274,24 @@ j .L31
 .L30:
 la a1, array
 li a0, 4
-mul a0, a2, a0
+mul a0, s1, a0
 add a0, a1, a0
-sw a2, 0(a0)
+sw s1, 0(a0)
 mv a0, t0
-mv a1, a2
-sd t0, 176(sp)
-sd t2, 168(sp)
-sd a4, 160(sp)
+mv a1, s1
+sd t0, 184(sp)
+sd t1, 176(sp)
+sd a4, 168(sp)
+sd t2, 160(sp)
 sd a2, 152(sp)
 sd a3, 144(sp)
-sd t1, 136(sp)
 call mmerge
-ld t0, 176(sp)
-ld t2, 168(sp)
-ld a4, 160(sp)
+ld t0, 184(sp)
+ld t1, 176(sp)
+ld a4, 168(sp)
+ld t2, 160(sp)
 ld a2, 152(sp)
 ld a3, 144(sp)
-ld t1, 136(sp)
 .L31:
 lw a0, n
 sub a0, t2, a0
@@ -300,19 +302,19 @@ j .L33
 mv a0, t0
 li a1, 1
 addiw a1, t0, 1
-sd a3, 224(sp)
-sd t1, 216(sp)
-sd a2, 208(sp)
-sd a4, 200(sp)
+sd t1, 232(sp)
+sd a2, 224(sp)
+sd a3, 216(sp)
+sd a4, 208(sp)
+sd t0, 200(sp)
 sd t2, 192(sp)
-sd t0, 184(sp)
 call mmerge
-ld a3, 224(sp)
-ld t1, 216(sp)
-ld a2, 208(sp)
-ld a4, 200(sp)
+ld t1, 232(sp)
+ld a2, 224(sp)
+ld a3, 216(sp)
+ld a4, 208(sp)
+ld t0, 200(sp)
 ld t2, 192(sp)
-ld t0, 184(sp)
 .L33:
 li a0, 1
 addi t2, t2, -1
@@ -337,17 +339,17 @@ j .L33
 mv a0, t0
 li t2, 1
 addiw a1, t0, -1
-sd a2, 264(sp)
-sd a4, 256(sp)
-sd a3, 248(sp)
-sd t0, 240(sp)
-sd t1, 232(sp)
+sd a2, 272(sp)
+sd a4, 264(sp)
+sd a3, 256(sp)
+sd t0, 248(sp)
+sd t1, 240(sp)
 call mmerge
-ld a2, 264(sp)
-ld a4, 256(sp)
-ld a3, 248(sp)
-ld t0, 240(sp)
-ld t1, 232(sp)
+ld a2, 272(sp)
+ld a4, 264(sp)
+ld a3, 256(sp)
+ld t0, 248(sp)
+ld t1, 240(sp)
 .L36:
 lw t2, n
 sub t2, s0, t2
@@ -372,17 +374,17 @@ j .L36
 mv a0, t0
 lw t2, n
 addw a1, t0, t2
-sd a4, 304(sp)
+sd a2, 312(sp)
+sd t1, 304(sp)
 sd a3, 296(sp)
 sd t0, 288(sp)
-sd t1, 280(sp)
-sd a2, 272(sp)
+sd a4, 280(sp)
 call mmerge
-ld a4, 304(sp)
+ld a2, 312(sp)
+ld t1, 304(sp)
 ld a3, 296(sp)
 ld t0, 288(sp)
-ld t1, 280(sp)
-ld a2, 272(sp)
+ld a4, 280(sp)
 .L39:
 li t2, 1
 addi t2, s0, -1
@@ -407,15 +409,15 @@ j .L39
 mv a0, t0
 lw t2, n
 subw a1, t0, t2
+sd t1, 344(sp)
 sd a4, 336(sp)
-sd a3, 328(sp)
-sd t1, 320(sp)
-sd a2, 312(sp)
+sd a2, 328(sp)
+sd a3, 320(sp)
 call mmerge
+ld t1, 344(sp)
 ld a4, 336(sp)
-ld a3, 328(sp)
-ld t1, 320(sp)
-ld a2, 312(sp)
+ld a2, 328(sp)
+ld a3, 320(sp)
 .L42:
 la a1, array
 li t2, 0
@@ -444,54 +446,54 @@ snez t2, t2
 bne t2, zero, .L41
 j .L42
 .L44:
-li t1, 1
+li a2, 1
 li t0, 1
-addiw t0, s1, 1
+addiw t0, t1, 1
 mv a0, t0
-sd a4, 368(sp)
-sd a3, 360(sp)
+sd t1, 376(sp)
+sd a3, 368(sp)
+sd a4, 360(sp)
 sd a2, 352(sp)
-sd t1, 344(sp)
 call putint
-ld a4, 368(sp)
-ld a3, 360(sp)
+ld t1, 376(sp)
+ld a3, 368(sp)
+ld a4, 360(sp)
 ld a2, 352(sp)
-ld t1, 344(sp)
 li a0, 10
+sd a4, 408(sp)
 sd t1, 400(sp)
-sd a3, 392(sp)
-sd a4, 384(sp)
-sd a2, 376(sp)
+sd a2, 392(sp)
+sd a3, 384(sp)
 call putch
+ld a4, 408(sp)
 ld t1, 400(sp)
-ld a3, 392(sp)
-ld a4, 384(sp)
-ld a2, 376(sp)
+ld a2, 392(sp)
+ld a3, 384(sp)
 j .L27
 .L46:
 li a0, 0
-sd a4, 432(sp)
-sd a2, 424(sp)
-sd a3, 416(sp)
-sd t1, 408(sp)
+sd a4, 440(sp)
+sd a3, 432(sp)
+sd t1, 424(sp)
+sd a2, 416(sp)
 call findfa
-ld a4, 432(sp)
-ld a2, 424(sp)
-ld a3, 416(sp)
-ld t1, 408(sp)
+ld a4, 440(sp)
+ld a3, 432(sp)
+ld t1, 424(sp)
+ld a2, 416(sp)
 mv t0, a0
-mv a0, a2
-sd a2, 472(sp)
-sd t0, 464(sp)
+mv a0, s1
+sd a2, 480(sp)
+sd a3, 472(sp)
+sd t1, 464(sp)
 sd a4, 456(sp)
-sd t1, 448(sp)
-sd a3, 440(sp)
+sd t0, 448(sp)
 call findfa
-ld a2, 472(sp)
-ld t0, 464(sp)
+ld a2, 480(sp)
+ld a3, 472(sp)
+ld t1, 464(sp)
 ld a4, 456(sp)
-ld t1, 448(sp)
-ld a3, 440(sp)
+ld t0, 448(sp)
 sub t0, t0, a0
 seqz t0, t0
 bne t0, zero, .L44
@@ -499,7 +501,7 @@ j .L27
 .L47:
 la a1, array
 li t0, 4
-mul t0, a2, t0
+mul t0, s1, t0
 add t0, a1, t0
 lw t2, 0(t0)
 li t0, 1
@@ -511,11 +513,11 @@ j .L27
 .L48:
 li t0, 1
 li a0, -1
-sd a4, 480(sp)
-call putint
-ld a4, 480(sp)
-li a0, 10
 sd a4, 488(sp)
-call putch
+call putint
 ld a4, 488(sp)
+li a0, 10
+sd a4, 496(sp)
+call putch
+ld a4, 496(sp)
 j .L20

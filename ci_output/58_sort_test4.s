@@ -8,8 +8,8 @@ n:
 select_sort:
 .entry_select_sort:
 addi sp, sp, -48
-sd s1, 36(sp)
-sd s0, 28(sp)
+sd s0, 36(sp)
+sd s1, 28(sp)
 .L1:
 addi s1, sp, 0
 sd a0, 0(s1)
@@ -32,8 +32,8 @@ addiw t0, t2, 1
 j .L5
 .L4:
 li a0, 0
-ld s1, 36(sp)
-ld s0, 28(sp)
+ld s0, 36(sp)
+ld s1, 28(sp)
 addi sp, sp, 48
 ret
 .L5:
@@ -190,11 +190,11 @@ ld t0, 56(sp)
 ld t2, 48(sp)
 li t1, 10
 li a0, 10
-sd t2, 72(sp)
-sd t0, 64(sp)
+sd t0, 72(sp)
+sd t2, 64(sp)
 call putch
-ld t2, 72(sp)
-ld t0, 64(sp)
+ld t0, 72(sp)
+ld t2, 64(sp)
 li t1, 1
 addiw t0, t0, 1
 j .L20

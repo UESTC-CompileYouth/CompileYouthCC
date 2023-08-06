@@ -5,10 +5,10 @@ maxn:
         .word   18
 
         .bss
-cns:
-        .zero   80
 list:
         .zero   800
+cns:
+        .zero   80
 dp:
         .zero   52907904
 
@@ -19,67 +19,67 @@ main:
 .entry_main:
 addi sp, sp, -88
 sd ra, 80(sp)
-sd s1, 72(sp)
-sd s0, 56(sp)
+sd s0, 72(sp)
+sd s1, 56(sp)
 .L1:
 call getint
 mv a1, a0
-li s1, 0
+li a0, 0
 j .L2
 .L2:
 lw t0, maxn
-sub t0, s1, t0
+sub t0, a0, t0
 sltz t0, t0
 bne t0, zero, .L3
 j .L4
 .L3:
-li a0, 0
+li s1, 0
 j .L5
 .L4:
 li t0, 0
 j .L20
 .L5:
 lw t0, maxn
-sub t0, a0, t0
+sub t0, s1, t0
 sltz t0, t0
 bne t0, zero, .L6
 j .L7
 .L6:
-li t1, 0
+li s0, 0
 j .L8
 .L7:
 li t0, 1
-addiw s1, s1, 1
+addiw a0, a0, 1
 j .L2
 .L8:
 lw t0, maxn
-sub t0, t1, t0
+sub t0, s0, t0
 sltz t0, t0
 bne t0, zero, .L9
 j .L10
 .L9:
-li s0, 0
+li t2, 0
 j .L11
 .L10:
 li t0, 1
-addiw a0, a0, 1
+addiw s1, s1, 1
 j .L5
 .L11:
 lw t0, maxn
-sub t0, s0, t0
+sub t0, t2, t0
 sltz t0, t0
 bne t0, zero, .L12
 j .L13
 .L12:
-li t2, 0
+li t1, 0
 j .L14
 .L13:
 li t0, 1
-addiw t1, t1, 1
+addiw s0, s0, 1
 j .L8
 .L14:
 lw t0, maxn
-sub t0, t2, t0
+sub t0, t1, t0
 sltz t0, t0
 bne t0, zero, .L15
 j .L16
@@ -88,7 +88,7 @@ li t0, 0
 j .L17
 .L16:
 li t0, 1
-addiw s0, s0, 1
+addiw t2, t2, 1
 j .L11
 .L17:
 li a2, 7
@@ -99,19 +99,19 @@ j .L19
 .L18:
 la a3, dp
 li a2, 2939328
-mul a2, s1, a2
-add a3, a3, a2
-li a2, 163296
 mul a2, a0, a2
 add a3, a3, a2
-li a2, 9072
-mul a2, t1, a2
+li a2, 163296
+mul a2, s1, a2
 add a3, a3, a2
-li a2, 504
+li a2, 9072
 mul a2, s0, a2
 add a3, a3, a2
-li a2, 28
+li a2, 504
 mul a2, t2, a2
+add a3, a3, a2
+li a2, 28
+mul a2, t1, a2
 add a3, a3, a2
 li a2, 4
 mul a2, t0, a2
@@ -124,7 +124,7 @@ addiw t0, t0, 1
 j .L17
 .L19:
 li t0, 1
-addiw t2, t2, 1
+addiw t1, t1, 1
 j .L14
 .L20:
 sub t1, t0, a1
@@ -136,13 +136,13 @@ la t2, list
 li t1, 4
 mul t1, t0, t1
 add t1, t2, t1
-sd t1, 16(sp)
+sd t0, 16(sp)
 sd a1, 8(sp)
-sd t0, 0(sp)
+sd t1, 0(sp)
 call getint
-ld t1, 16(sp)
+ld t0, 16(sp)
 ld a1, 8(sp)
-ld t0, 0(sp)
+ld t1, 0(sp)
 sw a0, 0(t1)
 la t2, list
 li t1, 4
@@ -209,20 +209,20 @@ call putint
 ld t0, 24(sp)
 mv a0, t0
 ld ra, 80(sp)
-ld s1, 72(sp)
-ld s0, 56(sp)
+ld s0, 72(sp)
+ld s1, 56(sp)
 addi sp, sp, 88
 ret
-j .L14
+j .L2
 
 dfs:
 .entry_dfs:
 addi sp, sp, -504
 sd ra, 496(sp)
-sd s0, 480(sp)
-sd s3, 472(sp)
+sd s3, 488(sp)
+sd s2, 480(sp)
+sd s0, 472(sp)
 sd s1, 464(sp)
-sd s2, 456(sp)
 .L38:
 addi a7, sp, 0
 sw a0, 0(a7)
@@ -314,10 +314,10 @@ j .L43
 .L41:
 mv a0, t0
 ld ra, 496(sp)
-ld s0, 480(sp)
-ld s3, 472(sp)
+ld s3, 488(sp)
+ld s2, 480(sp)
+ld s0, 472(sp)
 ld s1, 464(sp)
-ld s2, 456(sp)
 addi sp, sp, 504
 ret
 .L42:
@@ -335,19 +335,19 @@ j .L45
 lw a2, 0(a7)
 lw a0, 0(t1)
 li a1, 2
-sd t2, 64(sp)
-sd a6, 56(sp)
-sd a7, 48(sp)
-sd t0, 40(sp)
-sd t1, 32(sp)
-sd a2, 24(sp)
+sd t0, 64(sp)
+sd a7, 56(sp)
+sd t1, 48(sp)
+sd a6, 40(sp)
+sd a2, 32(sp)
+sd t2, 24(sp)
 call equal
-ld t2, 64(sp)
-ld a6, 56(sp)
-ld a7, 48(sp)
-ld t0, 40(sp)
-ld t1, 32(sp)
-ld a2, 24(sp)
+ld t0, 64(sp)
+ld a7, 56(sp)
+ld t1, 48(sp)
+ld a6, 40(sp)
+ld a2, 32(sp)
+ld t2, 24(sp)
 subw s2, a2, a0
 lw a1, 0(a7)
 li a0, 1
@@ -357,17 +357,17 @@ lw a2, 0(s1)
 lw a3, 0(s0)
 lw a4, 0(t2)
 li a5, 1
-sd t0, 104(sp)
-sd a6, 96(sp)
-sd t2, 88(sp)
-sd a7, 80(sp)
-sd t1, 72(sp)
+sd a7, 104(sp)
+sd t1, 96(sp)
+sd a6, 88(sp)
+sd t2, 80(sp)
+sd t0, 72(sp)
 call dfs
-ld t0, 104(sp)
-ld a6, 96(sp)
-ld t2, 88(sp)
-ld a7, 80(sp)
-ld t1, 72(sp)
+ld a7, 104(sp)
+ld t1, 96(sp)
+ld a6, 88(sp)
+ld t2, 80(sp)
+ld t0, 72(sp)
 mulw a0, s2, a0
 addw a0, t0, a0
 lw t0, mod
@@ -384,18 +384,18 @@ j .L47
 lw a2, 0(a6)
 lw a0, 0(t1)
 li a1, 3
-sd a7, 152(sp)
+sd t1, 152(sp)
 sd a2, 144(sp)
 sd t0, 136(sp)
-sd t1, 128(sp)
-sd t2, 120(sp)
+sd t2, 128(sp)
+sd a7, 120(sp)
 sd a6, 112(sp)
 call equal
-ld a7, 152(sp)
+ld t1, 152(sp)
 ld a2, 144(sp)
 ld t0, 136(sp)
-ld t1, 128(sp)
-ld t2, 120(sp)
+ld t2, 128(sp)
+ld a7, 120(sp)
 ld a6, 112(sp)
 subw s2, a2, a0
 lw a1, 0(a7)
@@ -408,17 +408,17 @@ lw a2, 0(s1)
 lw a3, 0(s0)
 lw a4, 0(t2)
 li a5, 2
-sd t0, 192(sp)
-sd t2, 184(sp)
-sd a7, 176(sp)
-sd a6, 168(sp)
-sd t1, 160(sp)
+sd t2, 192(sp)
+sd t1, 184(sp)
+sd t0, 176(sp)
+sd a7, 168(sp)
+sd a6, 160(sp)
 call dfs
-ld t0, 192(sp)
-ld t2, 184(sp)
-ld a7, 176(sp)
-ld a6, 168(sp)
-ld t1, 160(sp)
+ld t2, 192(sp)
+ld t1, 184(sp)
+ld t0, 176(sp)
+ld a7, 168(sp)
+ld a6, 160(sp)
 mulw a0, s2, a0
 addw a0, t0, a0
 lw t0, mod
@@ -435,19 +435,19 @@ j .L49
 lw a2, 0(s1)
 lw a0, 0(t1)
 li a1, 4
-sd t2, 240(sp)
-sd t0, 232(sp)
-sd a6, 224(sp)
-sd a7, 216(sp)
+sd a6, 240(sp)
+sd a7, 232(sp)
+sd a2, 224(sp)
+sd t0, 216(sp)
 sd t1, 208(sp)
-sd a2, 200(sp)
+sd t2, 200(sp)
 call equal
-ld t2, 240(sp)
-ld t0, 232(sp)
-ld a6, 224(sp)
-ld a7, 216(sp)
+ld a6, 240(sp)
+ld a7, 232(sp)
+ld a2, 224(sp)
+ld t0, 216(sp)
 ld t1, 208(sp)
-ld a2, 200(sp)
+ld t2, 200(sp)
 subw s2, a2, a0
 lw a0, 0(a7)
 lw a2, 0(a6)
@@ -459,17 +459,17 @@ addiw a2, a3, -1
 lw a3, 0(s0)
 lw a4, 0(t2)
 li a5, 3
-sd a6, 280(sp)
-sd t1, 272(sp)
-sd t2, 264(sp)
-sd t0, 256(sp)
-sd a7, 248(sp)
+sd t1, 280(sp)
+sd t0, 272(sp)
+sd a7, 264(sp)
+sd t2, 256(sp)
+sd a6, 248(sp)
 call dfs
-ld a6, 280(sp)
-ld t1, 272(sp)
-ld t2, 264(sp)
-ld t0, 256(sp)
-ld a7, 248(sp)
+ld t1, 280(sp)
+ld t0, 272(sp)
+ld a7, 264(sp)
+ld t2, 256(sp)
+ld a6, 248(sp)
 mulw a0, s2, a0
 addw a0, t0, a0
 lw t0, mod
@@ -486,19 +486,19 @@ j .L51
 lw a2, 0(s0)
 lw a0, 0(t1)
 li a1, 5
-sd a7, 328(sp)
-sd t2, 320(sp)
-sd a2, 312(sp)
-sd a6, 304(sp)
-sd t1, 296(sp)
-sd t0, 288(sp)
+sd t1, 328(sp)
+sd a2, 320(sp)
+sd t2, 312(sp)
+sd t0, 304(sp)
+sd a7, 296(sp)
+sd a6, 288(sp)
 call equal
-ld a7, 328(sp)
-ld t2, 320(sp)
-ld a2, 312(sp)
-ld a6, 304(sp)
-ld t1, 296(sp)
-ld t0, 288(sp)
+ld t1, 328(sp)
+ld a2, 320(sp)
+ld t2, 312(sp)
+ld t0, 304(sp)
+ld a7, 296(sp)
+ld a6, 288(sp)
 subw s2, a2, a0
 lw a0, 0(a7)
 lw a1, 0(a6)
@@ -510,16 +510,16 @@ li a3, 1
 addiw a3, a4, -1
 lw a4, 0(t2)
 li a5, 4
-sd t1, 368(sp)
+sd a7, 368(sp)
 sd t2, 360(sp)
-sd a7, 352(sp)
-sd a6, 344(sp)
+sd a6, 352(sp)
+sd t1, 344(sp)
 sd t0, 336(sp)
 call dfs
-ld t1, 368(sp)
+ld a7, 368(sp)
 ld t2, 360(sp)
-ld a7, 352(sp)
-ld a6, 344(sp)
+ld a6, 352(sp)
+ld t1, 344(sp)
 ld t0, 336(sp)
 mulw a0, s2, a0
 addw a0, t0, a0
@@ -545,17 +545,17 @@ lw a5, 0(t2)
 li a4, 1
 addiw a4, a5, -1
 li a5, 5
-sd t1, 408(sp)
-sd a6, 400(sp)
-sd a7, 392(sp)
-sd t2, 384(sp)
-sd t0, 376(sp)
+sd t0, 408(sp)
+sd t1, 400(sp)
+sd t2, 392(sp)
+sd a7, 384(sp)
+sd a6, 376(sp)
 call dfs
-ld t1, 408(sp)
-ld a6, 400(sp)
-ld a7, 392(sp)
-ld t2, 384(sp)
-ld t0, 376(sp)
+ld t0, 408(sp)
+ld t1, 400(sp)
+ld t2, 392(sp)
+ld a7, 384(sp)
+ld a6, 376(sp)
 mulw a0, s2, a0
 addw a0, t0, a0
 lw t0, mod

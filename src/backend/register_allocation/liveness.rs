@@ -1,10 +1,11 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    fmt::{Display, Formatter},
     rc::Rc,
     vec,
 };
+
+use itertools::Itertools;
 
 use crate::backend::{block::Block, function::Function, instr::InstrTrait};
 use crate::common::r#type::Type;
@@ -14,45 +15,97 @@ pub(crate) struct LivenessAnalysis {
 }
 
 impl LivenessAnalysis {
-    pub fn of(function: &Function, reg_type: Type) -> LivenessAnalysis {
+    pub fn of(func: &Function, reg_type: Type) -> LivenessAnalysis {
         let mut res = LivenessAnalysis {
             block_liveness_map: HashMap::new(),
         };
 
-        for block in function.blocks().iter() {
+        let mut insts_map = HashMap::new();
+        let mut changed_set = HashSet::new();
+
+        for block in func.blocks().iter() {
             // 获取block中的inst_ids
-            let insts = block
-                .instrs()
-                .iter()
-                .enumerate()
-                .map(|(i, ele)| (i as i32, ele))
-                .rev()
-                .collect();
+            let insts = block.instrs().iter().rev().collect_vec();
             // 构造block_liveness
+
+            insts_map.insert(
+                *block.id(),
+                (0..(insts.len())).into_iter().rev().collect_vec(),
+            );
+
             res.block_liveness_map.insert(
                 *block.id(),
                 Rc::new(RefCell::new(BlockLiveness::new(insts, reg_type))),
             );
+
+            changed_set.insert(*block.id());
         }
 
+        let order = res.get_toplogical_order(func);
+
         // 不动点算法：迭代直到不再变化
+        // println!("BEGIN LIVENESS ANALYSIS ITERATON");
+        let mut loop_cnt = 0;
         loop {
+            // println!("{}", loop_cnt);
+            loop_cnt += 1;
             let mut changed = false;
-            for block in function.blocks().iter() {
+            for &block_id in order.iter() {
+                let block = func.block(block_id);
                 // let bb = function.basic_blocks().get(&block_id).unwrap();
                 let block_liveness = res.block_liveness_map.get(block.id()).unwrap();
-                changed = changed
-                    || block_liveness.clone().borrow_mut().update(
+
+                let mut need_update = false;
+                if changed_set.contains(&block_id) {
+                    need_update = true;
+                } else {
+                    for succ_id in block.out_edges() {
+                        if changed_set.contains(succ_id) {
+                            need_update = true;
+                            break;
+                        }
+                    }
+                }
+
+                if need_update {
+                    if block_liveness.clone().borrow_mut().update(
                         block,
-                        function,
+                        func,
                         &res.block_liveness_map,
-                    );
+                        &insts_map,
+                    ) {
+                        changed_set.insert(block_id);
+                        changed = true;
+                    } else {
+                        changed_set.remove(&block_id);
+                    }
+                }
             }
             if !changed {
                 break;
             }
         }
+        // println!("END LIVENESS ANALYSIS ITERATION");
 
+        res
+    }
+
+    fn get_toplogical_order(&self, function: &Function) -> Vec<i32> {
+        let mut visited = HashSet::new();
+        let mut res = vec![];
+        let mut stack = vec![*function.entry_block_id()];
+        while let Some(block_id) = stack.pop() {
+            if visited.contains(&block_id) {
+                continue;
+            }
+            visited.insert(block_id);
+            res.push(block_id);
+            let block = function.block(block_id);
+            for succ_id in block.out_edges() {
+                stack.push(*succ_id);
+            }
+        }
+        res.reverse();
         res
     }
 }
@@ -63,37 +116,23 @@ pub struct BlockLiveness {
     inst_kill_map: HashMap<i32, HashSet<i32>>,
     inst_in_map: HashMap<i32, HashSet<i32>>,
     inst_out_map: HashMap<i32, HashSet<i32>>,
-    pub insts: Vec<i32>,
-}
-
-impl Display for BlockLiveness {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for inst_id in &self.insts {
-            writeln!(
-                f,
-                "inst_id: {}, gen: {:?}, kill: {:?}, in: {:?}, out: {:?}",
-                inst_id,
-                self.get_inst_gen(*inst_id),
-                self.get_inst_kill(*inst_id),
-                self.get_inst_in(*inst_id),
-                self.get_inst_out(*inst_id)
-            )?;
-        }
-        Ok(())
-    }
+    pub inst_cnt: usize,
 }
 
 impl BlockLiveness {
-    pub(crate) fn new(insts: Vec<(i32, &Box<dyn InstrTrait>)>, reg_type: Type) -> BlockLiveness {
+    pub(crate) fn new(insts: Vec<&Box<dyn InstrTrait>>, reg_type: Type) -> BlockLiveness {
         let mut block_liveness = BlockLiveness {
             inst_gen_map: HashMap::new(),
             inst_kill_map: HashMap::new(),
             inst_in_map: HashMap::new(),
             inst_out_map: HashMap::new(),
-            insts: insts.iter().map(|(id, _)| *id).collect(),
+            inst_cnt: insts.len(),
         };
 
-        for (inst_id, i) in insts {
+        let mut inst_id = insts.len() as i32;
+        for i in insts {
+            inst_id -= 1;
+
             let (kill, gen1, gen2) = i.get_operands(reg_type);
 
             let mut gen = HashSet::new();
@@ -120,14 +159,6 @@ impl BlockLiveness {
         }
 
         block_liveness
-    }
-
-    pub fn first_inst_id(&self) -> i32 {
-        if let Some(x) = self.insts.last() {
-            *x
-        } else {
-            -1
-        }
     }
 
     pub fn set_inst_gen(&mut self, id: i32, gen: HashSet<i32>) {
@@ -167,6 +198,7 @@ impl BlockLiveness {
         bb: &Block,
         _function: &Function,
         block_liveness: &HashMap<i32, Rc<RefCell<BlockLiveness>>>,
+        insts_map: &HashMap<i32, Vec<usize>>,
     ) -> bool {
         let mut changed = false;
 
@@ -176,7 +208,7 @@ impl BlockLiveness {
         for succ in bb.out_edges().iter() {
             let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
             let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
-            let succ_bb_first_inst = succ_bb_block_liveness.first_inst_id();
+            let succ_bb_first_inst = *insts_map[succ].last().unwrap() as i32;
 
             if succ_bb_first_inst != -1 {
                 let succ_in = succ_bb_block_liveness.get_inst_in(succ_bb_first_inst);
@@ -186,7 +218,8 @@ impl BlockLiveness {
         }
 
         // 更新每条指令的in和out
-        for &inst_id in self.insts.clone().iter() {
+        for &inst_id in insts_map[bb.id()].iter() {
+            let inst_id = inst_id as i32;
             let gen = self.get_inst_gen(inst_id);
             let kill = self.get_inst_kill(inst_id);
 

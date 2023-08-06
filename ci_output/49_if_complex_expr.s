@@ -6,7 +6,7 @@ main:
 addi sp, sp, -72
 sd ra, 64(sp)
 sd s1, 56(sp)
-sd s0, 40(sp)
+sd s0, 48(sp)
 .L1:
 li s1, 5
 li s0, 5
@@ -65,7 +65,7 @@ call putint
 li a0, 0
 ld ra, 64(sp)
 ld s1, 56(sp)
-ld s0, 40(sp)
+ld s0, 48(sp)
 addi sp, sp, 72
 ret
 .L8:

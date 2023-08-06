@@ -10,7 +10,7 @@ main:
 addi sp, sp, -632
 sd ra, 624(sp)
 sd s1, 616(sp)
-sd s0, 600(sp)
+sd s0, 608(sp)
 .L1:
 addi s1, sp, 0
 li t1, 0
@@ -541,23 +541,23 @@ j .L5
 .L7:
 addw t1, a4, a3
 li t0, 1
-addiw t1, t1, -1
+addiw t2, t1, -1
 li t0, 0
 j .L8
 .L8:
-sub s0, t0, t1
-seqz t2, s0
+sub s0, t0, t2
+seqz t1, s0
 sltz s0, s0
-or s0, t2, s0
+or s0, t1, s0
 bne s0, zero, .L9
 j .L10
 .L9:
-li t2, 4
-mul t2, t0, t2
-add s0, a1, t2
-li t2, 0
-sw t2, 0(s0)
-li t2, 1
+li t1, 4
+mul t1, t0, t1
+add s0, a1, t1
+li t1, 0
+sw t1, 0(s0)
+li t1, 1
 addiw t0, t0, 1
 j .L8
 .L10:
@@ -577,7 +577,7 @@ mul t0, s1, t0
 add t0, a0, t0
 lw s0, 0(t0)
 li t0, 1
-addiw t2, a4, -1
+addiw t0, a4, -1
 j .L14
 .L13:
 li t1, 0
@@ -591,68 +591,68 @@ snez t0, t0
 bne t0, zero, .L20
 j .L21
 .L14:
-li t0, 1
-li t0, -1
-addi t0, t2, 1
-sgtz t0, t0
-bne t0, zero, .L15
+li t1, 1
+li t1, -1
+addi t1, t0, 1
+sgtz t1, t1
+bne t1, zero, .L15
 j .L16
 .L15:
-li t0, 4
-mul t0, t1, t0
-add t0, a1, t0
-lw a5, 0(t0)
-li t0, 4
-mul t0, t2, t0
-add t0, a2, t0
-lw t0, 0(t0)
-mulw t0, s0, t0
-addw t0, a5, t0
+li t1, 4
+mul t1, t2, t1
+add t1, a1, t1
+lw a5, 0(t1)
+li t1, 4
+mul t1, t0, t1
+add t1, a2, t1
+lw t1, 0(t1)
+mulw t1, s0, t1
+addw t1, a5, t1
 li a5, 10
-addi a6, t0, -10
+addi a6, t1, -10
 seqz a5, a6
 sgtz a6, a6
 or a6, a5, a6
 bne a6, zero, .L17
 j .L18
 .L16:
-addw t1, t1, a4
+addw t1, t2, a4
 li t0, 1
-addiw t1, t1, -1
+addiw t2, t1, -1
 li t0, 1
 addiw s1, s1, -1
 j .L11
 .L17:
 li a5, 4
-mul a5, t1, a5
+mul a5, t2, a5
 add a5, a1, a5
-sw t0, 0(a5)
+sw t1, 0(a5)
 li a5, 1
-addiw a6, t1, -1
+addiw a6, t2, -1
 li a5, 4
 mul a5, a6, a5
 add a7, a1, a5
 li a5, 1
-addiw a6, t1, -1
+addiw a6, t2, -1
 li a5, 4
 mul a5, a6, a5
 add a5, a1, a5
 lw a6, 0(a5)
 li a5, 10
-divw t0, t0, a5
-addw t0, a6, t0
-sw t0, 0(a7)
+divw t1, t1, a5
+addw t1, a6, t1
+sw t1, 0(a7)
 j .L19
 .L18:
 li a5, 4
-mul a5, t1, a5
+mul a5, t2, a5
 add a5, a1, a5
-sw t0, 0(a5)
+sw t1, 0(a5)
 .L19:
-li t0, 1
+li t1, 1
+addiw t0, t0, -1
+li t1, 1
 addiw t2, t2, -1
-li t0, 1
-addiw t1, t1, -1
 j .L14
 .L20:
 li t1, 0
@@ -685,15 +685,15 @@ li t1, 4
 mul t1, t0, t1
 add t1, a1, t1
 lw a0, 0(t1)
-sd a4, 568(sp)
+sd a3, 568(sp)
 sd t0, 560(sp)
 sd a1, 552(sp)
-sd a3, 544(sp)
+sd a4, 544(sp)
 call putint
-ld a4, 568(sp)
+ld a3, 568(sp)
 ld t0, 560(sp)
 ld a1, 552(sp)
-ld a3, 544(sp)
+ld a4, 544(sp)
 li t1, 1
 addiw t0, t0, 1
 j .L22
@@ -701,7 +701,7 @@ j .L22
 li a0, 0
 ld ra, 624(sp)
 ld s1, 616(sp)
-ld s0, 600(sp)
+ld s0, 608(sp)
 addi sp, sp, 632
 ret
-j .L22
+j .L5
