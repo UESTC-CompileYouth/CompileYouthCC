@@ -11,10 +11,9 @@ use sysycc_compiler::frontend::{
     antlr_dep::sysyvisitor::SysYVisitor, ast_visitor::SysYAstVisitor,
     error_listener::SysYErrorListener, llvm::llvm_module::LLVMModule,
 };
+use sysycc_compiler::optimize::passes::dce::remove_unreachable_bb;
 use sysycc_compiler::optimize::passes::{
-    check_ir::check_module,
-    dce::remove_unused_def,
-    mem2reg::{mem2reg, remove_unreachable_bb_module},
+    check_ir::check_module, dce::remove_unused_def, mem2reg::mem2reg,
 };
 
 /// Command Line Options Parser
@@ -59,7 +58,7 @@ fn main() {
     /* passes */
     // mem2reg
     // println!("{}", llvm_module);
-    remove_unreachable_bb_module(&mut llvm_module);
+    remove_unreachable_bb(&mut llvm_module);
     mem2reg(&mut llvm_module);
     check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);

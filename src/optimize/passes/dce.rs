@@ -1,7 +1,8 @@
 use crate::frontend::llvm::{function::Function, instr::*, llvm_module::LLVMModule};
 use std::collections::{HashSet, VecDeque};
 
-pub fn construct_def_vec(func: &Function) -> Vec<i32> {
+/* dead code elimination for function */
+fn construct_def_vec(func: &Function) -> Vec<i32> {
     let mut def_vec = vec![-1; func.id() as usize];
     // argument
     for arg in func.arg_list().as_normal().unwrap().iter() {
@@ -23,7 +24,7 @@ pub fn construct_def_vec(func: &Function) -> Vec<i32> {
     def_vec
 }
 
-pub fn remove_unused_def_func(func: &mut Function) {
+fn remove_unused_def_func(func: &mut Function) {
     let def_vec = construct_def_vec(func);
     let mut used_instrs = HashSet::new();
     let mut queue = VecDeque::new();
@@ -76,4 +77,53 @@ pub fn remove_unused_def_func(func: &mut Function) {
 
 pub fn remove_unused_def(module: &mut LLVMModule) {
     module.for_each_user_func_mut(remove_unused_def_func);
+}
+
+/* remove unreachable bb */
+fn remove_unreachable_bb_function(f: &mut Function) {
+    let bbs = f
+        .layout()
+        .basic_blocks()
+        .into_iter()
+        .map(|(bb, _)| *bb)
+        .collect::<HashSet<i32>>();
+
+    let mut visited: HashSet<i32> = HashSet::new();
+    let mut reachable: HashSet<i32> = HashSet::new();
+
+    dfs_mark_bb(&mut visited, &mut reachable, f.entry_bb_id(), f);
+
+    let mut unreachable_bbs = bbs
+        .difference(&reachable)
+        .into_iter()
+        .map(|id| *id)
+        .collect::<VecDeque<i32>>();
+    while !unreachable_bbs.is_empty() {
+        let current_bb = unreachable_bbs.pop_front().unwrap();
+        if f.bb(current_bb).unwrap().prev_bb().len() == 0 {
+            f.remove_bb(current_bb);
+        } else {
+            unreachable_bbs.push_back(current_bb);
+        }
+    }
+}
+
+fn dfs_mark_bb(
+    visited: &mut HashSet<i32>,
+    reachable: &mut HashSet<i32>,
+    current_bb: i32,
+    f: &Function,
+) {
+    if visited.contains(&current_bb) {
+        return;
+    }
+    visited.insert(current_bb);
+    reachable.insert(current_bb);
+    for succ in f.bb(current_bb).unwrap().succ_bb() {
+        dfs_mark_bb(visited, reachable, *succ, f);
+    }
+}
+
+pub fn remove_unreachable_bb(module: &mut LLVMModule) {
+    module.for_each_user_func_mut(|f| remove_unreachable_bb_function(f));
 }

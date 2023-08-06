@@ -1504,8 +1504,8 @@ mod tests {
         },
         optimize::passes::{
             bb_ops::remove_phi,
-            dce::remove_unused_def,
-            mem2reg::{mem2reg, remove_unreachable_bb_module},
+            dce::{remove_unreachable_bb, remove_unused_def},
+            mem2reg::mem2reg,
         },
     };
 
@@ -1578,7 +1578,7 @@ mod tests {
         ast_visitor.visit_compUnit(&ctx);
         ast_visitor.return_content();
 
-        remove_unreachable_bb_module(&mut llvm_module);
+        remove_unreachable_bb(&mut llvm_module);
         mem2reg(&mut llvm_module);
         remove_unused_def(&mut llvm_module);
 

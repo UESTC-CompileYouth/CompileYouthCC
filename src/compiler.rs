@@ -14,8 +14,8 @@ use sysycc_compiler::frontend::{
 };
 use sysycc_compiler::optimize::passes::bb_ops::remove_phi;
 use sysycc_compiler::optimize::passes::check_ir::check_module;
-use sysycc_compiler::optimize::passes::dce::remove_unused_def;
-use sysycc_compiler::optimize::passes::mem2reg::{mem2reg, remove_unreachable_bb_module};
+use sysycc_compiler::optimize::passes::dce::{remove_unreachable_bb, remove_unused_def};
+use sysycc_compiler::optimize::passes::mem2reg::mem2reg;
 
 /// Command Line Options Parser
 #[derive(StructOpt, Debug)]
@@ -63,7 +63,7 @@ fn main() {
     /* passes */
     // mem2reg
     // println!("{}", llvm_module);
-    remove_unreachable_bb_module(&mut llvm_module);
+    remove_unreachable_bb(&mut llvm_module);
     mem2reg(&mut llvm_module);
     check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);
