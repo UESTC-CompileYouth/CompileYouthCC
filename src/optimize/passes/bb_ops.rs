@@ -211,7 +211,7 @@ fn main() {
     use crate::frontend::antlr_dep::sysyparser::SysYParser;
     use crate::frontend::antlr_dep::sysyvisitor::SysYVisitor;
     use crate::frontend::ast_visitor::SysYAstVisitor;
-    use crate::optimize::passes::dce::remove_unreachable_bb;
+    use crate::optimize::passes::dce::remove_useless_bb;
     use antlr_rust::{common_token_stream::CommonTokenStream, InputStream};
     // use structopt::StructOpt;
 
@@ -269,7 +269,7 @@ fn main() {
 
         /* passes */
         // mem2reg
-        remove_unreachable_bb(&mut llvm_module);
+        remove_useless_bb(&mut llvm_module);
         mem2reg(&mut llvm_module);
 
         let main = llvm_module.functions_mut().get_mut("main").unwrap();
