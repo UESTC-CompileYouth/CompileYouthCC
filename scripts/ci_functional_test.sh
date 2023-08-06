@@ -9,22 +9,10 @@ functional_test_path=test/functional
 hidden_functional_test_path=test/hidden_functional
 sysylib_path=lib
 output_path=ci_output
-
-riscv_gnu_toolchain_bin_path=$1
-qemu_riscv64_path=$2
-
-if [ ! -d $riscv_gnu_toolchain_bin_path ]; then
-	echo "riscv-gnu-toolchain-bin path is not exist !!!"
-	exit 1
-fi
-
-if [ ! -f $qemu_riscv64_path ]; then
-	echo "qemu-riscv64 is not exist !!!"
-	exit 1
-fi
-
-gcc_path=riscv64-linux-gnu-gcc #$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-gcc
-as_path=riscv64-linux-gnu-as #$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-as
+riscv_gnu_toolchain_prefix=riscv64-linux-gnu-
+gcc_path=$riscv_gnu_toolchain_prefix"gcc"
+as_path=$riscv_gnu_toolchain_prefix"as"
+qemu_riscv64_path=qemu-riscv64-static
 
 rm -rf $output_path
 mkdir -p $output_path
