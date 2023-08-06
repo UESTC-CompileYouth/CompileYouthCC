@@ -2498,7 +2498,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let res_type = Type::new_type(lhs.get_type(), rhs.get_type());
         let lhs = self.convert_type(lhs, res_type);
         let rhs = self.convert_type(rhs, res_type);
-        let ret_ssa = self.cur_function().new_reg(res_type);
+        let ret_ssa = self.cur_function().new_reg(Type::Int);
         let cmp_ir = if res_type.is_int() {
             Instruction::new(
                 Box::new(Icmp {
