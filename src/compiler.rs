@@ -4,7 +4,6 @@ extern crate structopt;
 use antlr_rust::{common_token_stream::CommonTokenStream, InputStream, Parser as AntlrParser};
 use std::fs::File;
 use std::io::Write;
-use std::str::FromStr;
 use structopt::StructOpt;
 use sysycc_compiler::backend::program::Program;
 use sysycc_compiler::frontend::{
