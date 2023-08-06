@@ -13,10 +13,7 @@ use sysycc_compiler::frontend::{
 };
 use sysycc_compiler::optimize::passes::dce::remove_useless_bb;
 use sysycc_compiler::optimize::passes::{
-    check_ir::check_module,
-    dce::remove_unused_def,
-    gvn::global_value_numbering,
-    mem2reg::mem2reg,
+    check_ir::check_module, dce::remove_unused_def, gvn::global_value_numbering, mem2reg::mem2reg,
 };
 
 /// Command Line Options Parser

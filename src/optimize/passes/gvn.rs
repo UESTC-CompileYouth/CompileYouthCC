@@ -561,24 +561,46 @@ impl<'a> GVNContext<'a> {
                         }
                     }
                 }
-            } else if let Some(gep_instr) = self.func.instructions().get(&i).unwrap().instr().as_any().downcast_ref::<Gep>() {
+            } else if let Some(gep_instr) = self
+                .func
+                .instructions()
+                .get(&i)
+                .unwrap()
+                .instr()
+                .as_any()
+                .downcast_ref::<Gep>()
+            {
                 let mut value2: Option<Immediate> = None;
                 if gep_instr.index().is_immediate() || gep_instr.index().is_global() {
                     value2 = Some(gep_instr.index().get_value().unwrap());
-                } else if self.scalar_value_by_reg.contains_key(gep_instr.index().id()) {
+                } else if self
+                    .scalar_value_by_reg
+                    .contains_key(gep_instr.index().id())
+                {
                     value2 = Some(self.scalar_value_by_reg[gep_instr.index().id()]);
                 }
                 if value2.is_some() && value2.unwrap() == Immediate::Int(0) {
                     // assert!(gep_instr.s1().id() != &0);
                     // self.replace_same_value(*gep_instr.d1().id(), *gep_instr.s1().id());
                 } else if !gep_instr.index().is_immediate() && !gep_instr.index().is_global() {
-                    let key = (*gep_instr.s1().id(), *gep_instr.index().id(), *gep_instr.s1().id());
+                    let key = (
+                        *gep_instr.s1().id(),
+                        *gep_instr.index().id(),
+                        *gep_instr.s1().id(),
+                    );
                     if self.array_index_values.contains_key(&key) {
                         assert!(self.array_index_values[&key] != 0);
-                        self.replace_same_value(*gep_instr.d1().id(), self.array_index_values[&key]);
+                        self.replace_same_value(
+                            *gep_instr.d1().id(),
+                            self.array_index_values[&key],
+                        );
                     } else {
                         self.array_index_values.insert(key, *gep_instr.d1().id());
-                        self.gvn_nodes.get_mut(node_id).unwrap().new_array_indexs.insert(key);
+                        self.gvn_nodes
+                            .get_mut(node_id)
+                            .unwrap()
+                            .new_array_indexs
+                            .insert(key);
                     }
                 }
             } else if let Some(icmp_instr) = self
