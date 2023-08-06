@@ -5,7 +5,6 @@ main:
 .entry_main:
 addi sp, sp, -48
 sd ra, 40(sp)
-mv zero, zero
 .L1:
 call getint
 mv t0, a0
@@ -71,8 +70,8 @@ hanoi:
 .entry_hanoi:
 addi sp, sp, -104
 sd ra, 96(sp)
-sd s1, 80(sp)
-sd s0, 72(sp)
+sd s0, 80(sp)
+sd s1, 72(sp)
 .L10:
 addi a4, sp, 0
 sw a0, 0(a4)
@@ -107,11 +106,11 @@ ld a4, 24(sp)
 ld t2, 16(sp)
 lw a0, 0(s1)
 lw a1, 0(t2)
-sd t2, 40(sp)
-sd a4, 32(sp)
+sd a4, 40(sp)
+sd t2, 32(sp)
 call move
-ld t2, 40(sp)
-ld a4, 32(sp)
+ld a4, 40(sp)
+ld t2, 32(sp)
 lw t1, 0(a4)
 li t0, 1
 addiw a0, t1, -1
@@ -121,7 +120,7 @@ lw a3, 0(t2)
 call hanoi
 .L13:
 ld ra, 96(sp)
-ld s1, 80(sp)
-ld s0, 72(sp)
+ld s0, 80(sp)
+ld s1, 72(sp)
 addi sp, sp, 104
 ret

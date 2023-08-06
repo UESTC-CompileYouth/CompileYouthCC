@@ -1,4 +1,6 @@
         .data
+N:
+        .word   -1
 arr:
         .word   1
         .word   2
@@ -6,8 +8,6 @@ arr:
         .word   4
         .word   5
         .word   6
-N:
-        .word   -1
 
         .text
 .global main
@@ -16,7 +16,6 @@ main:
 .entry_main:
 addi sp, sp, -16
 sd s0, 8(sp)
-mv zero, zero
 .L1:
 li t1, 0
 li t0, 0

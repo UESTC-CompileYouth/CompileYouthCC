@@ -1,10 +1,10 @@
         .data
-space:
-        .word   32
 LF:
         .word   10
 V:
         .word   4
+space:
+        .word   32
 
         .text
 .global main
@@ -12,41 +12,41 @@ V:
 isSafe:
 .entry_isSafe:
 addi sp, sp, -48
-sd s1, 40(sp)
-sd s0, 32(sp)
+sd s0, 40(sp)
+sd s1, 32(sp)
 .L1:
-addi a2, sp, 0
-sd a0, 0(a2)
-addi s1, sp, 8
-sd a1, 0(s1)
-li t1, 0
+addi s1, sp, 0
+sd a0, 0(s1)
+addi a0, sp, 8
+sd a1, 0(a0)
+li t0, 0
 j .L2
 .L2:
-lw t0, V
-sub t0, t1, t0
-sltz t0, t0
-bne t0, zero, .L3
+lw t1, V
+sub t1, t0, t1
+sltz t1, t1
+bne t1, zero, .L3
 j .L4
 .L3:
-li t0, 1
-addiw t0, t1, 1
+li t1, 1
+addiw t1, t0, 1
 j .L5
 .L4:
 li t0, 1
 j .L11
 .L5:
 lw t2, V
-sub t2, t0, t2
+sub t2, t1, t2
 sltz t2, t2
 bne t2, zero, .L6
 j .L7
 .L6:
-ld s0, 0(a2)
+ld s0, 0(s1)
 li t2, 16
-mul t2, t1, t2
+mul t2, t0, t2
 add s0, s0, t2
 li t2, 4
-mul t2, t0, t2
+mul t2, t1, t2
 add t2, s0, t2
 lw s0, 0(t2)
 li t2, 0
@@ -55,35 +55,35 @@ snez t2, t2
 bne t2, zero, .L10
 j .L9
 .L7:
-li t0, 1
-addiw t1, t1, 1
+li t1, 1
+addiw t0, t0, 1
 j .L2
 .L8:
 li t0, 0
 j .L11
 .L9:
 li t2, 1
-addiw t0, t0, 1
+addiw t1, t1, 1
 j .L5
 .L10:
-ld s0, 0(s1)
-li t2, 4
-mul t2, t0, t2
-add t2, s0, t2
-lw a0, 0(t2)
-ld s0, 0(s1)
+ld s0, 0(a0)
 li t2, 4
 mul t2, t1, t2
 add t2, s0, t2
+lw a1, 0(t2)
+ld s0, 0(a0)
+li t2, 4
+mul t2, t0, t2
+add t2, s0, t2
 lw t2, 0(t2)
-sub t2, a0, t2
+sub t2, a1, t2
 seqz t2, t2
 bne t2, zero, .L8
 j .L9
 .L11:
 mv a0, t0
-ld s1, 40(sp)
-ld s0, 32(sp)
+ld s0, 40(sp)
+ld s1, 32(sp)
 addi sp, sp, 48
 ret
 j .L2
@@ -133,7 +133,6 @@ printMessage:
 .entry_printMessage:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L26:
 li a0, 78
 call putch
@@ -161,17 +160,17 @@ graphColoring:
 .entry_graphColoring:
 addi sp, sp, -120
 sd ra, 112(sp)
-sd s1, 96(sp)
+sd s1, 104(sp)
 sd s0, 88(sp)
 .L28:
-addi s1, sp, 0
-sd a0, 0(s1)
-addi a5, sp, 8
-sw a1, 0(a5)
+addi a4, sp, 0
+sd a0, 0(a4)
+addi s1, sp, 8
+sw a1, 0(s1)
 addi a6, sp, 12
 sw a2, 0(a6)
-addi a4, sp, 16
-sd a3, 0(a4)
+addi a5, sp, 16
+sd a3, 0(a5)
 lw t1, 0(a6)
 lw t0, V
 sub t0, t1, t0
@@ -179,11 +178,11 @@ seqz t0, t0
 bne t0, zero, .L29
 j .L30
 .L29:
-ld a0, 0(s1)
-ld a1, 0(a4)
-sd a4, 24(sp)
+ld a0, 0(a4)
+ld a1, 0(a5)
+sd a5, 24(sp)
 call isSafe
-ld a4, 24(sp)
+ld a5, 24(sp)
 li t0, 0
 addi t0, a0, 0
 snez t0, t0
@@ -193,7 +192,7 @@ j .L32
 li t0, 1
 j .L34
 .L31:
-ld a0, 0(a4)
+ld a0, 0(a5)
 call printSolution
 li t0, 1
 j .L33
@@ -203,12 +202,12 @@ j .L33
 .L33:
 mv a0, t0
 ld ra, 112(sp)
-ld s1, 96(sp)
+ld s1, 104(sp)
 ld s0, 88(sp)
 addi sp, sp, 120
 ret
 .L34:
-lw t1, 0(a5)
+lw t1, 0(s1)
 sub t2, t0, t1
 seqz t1, t2
 sltz t2, t2
@@ -217,26 +216,26 @@ bne t2, zero, .L35
 j .L36
 .L35:
 lw s0, 0(a6)
-ld t2, 0(a4)
+ld t2, 0(a5)
 li t1, 4
 mul t1, s0, t1
 add t1, t2, t1
 sw t0, 0(t1)
-ld a0, 0(s1)
-lw a1, 0(a5)
+ld a0, 0(a4)
+lw a1, 0(s1)
 lw t2, 0(a6)
 li t1, 1
 addiw a2, t2, 1
-ld a3, 0(a4)
-sd a5, 56(sp)
-sd a4, 48(sp)
-sd a6, 40(sp)
-sd t0, 32(sp)
+ld a3, 0(a5)
+sd a6, 56(sp)
+sd t0, 48(sp)
+sd a5, 40(sp)
+sd a4, 32(sp)
 call graphColoring
-ld a5, 56(sp)
-ld a4, 48(sp)
-ld a6, 40(sp)
-ld t0, 32(sp)
+ld a6, 56(sp)
+ld t0, 48(sp)
+ld a5, 40(sp)
+ld a4, 32(sp)
 li t1, 0
 addi t1, a0, 0
 snez t1, t1
@@ -250,7 +249,7 @@ li t0, 1
 j .L33
 .L38:
 lw s0, 0(a6)
-ld t2, 0(a4)
+ld t2, 0(a5)
 li t1, 4
 mul t1, s0, t1
 add t2, t2, t1
@@ -265,7 +264,6 @@ main:
 addi sp, sp, -120
 sd ra, 112(sp)
 sd s0, 96(sp)
-mv zero, zero
 .L46:
 addi a0, sp, 0
 li t1, 0

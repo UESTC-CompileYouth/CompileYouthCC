@@ -99,7 +99,20 @@ impl InterferenceGraph {
                 ig.add_node(x);
                 ig.add_node(y);
                 ig.add_node(z);
-                if inst.as_any().downcast_ref::<RegInstr>().is_some() {
+
+                let mut mov_edge = false;
+
+                if let Some(inst) = inst.as_any().downcast_ref::<RegInstr>() {
+                    if matches!(inst.ty(), RegType::Mv) {
+                        mov_edge = true;
+                    }
+                } else if let Some(inst) = inst.as_any().downcast_ref::<FRegInstr>() {
+                    if matches!(inst.ty(), FRegType::FmvS) {
+                        mov_edge = true;
+                    }
+                }
+
+                if mov_edge {
                     let u = y;
                     let d = x;
 
@@ -541,34 +554,28 @@ impl InterferenceGraph {
     }
 }
 
-pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32, reg_type: Type) {
+pub(crate) fn spill_rewrite(
+    f: &mut Function,
+    spill_reg: i32,
+    reg_type: Type,
+    max_reg_id: &mut i32,
+) {
     let sf = f.sf().clone();
     let mut sf = sf.borrow_mut();
 
-    let mut max_reg_id = -1;
-
-    let mut store_after_ids = vec![];
-
-    let mut load_before_ids = vec![];
-
-    for block in f.blocks_mut().iter_mut() {
-        for inst in block.instrs_mut().iter_mut() {
-            let (kill, gen1, gen2) = inst.get_operands(reg_type);
-            // update max reg id
-            max_reg_id = max(max(max_reg_id, kill), max(gen1, gen2));
-        }
-    }
-
     // println!("MAX REG ID: {}", max_reg_id);
-    let store_reg_id = max_reg_id + 1;
-    let load_reg_id = max_reg_id + 2;
+    let store_reg_id = *max_reg_id + 1;
+    let load_reg_id = *max_reg_id + 2;
+
+    *max_reg_id += 2;
+
     // 可能可以优化
     let index = sf.push_dword();
     let so = sf.get_stack_object(index);
 
     // deal with def
-    for (bb_idx, block) in f.blocks_mut().iter_mut().enumerate() {
-        let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
+    for block in f.blocks_mut().iter_mut() {
+        let mut store_after_ids = vec![];
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
             let (kill, _, _) = inst.get_operands(reg_type);
             if kill == spill_reg {
@@ -577,70 +584,92 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32, reg_type: Type) {
                     if *reg.id() == spill_reg {
                         reg.set_id(store_reg_id);
 
-                        store_after_ids.push((bb_idx, inst_index + 1 + offset));
-                        offset += 1;
+                        store_after_ids.push(inst_index + 1);
+                        break;
                     }
                 }
             }
         }
-    }
-
-    for (bb_idx, inst_index) in store_after_ids {
-        let sp = Reg::new_int(SP);
-        let reg_to_store = Reg::new_int(store_reg_id);
-        let offset = *so.borrow().position();
-        let ty = match *so.borrow().size() {
-            1 => StoreType::Sb,
-            2 => StoreType::Sh,
-            4 => StoreType::Sw,
-            8 => StoreType::Sd,
-            _ => panic!("invalid size"),
-        };
-        let store = Box::new(StoreInstr::new(
-            sp,
-            reg_to_store,
-            ImmeValueType::Direct(offset),
-            None,
-            ty,
-        ));
-        f.blocks_mut()[bb_idx]
-            .instrs_mut()
-            .insert(inst_index, store);
+        for inst_index in store_after_ids.iter().rev() {
+            let sp = Reg::new_int(SP);
+            let reg_to_store = if matches!(reg_type, Type::Int) {
+                Reg::new_int(store_reg_id)
+            } else {
+                Reg::new_float(store_reg_id)
+            };
+            let offset = *so.borrow().position();
+            let ty = StoreType::Sd;
+            // let ty = match *so.borrow().size() {
+            //     1 => StoreType::Sb,
+            //     2 => StoreType::Sh,
+            //     4 => StoreType::Sw,
+            //     8 => StoreType::Sd,
+            //     _ => panic!("invalid size"),
+            // };
+            let store: Box<dyn InstrTrait> = if matches!(reg_type, Type::Int) {
+                Box::new(StoreInstr::new(
+                    sp,
+                    reg_to_store,
+                    ImmeValueType::Direct(offset),
+                    None,
+                    ty,
+                ))
+            } else {
+                Box::new(FStoreInstr::new(
+                    sp,
+                    reg_to_store,
+                    ImmeValueType::Direct(offset),
+                    None,
+                ))
+            };
+            block.instrs_mut().insert(*inst_index, store);
+        }
     }
 
     // deal with use
-    for (bb_id, block) in f.blocks_mut().iter_mut().enumerate() {
-        let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
+    for block in f.blocks_mut().iter_mut() {
+        let mut load_before_ids = vec![];
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
             let (_, gen1, gen2) = inst.get_operands(reg_type);
             if gen1 == spill_reg || gen2 == spill_reg {
+                let def_cnt = inst.defs().len();
                 let mut r = inst.regs_mut();
 
                 let mut flag = false; // 只插入一次
-                for reg in r.iter_mut() {
+                for reg in r.iter_mut().skip(def_cnt) {
                     if *reg.id() == spill_reg {
                         reg.set_id(load_reg_id);
 
                         if !flag {
-                            load_before_ids.push((bb_id, inst_index + offset));
-                            offset += 1;
+                            load_before_ids.push(inst_index);
                             flag = true;
                         }
                     }
                 }
             }
         }
-    }
 
-    let sp = Reg::new_int(SP);
+        let sp = Reg::new_int(SP);
 
-    for (bb_idx, inst_index) in load_before_ids {
-        let load_to_reg = Reg::new_int(load_reg_id);
-        let offset = *so.borrow().position();
-        let store = Box::new(LoadInstr::new(load_to_reg, sp, offset, LoadType::Ld));
-        f.blocks_mut()[bb_idx]
-            .instrs_mut()
-            .insert(inst_index, store);
+        for inst_index in load_before_ids.iter().rev() {
+            let load_to_reg = if matches!(reg_type, Type::Int) {
+                Reg::new_int(load_reg_id)
+            } else {
+                Reg::new_float(load_reg_id)
+            };
+            let offset = *so.borrow().position();
+            let store: Box<dyn InstrTrait> = if matches!(reg_type, Type::Int) {
+                Box::new(LoadInstr::new(load_to_reg, sp, offset, LoadType::Ld))
+            } else {
+                Box::new(FLoadInstr::new(
+                    load_to_reg,
+                    sp,
+                    ImmeValueType::Direct(offset),
+                    None,
+                ))
+            };
+            block.instrs_mut().insert(*inst_index, store);
+        }
     }
 }
 
@@ -679,7 +708,18 @@ pub(crate) fn register_allocate(func: &mut Function) {
 
         let mut stk = vec![];
 
+        let mut max_reg_id = -1;
+
+        for block in func.blocks_mut().iter_mut() {
+            for inst in block.instrs_mut().iter_mut() {
+                let (kill, gen1, gen2) = inst.get_operands(reg_type);
+                // update max reg id
+                max_reg_id = max(max(max_reg_id, kill), max(gen1, gen2));
+            }
+        }
+
         loop {
+            println!("1");
             // 2. simplify the graph
             stk.extend(ig.simplify().into_iter());
 
@@ -707,13 +747,18 @@ pub(crate) fn register_allocate(func: &mut Function) {
                 let c = ig.assign_color(n);
                 if c == UNCOLORED {
                     spill_set.insert(n);
-                    break;
                 }
             }
 
             if !spill_set.is_empty() {
-                let n = spill_set.iter().next().unwrap();
-                spill_rewrite(func, *n, reg_type);
+                println!("{:?}", spill_set);
+                // for ele in &spill_set {
+                //     println!("{:?}", ele);
+                // }
+                // let n = spill_set.iter().next().unwrap();
+                for n in &spill_set {
+                    spill_rewrite(func, *n, reg_type, &mut max_reg_id);
+                }
 
                 // restart the whole process
                 stk.clear();
@@ -1042,12 +1087,12 @@ pub fn peephole(func: &mut Function) -> bool {
         for (i, inst) in block.instrs_mut().iter_mut().enumerate() {
             if let Some(x) = inst.as_any().downcast_ref::<RegInstr>() {
                 let (u, v, _) = x.get_operands(Type::Int);
-                if matches!(x.ty(), RegType::Mv) && u == v && u != 0 {
+                if matches!(x.ty(), RegType::Mv) && u == v {
                     insts_to_remove.push(i);
                 }
             } else if let Some(x) = inst.as_any().downcast_ref::<FRegInstr>() {
                 let (u, v, _) = x.get_operands(Type::Float);
-                if matches!(x.ty(), FRegType::FmvS) && u == v && u != 0 {
+                if matches!(x.ty(), FRegType::FmvS) && u == v {
                     insts_to_remove.push(i);
                 }
             }
@@ -1629,14 +1674,14 @@ mod tests {
             {
                 let mut peephole_cnt = 0;
                 while peephole(func) {
-                    println!("PEEPHOLE {}: ", peephole_cnt);
-                    peephole_cnt += 1;
-                    for b in func.blocks().iter() {
-                        println!("{}:", b.name());
-                        for i in b.instrs().iter() {
-                            print!("\t{}", i.gen_asm());
-                        }
-                    }
+                    // println!("PEEPHOLE {}: ", peephole_cnt);
+                    // peephole_cnt += 1;
+                    // for b in func.blocks().iter() {
+                    //     println!("{}:", b.name());
+                    //     for i in b.instrs().iter() {
+                    //         print!("\t{}", i.gen_asm());
+                    //     }
+                    // }
                     // if peephole_cnt == 3 {
                     //     break;
                     // }
@@ -1646,9 +1691,7 @@ mod tests {
             insert_prologue(func);
             insert_epilogue(func);
         }
-        println!("==================");
-        println!("{}", p.gen_asm());
-
-        return;
+        // println!("==================");
+        // println!("{}", p.gen_asm());
     }
 }

@@ -1,11 +1,11 @@
         .bss
-e:
-        .zero   4
 g:
         .zero   4
-f:
-        .zero   4
 h:
+        .zero   4
+e:
+        .zero   4
+f:
         .zero   4
 
         .text
@@ -14,81 +14,80 @@ h:
 EightWhile:
 .entry_EightWhile:
 addi sp, sp, -32
-sd s0, 24(sp)
-sd s1, 16(sp)
-mv zero, zero
+sd s1, 24(sp)
+sd s0, 16(sp)
 .L1:
-li t1, 5
-li s0, 6
-li t0, 7
-li t2, 10
+li s0, 5
+li t2, 6
+li t1, 7
+li t0, 10
 j .L2
 .L2:
 li s1, 20
-addi s1, t1, -20
+addi s1, s0, -20
 sltz s1, s1
 bne s1, zero, .L3
 j .L4
 .L3:
 li s1, 3
-addiw t1, t1, 3
+addiw s0, s0, 3
 j .L5
 .L4:
-addw s0, s0, t2
-addw t1, t1, s0
-addw s0, t1, t0
-lw t0, e
-addw t1, t0, t2
+addw t2, t2, t0
+addw t2, s0, t2
+addw t2, t2, t1
+lw t1, e
+addw t1, t1, t0
 lw t0, g
 subw t1, t1, t0
 lw t0, h
 addw t0, t1, t0
-subw a0, s0, t0
-ld s0, 24(sp)
-ld s1, 16(sp)
+subw a0, t2, t0
+ld s1, 24(sp)
+ld s0, 16(sp)
 addi sp, sp, 32
 ret
 .L5:
 li s1, 10
-addi s1, s0, -10
+addi s1, t2, -10
 sltz s1, s1
 bne s1, zero, .L6
 j .L7
 .L6:
 li s1, 1
-addiw s0, s0, 1
+addiw t2, t2, 1
 j .L8
 .L7:
 li s1, 2
-addiw s0, s0, -2
+addiw t2, t2, -2
 j .L2
 .L8:
 li s1, 7
-addi s1, t0, -7
+addi s1, t1, -7
 seqz s1, s1
 bne s1, zero, .L9
 j .L10
 .L9:
 li s1, 1
-addiw t0, t0, -1
+addiw t1, t1, -1
 j .L11
 .L10:
 li s1, 1
-addiw t0, t0, 1
+addiw t1, t1, 1
 j .L5
 .L11:
 li s1, 20
-addi s1, t2, -20
+addi s1, t0, -20
 sltz s1, s1
 bne s1, zero, .L12
 j .L13
 .L12:
 li s1, 3
-addiw t2, t2, 3
+addiw t0, t0, 3
 j .L14
 .L13:
 li s1, 1
-addiw t2, t2, -1
+addiw t0, t0, -1
 j .L8
 .L14:
 lw a0, e
@@ -179,7 +178,6 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L35:
 li t1, 1
 lui t0, %hi(g)

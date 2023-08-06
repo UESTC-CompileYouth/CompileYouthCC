@@ -9,7 +9,6 @@ a:
 
 main:
 .entry_main:
-mv zero, zero
 .L1:
 lw a0, b
 ret

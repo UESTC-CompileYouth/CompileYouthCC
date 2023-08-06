@@ -11,7 +11,6 @@ a:
 
 main:
 .entry_main:
-mv zero, zero
 .L1:
 la t2, a
 li t1, 4

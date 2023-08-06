@@ -9,8 +9,8 @@ array:
         .text
 .global main
 
-f:
-.entry_f:
+g:
+.entry_g:
 addi sp, sp, -24
 sd s0, 16(sp)
 .L1:
@@ -19,8 +19,8 @@ sw a0, 0(s0)
 addi t2, sp, 4
 sw a1, 0(t2)
 lw t1, sum
-li t0, 1
-addiw t1, t1, 1
+li t0, 2
+addiw t1, t1, 2
 lui t0, %hi(sum)
 sw t1, %lo(sum)(t0)
 lw t1, 0(s0)
@@ -32,7 +32,7 @@ or t1, t0, t1
 bne t1, zero, .L2
 j .L4
 .L2:
-li t0, 0
+li t0, 1
 j .L5
 .L3:
 lw t1, 0(s0)
@@ -40,7 +40,7 @@ la t2, array
 li t0, 4
 mul t0, t1, t0
 add t1, t2, t0
-li t0, 1
+li t0, 0
 sw t0, 0(t1)
 lw t1, 0(s0)
 li t0, 0
@@ -81,8 +81,8 @@ add t0, t2, t0
 lw t0, 0(t0)
 j .L5
 
-g:
-.entry_g:
+f:
+.entry_f:
 addi sp, sp, -24
 sd s0, 16(sp)
 .L12:
@@ -91,8 +91,8 @@ sw a0, 0(s0)
 addi t2, sp, 4
 sw a1, 0(t2)
 lw t1, sum
-li t0, 2
-addiw t1, t1, 2
+li t0, 1
+addiw t1, t1, 1
 lui t0, %hi(sum)
 sw t1, %lo(sum)(t0)
 lw t1, 0(s0)
@@ -104,7 +104,7 @@ or t1, t0, t1
 bne t1, zero, .L13
 j .L15
 .L13:
-li t0, 1
+li t0, 0
 j .L16
 .L14:
 lw t1, 0(s0)
@@ -112,7 +112,7 @@ la t2, array
 li t0, 4
 mul t0, t1, t0
 add t1, t2, t0
-li t0, 0
+li t0, 1
 sw t0, 0(t1)
 lw t1, 0(s0)
 li t0, 0
@@ -157,7 +157,6 @@ main:
 .entry_main:
 addi sp, sp, -416
 sd ra, 408(sp)
-mv zero, zero
 .L23:
 li t0, 0
 j .L24
@@ -182,7 +181,6 @@ j .L28
 li t0, 0
 j .L48
 .L27:
-mv zero, zero
 .L28:
 li t1, 1
 addiw t0, t0, 1
@@ -417,7 +415,6 @@ j .L71
 li t0, 1
 j .L72
 .L51:
-mv zero, zero
 .L52:
 li t1, 1
 addiw t0, t0, 1
@@ -662,7 +659,6 @@ snez t1, t1
 bne t1, zero, .L73
 j .L74
 .L76:
-mv zero, zero
 .L77:
 li a0, 4
 call h
@@ -698,7 +694,6 @@ snez t0, t0
 bne t0, zero, .L76
 j .L79
 .L81:
-mv zero, zero
 .L82:
 li a0, 9
 call h
@@ -742,7 +737,6 @@ snez t0, t0
 bne t0, zero, .L85
 j .L83
 .L87:
-mv zero, zero
 .L88:
 li t0, 0
 li a0, 0

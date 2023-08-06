@@ -9,7 +9,6 @@ b:
 
 inc_a:
 .entry_inc_a:
-mv zero, zero
 .L1:
 lw t0, a
 li t1, 1
@@ -23,7 +22,6 @@ main:
 .entry_main:
 addi sp, sp, -144
 sd ra, 136(sp)
-mv zero, zero
 .L3:
 li t0, 5
 j .L4
@@ -135,11 +133,11 @@ sd t0, 96(sp)
 call inc_a
 ld t0, 96(sp)
 mv t1, a0
-sd t1, 112(sp)
-sd t0, 104(sp)
+sd t0, 112(sp)
+sd t1, 104(sp)
 call inc_a
-ld t1, 112(sp)
-ld t0, 104(sp)
+ld t0, 112(sp)
+ld t1, 104(sp)
 subw t2, t1, a0
 li t1, 1
 addiw t2, t2, 1

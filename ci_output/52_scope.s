@@ -9,7 +9,6 @@ main:
 .entry_main:
 addi sp, sp, -40
 sd ra, 32(sp)
-mv zero, zero
 .L1:
 li t1, 0
 li t0, 0
@@ -57,11 +56,10 @@ li a0, 0
 ld ra, 32(sp)
 addi sp, sp, 40
 ret
-j .L6
+j .L2
 
 func:
 .entry_func:
-mv zero, zero
 .L15:
 lw t1, a
 li t0, 1

@@ -1,15 +1,15 @@
         .data
-maxM:
-        .word   600
 maxN:
         .word   30
+maxM:
+        .word   600
 
         .bss
-m:
+n:
         .zero   4
 store:
         .zero   120
-n:
+m:
         .zero   4
 graph:
         .zero   3600
@@ -20,8 +20,8 @@ graph:
 is_clique:
 .entry_is_clique:
 addi sp, sp, -40
-sd s1, 28(sp)
-sd s0, 20(sp)
+sd s0, 28(sp)
+sd s1, 20(sp)
 .L1:
 addi s1, sp, 0
 sw a0, 0(s1)
@@ -83,11 +83,11 @@ addiw t1, t1, 1
 j .L5
 .L10:
 mv a0, t0
-ld s1, 28(sp)
-ld s0, 20(sp)
+ld s0, 28(sp)
+ld s1, 20(sp)
 addi sp, sp, 40
 ret
-j .L5
+j .L2
 
 maxCliques:
 .entry_maxCliques:
@@ -166,14 +166,11 @@ ld t2, 24(sp)
 mv t0, a0
 sub s0, t0, t2
 sgtz s0, s0
-bne s0, zero, .L35
-j .L27
-.L27:
-mv zero, zero
+bne s0, zero, .L30
 j .L23
-.L35:
+.L30:
 mv t2, t0
-j .L27
+j .L23
 
 main:
 .entry_main:
@@ -187,7 +184,7 @@ addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd s1, 800(sp)
+sd s1, 808(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, 2032
@@ -195,7 +192,6 @@ addi sp, sp, 2032
 sd s0, 792(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
-mv zero, zero
 .L37:
 call getint
 lui t0, %hi(n)
@@ -350,7 +346,7 @@ addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld s1, 800(sp)
+ld s1, 808(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, 2032
@@ -362,4 +358,4 @@ addi sp, sp, 2036
 addi sp, sp, 2036
 addi sp, sp, 816
 ret
-j .L38
+j .L41

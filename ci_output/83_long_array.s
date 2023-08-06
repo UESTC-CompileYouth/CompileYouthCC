@@ -9,7 +9,6 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L1:
 li a0, 9
 call long_array
@@ -500,25 +499,25 @@ addi s0, s0, 2036
 addi s0, s0, 2036
 addi s0, s0, 2036
 addi s0, s0, 600
-li t1, 0
+li t0, 0
 j .L4
 .L4:
-lw t0, N
-sub t0, t1, t0
-sltz t0, t0
-bne t0, zero, .L5
+lw t1, N
+sub t1, t0, t1
+sltz t1, t1
+bne t1, zero, .L5
 j .L6
 .L5:
-li t0, 4
-mul t0, t1, t0
-add a0, a1, t0
-mv t0, t1
+li t1, 4
+mul t1, t0, t1
+add a0, a1, t1
+mv t1, t0
 mulw t2, t0, t1
-li t0, 10
-remw t0, t2, t0
-sw t0, 0(a0)
-li t0, 1
-addiw t1, t1, 1
+li t1, 10
+remw t1, t2, t1
+sw t1, 0(a0)
+li t1, 1
+addiw t0, t0, 1
 j .L4
 .L6:
 li t0, 0
@@ -583,19 +582,19 @@ addiw t0, t0, 1
 j .L10
 .L12:
 li t1, 0
-li t2, 0
+li t0, 0
 j .L13
 .L13:
-lw t0, N
-sub t0, t2, t0
-sltz t0, t0
-bne t0, zero, .L14
+lw t2, N
+sub t2, t0, t2
+sltz t2, t2
+bne t2, zero, .L14
 j .L15
 .L14:
-li t0, 10
-addi t0, t2, -10
-sltz t0, t0
-bne t0, zero, .L16
+li t2, 10
+addi t2, t0, -10
+sltz t2, t2
+bne t2, zero, .L16
 j .L17
 .L15:
 mv a0, t1
@@ -1018,13 +1017,13 @@ addi sp, sp, 2036
 addi sp, sp, 36
 ret
 .L16:
-li t0, 4
-mul t0, t2, t0
-add t0, s0, t0
-lw t0, 0(t0)
-addw t1, t1, t0
-li t0, 1333
-remw t1, t1, t0
+li t2, 4
+mul t2, t0, t2
+add t2, s0, t2
+lw t2, 0(t2)
+addw t2, t1, t2
+li t1, 1333
+remw t1, t2, t1
 mv a0, t1
 addi sp, sp, 2032
 addi sp, sp, 2032
@@ -1085,7 +1084,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd a1, 140(sp)
+sd t0, 140(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1204,7 +1203,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd a2, 132(sp)
+sd a1, 132(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1323,7 +1322,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd t1, 124(sp)
+sd a2, 124(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1442,7 +1441,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd t2, 116(sp)
+sd t1, 116(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1562,7 +1561,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld a1, 140(sp)
+ld t0, 140(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1681,7 +1680,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld a2, 132(sp)
+ld a1, 132(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1800,7 +1799,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld t1, 124(sp)
+ld a2, 124(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1919,7 +1918,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld t2, 116(sp)
+ld t1, 116(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -1981,41 +1980,41 @@ addi sp, sp, -2032
 addi sp, sp, -2032
 j .L33
 .L17:
-li t0, 20
-addi t0, t2, -20
-sltz t0, t0
-bne t0, zero, .L18
+li t2, 20
+addi t2, t0, -20
+sltz t2, t2
+bne t2, zero, .L18
 j .L19
 .L18:
 lw a0, N
-li t0, 2
-divw t0, a0, t0
+li t2, 2
+divw t2, a0, t2
 j .L20
 .L19:
-li t0, 30
-addi t0, t2, -30
-sltz t0, t0
-bne t0, zero, .L23
+li t2, 30
+addi t2, t0, -30
+sltz t2, t2
+bne t2, zero, .L23
 j .L24
 .L20:
 lw a0, N
-sub a0, t0, a0
+sub a0, t2, a0
 sltz a0, a0
 bne a0, zero, .L21
 j .L22
 .L21:
 li a0, 4
-mul a0, t2, a0
+mul a0, t0, a0
 add a0, s0, a0
 lw a0, 0(a0)
 addw a0, t1, a0
 li t1, 4
-mul t1, t0, t1
+mul t1, t2, t1
 add t1, a1, t1
 lw t1, 0(t1)
 subw t1, a0, t1
 li a0, 1
-addiw t0, t0, 1
+addiw t2, t2, 1
 j .L20
 .L22:
 mv a0, t1
@@ -2078,7 +2077,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd a1, 172(sp)
+sd a2, 172(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -2197,7 +2196,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd a2, 164(sp)
+sd t0, 164(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -2435,7 +2434,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd t2, 148(sp)
+sd a1, 148(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -2555,7 +2554,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld a1, 172(sp)
+ld a2, 172(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -2674,7 +2673,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld a2, 164(sp)
+ld t0, 164(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -2912,7 +2911,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld t2, 148(sp)
+ld a1, 148(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -2975,29 +2974,29 @@ addi sp, sp, -2032
 j .L33
 .L23:
 lw a0, N
-li t0, 2
-divw t0, a0, t0
+li t2, 2
+divw t2, a0, t2
 j .L25
 .L24:
-li t0, 4
-mul t0, t2, t0
-add t0, s0, t0
-lw a0, 0(t0)
-lw t0, 0(a2)
-mulw t0, a0, t0
-addw t1, t1, t0
-li t0, 99988
-remw t1, t1, t0
+li t2, 4
+mul t2, t0, t2
+add t2, s0, t2
+lw a0, 0(t2)
+lw t2, 0(a2)
+mulw t2, a0, t2
+addw t2, t1, t2
+li t1, 99988
+remw t1, t2, t1
 j .L33
 .L25:
 lw a0, N
-sub a0, t0, a0
+sub a0, t2, a0
 sltz a0, a0
 bne a0, zero, .L26
 j .L27
 .L26:
 li a0, 2233
-sub a0, t0, a0
+sub a0, t2, a0
 sgtz a0, a0
 bne a0, zero, .L28
 j .L29
@@ -3062,7 +3061,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd a1, 204(sp)
+sd t0, 204(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3181,7 +3180,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd t2, 196(sp)
+sd a2, 196(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3300,7 +3299,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd a2, 188(sp)
+sd t1, 188(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3419,7 +3418,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd t1, 180(sp)
+sd a1, 180(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3539,7 +3538,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld a1, 204(sp)
+ld t0, 204(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3658,7 +3657,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld t2, 196(sp)
+ld a2, 196(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3777,7 +3776,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld a2, 188(sp)
+ld t1, 188(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3896,7 +3895,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld t1, 180(sp)
+ld a1, 180(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -3959,35 +3958,35 @@ addi sp, sp, -2032
 j .L33
 .L28:
 li a0, 4
-mul a0, t2, a0
+mul a0, t0, a0
 add a0, s1, a0
 lw a0, 0(a0)
 addw a0, t1, a0
 li t1, 4
-mul t1, t0, t1
+mul t1, t2, t1
 add t1, a1, t1
 lw t1, 0(t1)
 subw t1, a0, t1
 li a0, 1
-addiw t0, t0, 1
+addiw t2, t2, 1
 j .L25
 .L29:
 li a0, 4
-mul a0, t2, a0
+mul a0, t0, a0
 add a0, a1, a0
 lw a0, 0(a0)
 addw a0, t1, a0
 li t1, 4
-mul t1, t0, t1
+mul t1, t2, t1
 add t1, s0, t1
 lw t1, 0(t1)
 addw a0, a0, t1
 li t1, 13333
 remw t1, a0, t1
 li a0, 2
-addiw t0, t0, 2
+addiw t2, t2, 2
 j .L25
 .L33:
-li t0, 1
-addiw t2, t2, 1
+li t2, 1
+addiw t0, t0, 1
 j .L13

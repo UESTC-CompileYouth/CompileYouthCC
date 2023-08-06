@@ -6,11 +6,10 @@ main:
 addi sp, sp, -184
 sd ra, 176(sp)
 sd s1, 160(sp)
-sd s2, 152(sp)
-sd s0, 144(sp)
-sd s4, 136(sp)
-sd s3, 128(sp)
-mv zero, zero
+sd s4, 152(sp)
+sd s3, 144(sp)
+sd s0, 136(sp)
+sd s2, 128(sp)
 .L1:
 li s4, 3
 li s3, 7
@@ -56,23 +55,23 @@ li s1, 8
 li s0, 0
 li t2, 6
 li t0, 3
-sd t0, 72(sp)
+sd a3, 72(sp)
 sd a2, 64(sp)
-sd t2, 56(sp)
+sd t1, 56(sp)
 sd a5, 48(sp)
-sd t1, 40(sp)
-sd a1, 32(sp)
+sd a1, 40(sp)
+sd t2, 32(sp)
 sd a4, 24(sp)
-sd a3, 16(sp)
+sd t0, 16(sp)
 call foo
-ld t0, 72(sp)
+ld a3, 72(sp)
 ld a2, 64(sp)
-ld t2, 56(sp)
+ld t1, 56(sp)
 ld a5, 48(sp)
-ld t1, 40(sp)
-ld a1, 32(sp)
+ld a1, 40(sp)
+ld t2, 32(sp)
 ld a4, 24(sp)
-ld a3, 16(sp)
+ld t0, 16(sp)
 addw t1, t1, a0
 addw a0, a4, a3
 addw a0, a0, a2
@@ -90,23 +89,22 @@ call putch
 li a0, 0
 ld ra, 176(sp)
 ld s1, 160(sp)
-ld s2, 152(sp)
-ld s0, 144(sp)
-ld s4, 136(sp)
-ld s3, 128(sp)
+ld s4, 152(sp)
+ld s3, 144(sp)
+ld s0, 136(sp)
+ld s2, 128(sp)
 addi sp, sp, 184
 ret
 
 foo:
 .entry_foo:
 addi sp, sp, -160
-sd s5, 152(sp)
-sd s0, 144(sp)
+sd s1, 152(sp)
+sd s5, 144(sp)
 sd s2, 136(sp)
 sd s3, 128(sp)
-sd s4, 120(sp)
-sd s1, 112(sp)
-mv zero, zero
+sd s0, 120(sp)
+sd s4, 112(sp)
 .L3:
 addi s5, sp, 0
 li t1, 0
@@ -241,11 +239,11 @@ li t0, 12
 addi t0, s5, 12
 lw t0, 0(t0)
 addiw a0, t0, 71
-ld s5, 152(sp)
-ld s0, 144(sp)
+ld s1, 152(sp)
+ld s5, 144(sp)
 ld s2, 136(sp)
 ld s3, 128(sp)
-ld s4, 120(sp)
-ld s1, 112(sp)
+ld s0, 120(sp)
+ld s4, 112(sp)
 addi sp, sp, 160
 ret

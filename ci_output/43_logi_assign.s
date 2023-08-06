@@ -11,7 +11,6 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L1:
 call getint
 lui t0, %hi(a)

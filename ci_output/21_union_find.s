@@ -13,9 +13,8 @@ main:
 .entry_main:
 addi sp, sp, -136
 sd ra, 128(sp)
-sd s0, 120(sp)
-sd s1, 112(sp)
-mv zero, zero
+sd s0, 112(sp)
+sd s1, 104(sp)
 .L1:
 call getint
 mv t2, a0
@@ -48,21 +47,21 @@ sltz s0, s0
 bne s0, zero, .L6
 j .L7
 .L6:
-sd t2, 24(sp)
-sd t0, 16(sp)
+sd t0, 24(sp)
+sd t2, 16(sp)
 sd t1, 8(sp)
 call getint
-ld t2, 24(sp)
-ld t0, 16(sp)
+ld t0, 24(sp)
+ld t2, 16(sp)
 ld t1, 8(sp)
 mv s1, a0
-sd t1, 48(sp)
-sd t2, 40(sp)
-sd t0, 32(sp)
+sd t2, 48(sp)
+sd t0, 40(sp)
+sd t1, 32(sp)
 call getint
-ld t1, 48(sp)
-ld t2, 40(sp)
-ld t0, 32(sp)
+ld t2, 48(sp)
+ld t0, 40(sp)
+ld t1, 32(sp)
 mv s0, a0
 mv a0, s1
 mv a1, s0
@@ -100,8 +99,8 @@ mv a0, t1
 call putint
 li a0, 0
 ld ra, 128(sp)
-ld s0, 120(sp)
-ld s1, 112(sp)
+ld s0, 112(sp)
+ld s1, 104(sp)
 addi sp, sp, 136
 ret
 .L11:
@@ -117,7 +116,7 @@ find:
 .entry_find:
 addi sp, sp, -72
 sd ra, 60(sp)
-sd s0, 44(sp)
+sd s0, 52(sp)
 sd s1, 36(sp)
 .L22:
 addi s1, sp, 0
@@ -162,7 +161,7 @@ j .L25
 .L25:
 mv a0, t0
 ld ra, 60(sp)
-ld s0, 44(sp)
+ld s0, 52(sp)
 ld s1, 36(sp)
 addi sp, sp, 72
 ret
@@ -172,7 +171,7 @@ merge:
 .entry_merge:
 addi sp, sp, -64
 sd ra, 56(sp)
-sd s0, 48(sp)
+sd s0, 40(sp)
 .L29:
 addi t1, sp, 0
 sw a0, 0(t1)
@@ -200,6 +199,6 @@ add t0, s0, t0
 sw t1, 0(t0)
 .L31:
 ld ra, 56(sp)
-ld s0, 48(sp)
+ld s0, 40(sp)
 addi sp, sp, 64
 ret

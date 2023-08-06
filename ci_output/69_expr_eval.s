@@ -7,129 +7,22 @@ last_char:
         .word   32
 
         .bss
+num:
+        .zero   4
 other:
         .zero   4
 cur_token:
-        .zero   4
-num:
         .zero   4
 
         .text
 .global main
 
-is_space:
-.entry_is_space:
-addi sp, sp, -8
-.L1:
-addi t2, sp, 0
-sw a0, 0(t2)
-lw t1, 0(t2)
-li t0, 32
-addi t0, t1, -32
-seqz t0, t0
-bne t0, zero, .L2
-j .L4
-.L2:
-li t0, 1
-j .L5
-.L3:
-li t0, 0
-j .L5
-.L4:
-lw t1, 0(t2)
-li t0, 10
-addi t0, t1, -10
-seqz t0, t0
-bne t0, zero, .L2
-j .L3
-.L5:
-mv a0, t0
-addi sp, sp, 8
-ret
-j .L5
-
-get_op_prec:
-.entry_get_op_prec:
-addi sp, sp, -8
-.L9:
-addi t2, sp, 0
-sw a0, 0(t2)
-lw t1, 0(t2)
-li t0, 43
-addi t0, t1, -43
-seqz t0, t0
-bne t0, zero, .L10
-j .L12
-.L10:
-li t0, 10
-j .L13
-.L11:
-lw t1, 0(t2)
-li t0, 42
-addi t0, t1, -42
-seqz t0, t0
-bne t0, zero, .L14
-j .L17
-.L12:
-lw t1, 0(t2)
-li t0, 45
-addi t0, t1, -45
-seqz t0, t0
-bne t0, zero, .L10
-j .L11
-.L13:
-mv a0, t0
-addi sp, sp, 8
-ret
-.L14:
-li t0, 20
-j .L13
-.L15:
-li t0, 0
-j .L13
-.L16:
-lw t1, 0(t2)
-li t0, 37
-addi t0, t1, -37
-seqz t0, t0
-bne t0, zero, .L14
-j .L15
-.L17:
-lw t1, 0(t2)
-li t0, 47
-addi t0, t1, -47
-seqz t0, t0
-bne t0, zero, .L14
-j .L16
-
-stack_peek:
-.entry_stack_peek:
-addi sp, sp, -24
-sd s0, 16(sp)
-.L22:
-addi s0, sp, 0
-sd a0, 0(s0)
-ld t2, 0(s0)
-li t1, 0
-li t0, 4
-li t0, 0
-addi t0, t2, 0
-lw t2, 0(t0)
-ld t1, 0(s0)
-li t0, 4
-mul t0, t2, t0
-add t0, t1, t0
-lw a0, 0(t0)
-ld s0, 16(sp)
-addi sp, sp, 24
-ret
-
 stack_push:
 .entry_stack_push:
 addi sp, sp, -48
-sd s1, 36(sp)
-sd s0, 28(sp)
-.L24:
+sd s0, 36(sp)
+sd s1, 28(sp)
+.L1:
 addi a2, sp, 0
 sd a0, 0(a2)
 addi s1, sp, 8
@@ -160,267 +53,48 @@ mul t0, t2, t0
 add t1, t1, t0
 lw t0, 0(s1)
 sw t0, 0(t1)
-ld s1, 36(sp)
-ld s0, 28(sp)
-addi sp, sp, 48
-ret
-
-main:
-.entry_main:
-addi sp, sp, -64
-sd ra, 56(sp)
-mv zero, zero
-.L26:
-call getint
-mv t0, a0
-sd t0, 0(sp)
-call getch
-ld t0, 0(sp)
-sd t0, 8(sp)
-call next_token
-ld t0, 8(sp)
-j .L27
-.L27:
-li t1, 0
-addi t1, t0, 0
-snez t1, t1
-bne t1, zero, .L28
-j .L29
-.L28:
-sd t0, 16(sp)
-call eval
-ld t0, 16(sp)
-sd t0, 24(sp)
-call putint
-ld t0, 24(sp)
-li a0, 10
-sd t0, 32(sp)
-call putch
-ld t0, 32(sp)
-li t1, 1
-addiw t0, t0, -1
-j .L27
-.L29:
-li a0, 0
-ld ra, 56(sp)
-addi sp, sp, 64
-ret
-j .L27
-
-next_token:
-.entry_next_token:
-addi sp, sp, -24
-sd ra, 16(sp)
-mv zero, zero
-.L33:
-mv zero, zero
-.L34:
-lw a0, last_char
-call is_space
-li t0, 0
-addi t0, a0, 0
-snez t0, t0
-bne t0, zero, .L35
-j .L36
-.L35:
-call next_char
-j .L34
-.L36:
-lw a0, last_char
-call is_num
-li t0, 0
-addi t0, a0, 0
-snez t0, t0
-bne t0, zero, .L37
-j .L38
-.L37:
-lw t1, last_char
-li t0, 48
-addiw t1, t1, -48
-lui t0, %hi(num)
-sw t1, %lo(num)(t0)
-j .L39
-.L38:
-lw t1, last_char
-lui t0, %hi(other)
-sw t1, %lo(other)(t0)
-call next_char
-lw t1, TOKEN_OTHER
-lui t0, %hi(cur_token)
-sw t1, %lo(cur_token)(t0)
-j .L42
-.L39:
-call next_char
-call is_num
-li t0, 0
-addi t0, a0, 0
-snez t0, t0
-bne t0, zero, .L40
-j .L41
-.L40:
-lw t1, num
-li t0, 10
-mulw t1, t1, t0
-lw t0, last_char
-addw t1, t1, t0
-li t0, 48
-addiw t1, t1, -48
-lui t0, %hi(num)
-sw t1, %lo(num)(t0)
-j .L39
-.L41:
-lw t1, TOKEN_NUM
-lui t0, %hi(cur_token)
-sw t1, %lo(cur_token)(t0)
-.L42:
-lw a0, cur_token
-ld ra, 16(sp)
-addi sp, sp, 24
-ret
-
-is_num:
-.entry_is_num:
-addi sp, sp, -8
-.L44:
-addi t2, sp, 0
-sw a0, 0(t2)
-lw t1, 0(t2)
-li t0, 48
-addi t1, t1, -48
-seqz t0, t1
-sgtz t1, t1
-or t1, t0, t1
-bne t1, zero, .L47
-j .L46
-.L45:
-li t0, 1
-j .L48
-.L46:
-li t0, 0
-j .L48
-.L47:
-lw t1, 0(t2)
-li t0, 57
-addi t1, t1, -57
-seqz t0, t1
-sltz t1, t1
-or t1, t0, t1
-bne t1, zero, .L45
-j .L46
-.L48:
-mv a0, t0
-addi sp, sp, 8
-ret
-j .L48
-
-stack_size:
-.entry_stack_size:
-addi sp, sp, -8
-.L52:
-addi t0, sp, 0
-sd a0, 0(t0)
-ld t2, 0(t0)
-li t1, 0
-li t0, 4
-li t0, 0
-addi t0, t2, 0
-lw a0, 0(t0)
-addi sp, sp, 8
-ret
-
-eval_op:
-.entry_eval_op:
-addi sp, sp, -48
-sd s0, 36(sp)
-sd s1, 28(sp)
-.L54:
-addi s1, sp, 0
-sw a0, 0(s1)
-addi s0, sp, 4
-sw a1, 0(s0)
-addi t2, sp, 8
-sw a2, 0(t2)
-lw t1, 0(s1)
-li t0, 43
-addi t0, t1, -43
-seqz t0, t0
-bne t0, zero, .L55
-j .L56
-.L55:
-lw t1, 0(s0)
-lw t0, 0(t2)
-addw t0, t1, t0
-j .L57
-.L56:
-lw t1, 0(s1)
-li t0, 45
-addi t0, t1, -45
-seqz t0, t0
-bne t0, zero, .L58
-j .L59
-.L57:
-mv a0, t0
 ld s0, 36(sp)
 ld s1, 28(sp)
 addi sp, sp, 48
 ret
-.L58:
-lw t1, 0(s0)
-lw t0, 0(t2)
-subw t0, t1, t0
-j .L57
-.L59:
-lw t1, 0(s1)
-li t0, 42
-addi t0, t1, -42
-seqz t0, t0
-bne t0, zero, .L60
-j .L61
-.L60:
-lw t1, 0(s0)
-lw t0, 0(t2)
-mulw t0, t1, t0
-j .L57
-.L61:
-lw t1, 0(s1)
-li t0, 47
-addi t0, t1, -47
-seqz t0, t0
-bne t0, zero, .L62
-j .L63
-.L62:
-lw t1, 0(s0)
-lw t0, 0(t2)
-divw t0, t1, t0
-j .L57
-.L63:
-lw t1, 0(s1)
-li t0, 37
-addi t0, t1, -37
-seqz t0, t0
-bne t0, zero, .L64
-j .L65
-.L64:
-lw t1, 0(s0)
-lw t0, 0(t2)
-remw t0, t1, t0
-j .L57
-.L65:
-li t0, 0
-j .L57
 
-next_char:
-.entry_next_char:
-addi sp, sp, -24
-sd ra, 16(sp)
-mv zero, zero
-.L73:
-call getch
-lui t0, %hi(last_char)
-sw a0, %lo(last_char)(t0)
-lw a0, last_char
-ld ra, 16(sp)
-addi sp, sp, 24
+stack_pop:
+.entry_stack_pop:
+addi sp, sp, -40
+sd s1, 32(sp)
+sd s0, 24(sp)
+.L3:
+addi a1, sp, 0
+sd a0, 0(a1)
+ld t2, 0(a1)
+li t1, 0
+li t0, 4
+li t0, 0
+addi t0, t2, 0
+lw t2, 0(t0)
+ld t1, 0(a1)
+li t0, 4
+mul t0, t2, t0
+add t0, t1, t0
+lw t0, 0(t0)
+ld s0, 0(a1)
+li t2, 0
+li t1, 4
+li t1, 0
+addi s1, s0, 0
+ld s0, 0(a1)
+li t2, 0
+li t1, 4
+li t1, 0
+addi t1, s0, 0
+lw t2, 0(t1)
+li t1, 1
+addiw t1, t2, -1
+sw t1, 0(s1)
+mv a0, t0
+ld s1, 32(sp)
+ld s0, 24(sp)
+addi sp, sp, 40
 ret
 
 eval:
@@ -431,13 +105,12 @@ addi sp, sp, 2032
 sd ra, 376(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd s1, 368(sp)
+sd s0, 368(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd s0, 360(sp)
+sd s1, 352(sp)
 addi sp, sp, -2032
-mv zero, zero
-.L75:
+.L5:
 addi a3, sp, 0
 li t1, 0
 li t0, 4
@@ -3516,13 +3189,13 @@ lw t1, cur_token
 lw t0, TOKEN_NUM
 sub t0, t1, t0
 snez t0, t0
-bne t0, zero, .L76
-j .L77
-.L76:
+bne t0, zero, .L6
+j .L7
+.L6:
 call panic
 mv t0, a0
-j .L78
-.L77:
+j .L8
+.L7:
 lw a1, num
 mv a0, a3
 addi sp, sp, 2032
@@ -3539,51 +3212,51 @@ call next_token
 addi sp, sp, 2032
 ld a3, 24(sp)
 addi sp, sp, -2032
-j .L79
-.L78:
+j .L9
+.L8:
 mv a0, t0
 addi sp, sp, 2032
 ld ra, 376(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld s1, 368(sp)
+ld s0, 368(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld s0, 360(sp)
+ld s1, 352(sp)
 addi sp, sp, -2032
 addi sp, sp, 2036
 addi sp, sp, 380
 ret
-.L79:
+.L9:
 lw t1, cur_token
 lw t0, TOKEN_OTHER
 sub t0, t1, t0
 seqz t0, t0
-bne t0, zero, .L80
-j .L81
-.L80:
+bne t0, zero, .L10
+j .L11
+.L10:
 lw t0, other
 mv a0, t0
 addi sp, sp, 2032
-sd t0, 40(sp)
+sd a3, 40(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd a3, 32(sp)
+sd t0, 32(sp)
 addi sp, sp, -2032
 call get_op_prec
 addi sp, sp, 2032
-ld t0, 40(sp)
+ld a3, 40(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld a3, 32(sp)
+ld t0, 32(sp)
 addi sp, sp, -2032
 seqz t2, a0
 li t1, 0
 addi t1, t2, 0
 snez t1, t1
-bne t1, zero, .L81
-j .L83
-.L81:
+bne t1, zero, .L11
+j .L13
+.L11:
 addi sp, sp, 2032
 sd a3, 48(sp)
 addi sp, sp, -2032
@@ -3591,22 +3264,22 @@ call next_token
 addi sp, sp, 2032
 ld a3, 48(sp)
 addi sp, sp, -2032
-j .L90
-.L83:
+j .L20
+.L13:
 addi sp, sp, 2032
-sd t0, 64(sp)
+sd a3, 64(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd a3, 56(sp)
+sd t0, 56(sp)
 addi sp, sp, -2032
 call next_token
 addi sp, sp, 2032
-ld t0, 64(sp)
+ld a3, 64(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld a3, 56(sp)
+ld t0, 56(sp)
 addi sp, sp, -2032
-.L84:
+.L14:
 mv a0, s1
 addi sp, sp, 2032
 sd a3, 80(sp)
@@ -3624,22 +3297,22 @@ addi sp, sp, -2032
 li t1, 0
 addi t1, a0, 0
 snez t1, t1
-bne t1, zero, .L87
-j .L86
-.L85:
+bne t1, zero, .L17
+j .L16
+.L15:
 mv a0, s1
 addi sp, sp, 2032
-sd t0, 96(sp)
+sd a3, 96(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd a3, 88(sp)
+sd t0, 88(sp)
 addi sp, sp, -2032
 call stack_pop
 addi sp, sp, 2032
-ld t0, 96(sp)
+ld a3, 96(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld a3, 88(sp)
+ld t0, 88(sp)
 addi sp, sp, -2032
 mv s0, a0
 mv a0, a3
@@ -3659,58 +3332,58 @@ addi sp, sp, -2032
 mv t2, a0
 mv a0, a3
 addi sp, sp, 2032
-sd t0, 136(sp)
+sd t2, 136(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
 sd a3, 128(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd t2, 120(sp)
+sd t0, 120(sp)
 addi sp, sp, -2032
 call stack_pop
 addi sp, sp, 2032
-ld t0, 136(sp)
+ld t2, 136(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
 ld a3, 128(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld t2, 120(sp)
+ld t0, 120(sp)
 addi sp, sp, -2032
 mv t1, a0
 mv a0, s0
 mv a1, t1
 mv a2, t2
 addi sp, sp, 2032
-sd a3, 152(sp)
+sd t0, 152(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd t0, 144(sp)
+sd a3, 144(sp)
 addi sp, sp, -2032
 call eval_op
 addi sp, sp, 2032
-ld a3, 152(sp)
+ld t0, 152(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld t0, 144(sp)
+ld a3, 144(sp)
 addi sp, sp, -2032
 mv a1, a0
 mv a0, a3
 addi sp, sp, 2032
-sd a3, 168(sp)
+sd t0, 168(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd t0, 160(sp)
+sd a3, 160(sp)
 addi sp, sp, -2032
 call stack_push
 addi sp, sp, 2032
-ld a3, 168(sp)
+ld t0, 168(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld t0, 160(sp)
+ld a3, 160(sp)
 addi sp, sp, -2032
-j .L84
-.L86:
+j .L14
+.L16:
 mv a1, t0
 mv a0, s1
 addi sp, sp, 2032
@@ -3724,9 +3397,9 @@ lw t1, cur_token
 lw t0, TOKEN_NUM
 sub t0, t1, t0
 snez t0, t0
-bne t0, zero, .L88
-j .L89
-.L87:
+bne t0, zero, .L18
+j .L19
+.L17:
 mv a0, s1
 addi sp, sp, 2032
 sd a3, 192(sp)
@@ -3742,35 +3415,35 @@ addi sp, sp, 2032
 ld t0, 184(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd t0, 208(sp)
+sd a3, 208(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd a3, 200(sp)
+sd t0, 200(sp)
 addi sp, sp, -2032
 call get_op_prec
 addi sp, sp, 2032
-ld t0, 208(sp)
+ld a3, 208(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld a3, 200(sp)
+ld t0, 200(sp)
 addi sp, sp, -2032
 mv t1, a0
 mv a0, t0
 addi sp, sp, 2032
-sd t0, 232(sp)
+sd t1, 232(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd t1, 224(sp)
+sd t0, 224(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
 sd a3, 216(sp)
 addi sp, sp, -2032
 call get_op_prec
 addi sp, sp, 2032
-ld t0, 232(sp)
+ld t1, 232(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld t1, 224(sp)
+ld t0, 224(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
 ld a3, 216(sp)
@@ -3779,13 +3452,13 @@ sub t2, t1, a0
 seqz t1, t2
 sgtz t2, t2
 or t2, t1, t2
-bne t2, zero, .L85
-j .L86
-.L88:
+bne t2, zero, .L15
+j .L16
+.L18:
 call panic
 mv t0, a0
-j .L78
-.L89:
+j .L8
+.L19:
 lw a1, num
 mv a0, a3
 addi sp, sp, 2032
@@ -3802,8 +3475,8 @@ call next_token
 addi sp, sp, 2032
 ld a3, 248(sp)
 addi sp, sp, -2032
-j .L79
-.L90:
+j .L9
+.L20:
 mv a0, s1
 addi sp, sp, 2032
 sd a3, 256(sp)
@@ -3815,9 +3488,9 @@ addi sp, sp, -2032
 li t0, 0
 addi t0, a0, 0
 snez t0, t0
-bne t0, zero, .L91
-j .L92
-.L91:
+bne t0, zero, .L21
+j .L22
+.L21:
 mv a0, s1
 addi sp, sp, 2032
 sd a3, 264(sp)
@@ -3829,38 +3502,38 @@ addi sp, sp, -2032
 mv t2, a0
 mv a0, a3
 addi sp, sp, 2032
-sd a3, 280(sp)
+sd t2, 280(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd t2, 272(sp)
+sd a3, 272(sp)
 addi sp, sp, -2032
 call stack_pop
 addi sp, sp, 2032
-ld a3, 280(sp)
+ld t2, 280(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld t2, 272(sp)
+ld a3, 272(sp)
 addi sp, sp, -2032
 mv t1, a0
 mv a0, a3
 addi sp, sp, 2032
-sd t2, 304(sp)
+sd t1, 304(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd a3, 296(sp)
+sd t2, 296(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-sd t1, 288(sp)
+sd a3, 288(sp)
 addi sp, sp, -2032
 call stack_pop
 addi sp, sp, 2032
-ld t2, 304(sp)
+ld t1, 304(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld a3, 296(sp)
+ld t2, 296(sp)
 addi sp, sp, -2032
 addi sp, sp, 2032
-ld t1, 288(sp)
+ld a3, 288(sp)
 addi sp, sp, -2032
 mv t0, a0
 mv a0, t2
@@ -3882,19 +3555,59 @@ call stack_push
 addi sp, sp, 2032
 ld a3, 320(sp)
 addi sp, sp, -2032
-j .L90
-.L92:
+j .L20
+.L22:
 mv a0, a3
 call stack_peek
 mv t0, a0
-j .L78
+j .L8
+
+main:
+.entry_main:
+addi sp, sp, -64
+sd ra, 56(sp)
+.L27:
+call getint
+mv t0, a0
+sd t0, 0(sp)
+call getch
+ld t0, 0(sp)
+sd t0, 8(sp)
+call next_token
+ld t0, 8(sp)
+j .L28
+.L28:
+li t1, 0
+addi t1, t0, 0
+snez t1, t1
+bne t1, zero, .L29
+j .L30
+.L29:
+sd t0, 16(sp)
+call eval
+ld t0, 16(sp)
+sd t0, 24(sp)
+call putint
+ld t0, 24(sp)
+li a0, 10
+sd t0, 32(sp)
+call putch
+ld t0, 32(sp)
+li t1, 1
+addiw t0, t0, -1
+j .L28
+.L30:
+li a0, 0
+ld ra, 56(sp)
+addi sp, sp, 64
+ret
+j .L28
 
 panic:
 .entry_panic:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
-.L97:
+.L34:
 li a0, 112
 call putch
 li a0, 97
@@ -3915,41 +3628,322 @@ ld ra, 16(sp)
 addi sp, sp, 24
 ret
 
-stack_pop:
-.entry_stack_pop:
-addi sp, sp, -40
-sd s1, 32(sp)
-sd s0, 24(sp)
-.L99:
-addi a1, sp, 0
-sd a0, 0(a1)
-ld t2, 0(a1)
+get_op_prec:
+.entry_get_op_prec:
+addi sp, sp, -8
+.L36:
+addi t2, sp, 0
+sw a0, 0(t2)
+lw t1, 0(t2)
+li t0, 43
+addi t0, t1, -43
+seqz t0, t0
+bne t0, zero, .L37
+j .L39
+.L37:
+li t0, 10
+j .L40
+.L38:
+lw t1, 0(t2)
+li t0, 42
+addi t0, t1, -42
+seqz t0, t0
+bne t0, zero, .L41
+j .L44
+.L39:
+lw t1, 0(t2)
+li t0, 45
+addi t0, t1, -45
+seqz t0, t0
+bne t0, zero, .L37
+j .L38
+.L40:
+mv a0, t0
+addi sp, sp, 8
+ret
+.L41:
+li t0, 20
+j .L40
+.L42:
+li t0, 0
+j .L40
+.L43:
+lw t1, 0(t2)
+li t0, 37
+addi t0, t1, -37
+seqz t0, t0
+bne t0, zero, .L41
+j .L42
+.L44:
+lw t1, 0(t2)
+li t0, 47
+addi t0, t1, -47
+seqz t0, t0
+bne t0, zero, .L41
+j .L43
+
+is_space:
+.entry_is_space:
+addi sp, sp, -8
+.L49:
+addi t2, sp, 0
+sw a0, 0(t2)
+lw t1, 0(t2)
+li t0, 32
+addi t0, t1, -32
+seqz t0, t0
+bne t0, zero, .L50
+j .L52
+.L50:
+li t0, 1
+j .L53
+.L51:
+li t0, 0
+j .L53
+.L52:
+lw t1, 0(t2)
+li t0, 10
+addi t0, t1, -10
+seqz t0, t0
+bne t0, zero, .L50
+j .L51
+.L53:
+mv a0, t0
+addi sp, sp, 8
+ret
+j .L53
+
+is_num:
+.entry_is_num:
+addi sp, sp, -8
+.L57:
+addi t2, sp, 0
+sw a0, 0(t2)
+lw t1, 0(t2)
+li t0, 48
+addi t1, t1, -48
+seqz t0, t1
+sgtz t1, t1
+or t1, t0, t1
+bne t1, zero, .L60
+j .L59
+.L58:
+li t0, 1
+j .L61
+.L59:
+li t0, 0
+j .L61
+.L60:
+lw t1, 0(t2)
+li t0, 57
+addi t1, t1, -57
+seqz t0, t1
+sltz t1, t1
+or t1, t0, t1
+bne t1, zero, .L58
+j .L59
+.L61:
+mv a0, t0
+addi sp, sp, 8
+ret
+j .L61
+
+next_char:
+.entry_next_char:
+addi sp, sp, -24
+sd ra, 16(sp)
+.L65:
+call getch
+lui t0, %hi(last_char)
+sw a0, %lo(last_char)(t0)
+lw a0, last_char
+ld ra, 16(sp)
+addi sp, sp, 24
+ret
+
+stack_peek:
+.entry_stack_peek:
+addi sp, sp, -24
+sd s0, 16(sp)
+.L67:
+addi s0, sp, 0
+sd a0, 0(s0)
+ld t2, 0(s0)
 li t1, 0
 li t0, 4
 li t0, 0
 addi t0, t2, 0
 lw t2, 0(t0)
-ld t1, 0(a1)
+ld t1, 0(s0)
 li t0, 4
 mul t0, t2, t0
 add t0, t1, t0
-lw t0, 0(t0)
-ld s0, 0(a1)
-li t2, 0
-li t1, 4
+lw a0, 0(t0)
+ld s0, 16(sp)
+addi sp, sp, 24
+ret
+
+stack_size:
+.entry_stack_size:
+addi sp, sp, -8
+.L69:
+addi t0, sp, 0
+sd a0, 0(t0)
+ld t2, 0(t0)
 li t1, 0
-addi s1, s0, 0
-ld s0, 0(a1)
-li t2, 0
-li t1, 4
-li t1, 0
-addi t1, s0, 0
-lw t2, 0(t1)
-li t1, 1
-addiw t1, t2, -1
-sw t1, 0(s1)
+li t0, 4
+li t0, 0
+addi t0, t2, 0
+lw a0, 0(t0)
+addi sp, sp, 8
+ret
+
+eval_op:
+.entry_eval_op:
+addi sp, sp, -48
+sd s0, 36(sp)
+sd s1, 28(sp)
+.L71:
+addi s1, sp, 0
+sw a0, 0(s1)
+addi s0, sp, 4
+sw a1, 0(s0)
+addi t2, sp, 8
+sw a2, 0(t2)
+lw t1, 0(s1)
+li t0, 43
+addi t0, t1, -43
+seqz t0, t0
+bne t0, zero, .L72
+j .L73
+.L72:
+lw t1, 0(s0)
+lw t0, 0(t2)
+addw t0, t1, t0
+j .L74
+.L73:
+lw t1, 0(s1)
+li t0, 45
+addi t0, t1, -45
+seqz t0, t0
+bne t0, zero, .L75
+j .L76
+.L74:
 mv a0, t0
-ld s1, 32(sp)
-ld s0, 24(sp)
-addi sp, sp, 40
+ld s0, 36(sp)
+ld s1, 28(sp)
+addi sp, sp, 48
+ret
+.L75:
+lw t1, 0(s0)
+lw t0, 0(t2)
+subw t0, t1, t0
+j .L74
+.L76:
+lw t1, 0(s1)
+li t0, 42
+addi t0, t1, -42
+seqz t0, t0
+bne t0, zero, .L77
+j .L78
+.L77:
+lw t1, 0(s0)
+lw t0, 0(t2)
+mulw t0, t1, t0
+j .L74
+.L78:
+lw t1, 0(s1)
+li t0, 47
+addi t0, t1, -47
+seqz t0, t0
+bne t0, zero, .L79
+j .L80
+.L79:
+lw t1, 0(s0)
+lw t0, 0(t2)
+divw t0, t1, t0
+j .L74
+.L80:
+lw t1, 0(s1)
+li t0, 37
+addi t0, t1, -37
+seqz t0, t0
+bne t0, zero, .L81
+j .L82
+.L81:
+lw t1, 0(s0)
+lw t0, 0(t2)
+remw t0, t1, t0
+j .L74
+.L82:
+li t0, 0
+j .L74
+
+next_token:
+.entry_next_token:
+addi sp, sp, -24
+sd ra, 16(sp)
+.L90:
+.L91:
+lw a0, last_char
+call is_space
+li t0, 0
+addi t0, a0, 0
+snez t0, t0
+bne t0, zero, .L92
+j .L93
+.L92:
+call next_char
+j .L91
+.L93:
+lw a0, last_char
+call is_num
+li t0, 0
+addi t0, a0, 0
+snez t0, t0
+bne t0, zero, .L94
+j .L95
+.L94:
+lw t1, last_char
+li t0, 48
+addiw t1, t1, -48
+lui t0, %hi(num)
+sw t1, %lo(num)(t0)
+j .L96
+.L95:
+lw t1, last_char
+lui t0, %hi(other)
+sw t1, %lo(other)(t0)
+call next_char
+lw t1, TOKEN_OTHER
+lui t0, %hi(cur_token)
+sw t1, %lo(cur_token)(t0)
+j .L99
+.L96:
+call next_char
+call is_num
+li t0, 0
+addi t0, a0, 0
+snez t0, t0
+bne t0, zero, .L97
+j .L98
+.L97:
+lw t1, num
+li t0, 10
+mulw t1, t1, t0
+lw t0, last_char
+addw t1, t1, t0
+li t0, 48
+addiw t1, t1, -48
+lui t0, %hi(num)
+sw t1, %lo(num)(t0)
+j .L96
+.L98:
+lw t1, TOKEN_NUM
+lui t0, %hi(cur_token)
+sw t1, %lo(cur_token)(t0)
+.L99:
+lw a0, cur_token
+ld ra, 16(sp)
+addi sp, sp, 24
 ret

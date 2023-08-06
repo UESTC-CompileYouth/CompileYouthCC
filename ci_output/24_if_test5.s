@@ -3,7 +3,6 @@
 
 if_if_Else:
 .entry_if_if_Else:
-mv zero, zero
 .L1:
 li t0, 5
 li t1, 10
@@ -34,7 +33,6 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L12:
 call if_if_Else
 ld ra, 16(sp)

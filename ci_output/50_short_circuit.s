@@ -28,7 +28,6 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L3:
 call getint
 mv t0, a0

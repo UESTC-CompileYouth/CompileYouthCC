@@ -1,13 +1,212 @@
         .text
 .global main
 
+max_sum_nonadjacent:
+.entry_max_sum_nonadjacent:
+addi sp, sp, -184
+sd ra, 172(sp)
+sd s0, 164(sp)
+sd s1, 156(sp)
+.L1:
+addi a2, sp, 0
+sd a0, 0(a2)
+addi a3, sp, 8
+sw a1, 0(a3)
+addi s0, sp, 12
+li t1, 0
+li t0, 4
+li t0, 0
+addi t1, s0, 0
+li t0, 0
+sw t0, 0(t1)
+li t1, 1
+li t0, 4
+li t0, 4
+addi t1, s0, 4
+li t0, 0
+sw t0, 0(t1)
+li t1, 2
+li t0, 4
+li t0, 8
+addi t1, s0, 8
+li t0, 0
+sw t0, 0(t1)
+li t1, 3
+li t0, 4
+li t0, 12
+addi t1, s0, 12
+li t0, 0
+sw t0, 0(t1)
+li t1, 4
+li t0, 4
+li t0, 16
+addi t1, s0, 16
+li t0, 0
+sw t0, 0(t1)
+li t1, 5
+li t0, 4
+li t0, 20
+addi t1, s0, 20
+li t0, 0
+sw t0, 0(t1)
+li t1, 6
+li t0, 4
+li t0, 24
+addi t1, s0, 24
+li t0, 0
+sw t0, 0(t1)
+li t1, 7
+li t0, 4
+li t0, 28
+addi t1, s0, 28
+li t0, 0
+sw t0, 0(t1)
+li t1, 8
+li t0, 4
+li t0, 32
+addi t1, s0, 32
+li t0, 0
+sw t0, 0(t1)
+li t1, 9
+li t0, 4
+li t0, 36
+addi t1, s0, 36
+li t0, 0
+sw t0, 0(t1)
+li t1, 10
+li t0, 4
+li t0, 40
+addi t1, s0, 40
+li t0, 0
+sw t0, 0(t1)
+li t1, 11
+li t0, 4
+li t0, 44
+addi t1, s0, 44
+li t0, 0
+sw t0, 0(t1)
+li t1, 12
+li t0, 4
+li t0, 48
+addi t1, s0, 48
+li t0, 0
+sw t0, 0(t1)
+li t1, 13
+li t0, 4
+li t0, 52
+addi t1, s0, 52
+li t0, 0
+sw t0, 0(t1)
+li t1, 14
+li t0, 4
+li t0, 56
+addi t1, s0, 56
+li t0, 0
+sw t0, 0(t1)
+li t1, 15
+li t0, 4
+li t0, 60
+addi t1, s0, 60
+li t0, 0
+sw t0, 0(t1)
+li t1, 0
+li t0, 4
+li t0, 0
+addi s1, s0, 0
+ld t2, 0(a2)
+li t1, 0
+li t0, 4
+li t0, 0
+addi t0, t2, 0
+lw t0, 0(t0)
+sw t0, 0(s1)
+li t1, 1
+li t0, 4
+li t0, 4
+addi s1, s0, 4
+ld t2, 0(a2)
+li t1, 0
+li t0, 4
+li t0, 0
+addi t0, t2, 0
+lw a0, 0(t0)
+ld t2, 0(a2)
+li t1, 1
+li t0, 4
+li t0, 4
+addi t0, t2, 4
+lw a1, 0(t0)
+sd a3, 84(sp)
+sd a2, 76(sp)
+call MAX
+ld a3, 84(sp)
+ld a2, 76(sp)
+sw a0, 0(s1)
+li t0, 2
+j .L2
+.L2:
+lw t1, 0(a3)
+sub t1, t0, t1
+sltz t1, t1
+bne t1, zero, .L3
+j .L4
+.L3:
+li t1, 4
+mul t1, t0, t1
+add a4, s0, t1
+li t1, 2
+addiw t2, t0, -2
+li t1, 4
+mul t1, t2, t1
+add t1, s0, t1
+lw s1, 0(t1)
+ld t2, 0(a2)
+li t1, 4
+mul t1, t0, t1
+add t1, t2, t1
+lw t1, 0(t1)
+addw a0, s1, t1
+li t1, 1
+addiw t2, t0, -1
+li t1, 4
+mul t1, t2, t1
+add t1, s0, t1
+lw a1, 0(t1)
+sd a3, 116(sp)
+sd t0, 108(sp)
+sd a2, 100(sp)
+sd a4, 92(sp)
+call MAX
+ld a3, 116(sp)
+ld t0, 108(sp)
+ld a2, 100(sp)
+ld a4, 92(sp)
+sw a0, 0(a4)
+li t1, 1
+addiw t0, t0, 1
+j .L2
+.L4:
+lw t1, 0(a3)
+li t0, 1
+addiw t1, t1, -1
+li t0, 4
+mul t0, t1, t0
+add t0, s0, t0
+lw a0, 0(t0)
+ld ra, 172(sp)
+ld s0, 164(sp)
+ld s1, 156(sp)
+addi sp, sp, 184
+ret
+j .L2
+
 longest_common_subseq:
 .entry_longest_common_subseq:
 addi sp, sp, -1152
 sd ra, 1144(sp)
-sd s1, 1136(sp)
 sd s0, 1128(sp)
-.L1:
+sd s1, 1120(sp)
+.L8:
 addi a5, sp, 0
 sd a0, 0(a5)
 addi a4, sp, 8
@@ -1618,19 +1817,19 @@ addi t1, a0, 60
 li t0, 0
 sw t0, 0(t1)
 li t1, 1
-j .L2
-.L2:
+j .L9
+.L9:
 lw t0, 0(a4)
 sub a0, t1, t0
 seqz t0, a0
 sltz a0, a0
 or a0, t0, a0
-bne a0, zero, .L3
-j .L4
-.L3:
+bne a0, zero, .L10
+j .L11
+.L10:
 li t0, 1
-j .L5
-.L4:
+j .L12
+.L11:
 lw t1, 0(a4)
 lw s0, 0(s0)
 li t0, 64
@@ -1641,19 +1840,19 @@ mul t0, s0, t0
 add t0, t1, t0
 lw a0, 0(t0)
 ld ra, 1144(sp)
-ld s1, 1136(sp)
 ld s0, 1128(sp)
+ld s1, 1120(sp)
 addi sp, sp, 1152
 ret
-.L5:
+.L12:
 lw a0, 0(s0)
 sub a1, t0, a0
 seqz a0, a1
 sltz a1, a1
 or a1, a0, a1
-bne a1, zero, .L6
-j .L7
-.L6:
+bne a1, zero, .L13
+j .L14
+.L13:
 li a0, 1
 addiw a2, t1, -1
 ld a1, 0(a5)
@@ -1670,13 +1869,13 @@ add a0, a1, a0
 lw a0, 0(a0)
 sub a0, a3, a0
 seqz a0, a0
-bne a0, zero, .L8
-j .L9
-.L7:
+bne a0, zero, .L15
+j .L16
+.L14:
 li t0, 1
 addiw t1, t1, 1
-j .L2
-.L8:
+j .L9
+.L15:
 li a0, 64
 mul a0, t1, a0
 add a1, t2, a0
@@ -1697,8 +1896,8 @@ lw a1, 0(a0)
 li a0, 1
 addiw a0, a1, 1
 sw a0, 0(a3)
-j .L10
-.L9:
+j .L17
+.L16:
 li a0, 64
 mul a0, t1, a0
 add a1, t2, a0
@@ -1723,229 +1922,29 @@ li a1, 4
 mul a1, a3, a1
 add a1, a2, a1
 lw a1, 0(a1)
-sd a4, 1088(sp)
-sd t1, 1080(sp)
-sd a6, 1072(sp)
-sd t2, 1064(sp)
-sd t0, 1056(sp)
-sd a5, 1048(sp)
+sd t0, 1088(sp)
+sd a6, 1080(sp)
+sd a4, 1072(sp)
+sd a5, 1064(sp)
+sd t2, 1056(sp)
+sd t1, 1048(sp)
 call MAX
-ld a4, 1088(sp)
-ld t1, 1080(sp)
-ld a6, 1072(sp)
-ld t2, 1064(sp)
-ld t0, 1056(sp)
-ld a5, 1048(sp)
+ld t0, 1088(sp)
+ld a6, 1080(sp)
+ld a4, 1072(sp)
+ld a5, 1064(sp)
+ld t2, 1056(sp)
+ld t1, 1048(sp)
 sw a0, 0(a6)
-.L10:
+.L17:
 li a0, 1
 addiw t0, t0, 1
-j .L5
-
-max_sum_nonadjacent:
-.entry_max_sum_nonadjacent:
-addi sp, sp, -184
-sd ra, 172(sp)
-sd s1, 164(sp)
-sd s0, 148(sp)
-.L16:
-addi a2, sp, 0
-sd a0, 0(a2)
-addi a3, sp, 8
-sw a1, 0(a3)
-addi s0, sp, 12
-li t1, 0
-li t0, 4
-li t0, 0
-addi t1, s0, 0
-li t0, 0
-sw t0, 0(t1)
-li t1, 1
-li t0, 4
-li t0, 4
-addi t1, s0, 4
-li t0, 0
-sw t0, 0(t1)
-li t1, 2
-li t0, 4
-li t0, 8
-addi t1, s0, 8
-li t0, 0
-sw t0, 0(t1)
-li t1, 3
-li t0, 4
-li t0, 12
-addi t1, s0, 12
-li t0, 0
-sw t0, 0(t1)
-li t1, 4
-li t0, 4
-li t0, 16
-addi t1, s0, 16
-li t0, 0
-sw t0, 0(t1)
-li t1, 5
-li t0, 4
-li t0, 20
-addi t1, s0, 20
-li t0, 0
-sw t0, 0(t1)
-li t1, 6
-li t0, 4
-li t0, 24
-addi t1, s0, 24
-li t0, 0
-sw t0, 0(t1)
-li t1, 7
-li t0, 4
-li t0, 28
-addi t1, s0, 28
-li t0, 0
-sw t0, 0(t1)
-li t1, 8
-li t0, 4
-li t0, 32
-addi t1, s0, 32
-li t0, 0
-sw t0, 0(t1)
-li t1, 9
-li t0, 4
-li t0, 36
-addi t1, s0, 36
-li t0, 0
-sw t0, 0(t1)
-li t1, 10
-li t0, 4
-li t0, 40
-addi t1, s0, 40
-li t0, 0
-sw t0, 0(t1)
-li t1, 11
-li t0, 4
-li t0, 44
-addi t1, s0, 44
-li t0, 0
-sw t0, 0(t1)
-li t1, 12
-li t0, 4
-li t0, 48
-addi t1, s0, 48
-li t0, 0
-sw t0, 0(t1)
-li t1, 13
-li t0, 4
-li t0, 52
-addi t1, s0, 52
-li t0, 0
-sw t0, 0(t1)
-li t1, 14
-li t0, 4
-li t0, 56
-addi t1, s0, 56
-li t0, 0
-sw t0, 0(t1)
-li t1, 15
-li t0, 4
-li t0, 60
-addi t1, s0, 60
-li t0, 0
-sw t0, 0(t1)
-li t1, 0
-li t0, 4
-li t0, 0
-addi s1, s0, 0
-ld t2, 0(a2)
-li t1, 0
-li t0, 4
-li t0, 0
-addi t0, t2, 0
-lw t0, 0(t0)
-sw t0, 0(s1)
-li t1, 1
-li t0, 4
-li t0, 4
-addi s1, s0, 4
-ld t2, 0(a2)
-li t1, 0
-li t0, 4
-li t0, 0
-addi t0, t2, 0
-lw a0, 0(t0)
-ld t2, 0(a2)
-li t1, 1
-li t0, 4
-li t0, 4
-addi t0, t2, 4
-lw a1, 0(t0)
-sd a2, 84(sp)
-sd a3, 76(sp)
-call MAX
-ld a2, 84(sp)
-ld a3, 76(sp)
-sw a0, 0(s1)
-li t0, 2
-j .L17
-.L17:
-lw t1, 0(a3)
-sub t1, t0, t1
-sltz t1, t1
-bne t1, zero, .L18
-j .L19
-.L18:
-li t1, 4
-mul t1, t0, t1
-add a4, s0, t1
-li t1, 2
-addiw t2, t0, -2
-li t1, 4
-mul t1, t2, t1
-add t1, s0, t1
-lw s1, 0(t1)
-ld t2, 0(a2)
-li t1, 4
-mul t1, t0, t1
-add t1, t2, t1
-lw t1, 0(t1)
-addw a0, s1, t1
-li t1, 1
-addiw t2, t0, -1
-li t1, 4
-mul t1, t2, t1
-add t1, s0, t1
-lw a1, 0(t1)
-sd a3, 116(sp)
-sd t0, 108(sp)
-sd a4, 100(sp)
-sd a2, 92(sp)
-call MAX
-ld a3, 116(sp)
-ld t0, 108(sp)
-ld a4, 100(sp)
-ld a2, 92(sp)
-sw a0, 0(a4)
-li t1, 1
-addiw t0, t0, 1
-j .L17
-.L19:
-lw t1, 0(a3)
-li t0, 1
-addiw t1, t1, -1
-li t0, 4
-mul t0, t1, t0
-add t0, s0, t0
-lw a0, 0(t0)
-ld ra, 172(sp)
-ld s1, 164(sp)
-ld s0, 148(sp)
-addi sp, sp, 184
-ret
-j .L17
+j .L12
 
 main:
 .entry_main:
 addi sp, sp, -184
 sd ra, 176(sp)
-mv zero, zero
 .L23:
 addi t2, sp, 0
 li t1, 0
@@ -2119,22 +2118,22 @@ li t0, 5
 sw t0, 0(t1)
 li a1, 15
 mv a0, t2
-sd a2, 120(sp)
-sd t2, 112(sp)
+sd t2, 120(sp)
+sd a2, 112(sp)
 call max_sum_nonadjacent
-ld a2, 120(sp)
-ld t2, 112(sp)
-sd a2, 136(sp)
-sd t2, 128(sp)
+ld t2, 120(sp)
+ld a2, 112(sp)
+sd t2, 136(sp)
+sd a2, 128(sp)
 call putint
-ld a2, 136(sp)
-ld t2, 128(sp)
+ld t2, 136(sp)
+ld a2, 128(sp)
 li a0, 10
-sd t2, 152(sp)
-sd a2, 144(sp)
+sd a2, 152(sp)
+sd t2, 144(sp)
 call putch
-ld t2, 152(sp)
-ld a2, 144(sp)
+ld a2, 152(sp)
+ld t2, 144(sp)
 li a1, 15
 li a3, 13
 mv a0, t2

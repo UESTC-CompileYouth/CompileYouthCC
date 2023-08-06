@@ -8,9 +8,8 @@ a:
 main:
 .entry_main:
 addi sp, sp, -32
-sd s0, 24(sp)
-sd s1, 16(sp)
-mv zero, zero
+sd s1, 24(sp)
+sd s0, 16(sp)
 .L1:
 la t1, a
 li t2, 4
@@ -60023,7 +60022,7 @@ add t0, t1, t0
 lw t0, 0(t0)
 addw t0, s1, t0
 mv a0, t0
-ld s0, 24(sp)
-ld s1, 16(sp)
+ld s1, 24(sp)
+ld s0, 16(sp)
 addi sp, sp, 32
 ret

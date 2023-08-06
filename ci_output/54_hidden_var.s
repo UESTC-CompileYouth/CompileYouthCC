@@ -16,7 +16,6 @@ addi sp, sp, -368
 sd ra, 356(sp)
 sd s1, 340(sp)
 sd s0, 332(sp)
-mv zero, zero
 .L1:
 addi s1, sp, 0
 addi t2, sp, 140
@@ -24,18 +23,18 @@ li t1, 1
 li t0, 3
 li a0, 3
 sd t2, 220(sp)
-sd t0, 212(sp)
-sd t1, 204(sp)
+sd t1, 212(sp)
+sd t0, 204(sp)
 call putint
 ld t2, 220(sp)
-ld t0, 212(sp)
-ld t1, 204(sp)
+ld t1, 212(sp)
+ld t0, 204(sp)
 mv a0, t0
-sd t2, 236(sp)
-sd t1, 228(sp)
+sd t1, 236(sp)
+sd t2, 228(sp)
 call putint
-ld t2, 236(sp)
-ld t1, 228(sp)
+ld t1, 236(sp)
+ld t2, 228(sp)
 mv a0, t1
 sd t1, 252(sp)
 sd t2, 244(sp)
@@ -43,11 +42,11 @@ call putint
 ld t1, 252(sp)
 ld t2, 244(sp)
 li a0, 10
-sd t1, 268(sp)
-sd t2, 260(sp)
+sd t2, 268(sp)
+sd t1, 260(sp)
 call putch
-ld t1, 268(sp)
-ld t2, 260(sp)
+ld t2, 268(sp)
+ld t1, 260(sp)
 .L2:
 li t0, 5
 addi t0, t1, -5

@@ -5,7 +5,6 @@ main:
 .entry_main:
 addi sp, sp, -16
 sd s0, 8(sp)
-mv zero, zero
 .L1:
 li s0, 10
 li t2, 4

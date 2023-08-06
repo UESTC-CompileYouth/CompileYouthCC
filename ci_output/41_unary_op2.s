@@ -5,19 +5,18 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L1:
-li t2, 56
+li t0, 56
 li t1, 4
-li t0, 4
-li t0, -4
+li t2, 4
+li t2, -4
 li t0, 60
 li t0, 64
 li t0, 0
 li t0, 1
 li t0, 0
-li t0, 0
 li t2, 0
+li t0, 0
 li t0, 0
 li t0, 0
 bne t0, zero, .L2

@@ -7,7 +7,6 @@ a:
 
 main:
 .entry_main:
-mv zero, zero
 .L1:
 lw t1, a
 li t0, 5

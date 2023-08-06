@@ -1,14 +1,14 @@
         .data
 d:
         .word   2
-e:
-        .word   4
-a:
-        .word   1
-c:
-        .word   1
 b:
         .word   0
+e:
+        .word   4
+c:
+        .word   1
+a:
+        .word   1
 
         .text
 .global main
@@ -17,9 +17,8 @@ main:
 .entry_main:
 addi sp, sp, -64
 sd ra, 56(sp)
-sd s0, 48(sp)
+sd s0, 40(sp)
 sd s1, 32(sp)
-mv zero, zero
 .L1:
 li t0, 0
 lw t2, a
@@ -44,7 +43,7 @@ call putint
 ld t0, 0(sp)
 mv a0, t0
 ld ra, 56(sp)
-ld s0, 48(sp)
+ld s0, 40(sp)
 ld s1, 32(sp)
 addi sp, sp, 64
 ret

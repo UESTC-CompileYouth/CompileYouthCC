@@ -9,7 +9,6 @@ main:
 .entry_main:
 addi sp, sp, -144
 sd ra, 136(sp)
-mv zero, zero
 .L1:
 li t1, 10
 lui t0, %hi(n)
@@ -80,34 +79,34 @@ lw a2, n
 sd a1, 80(sp)
 call counting_sort
 ld a1, 80(sp)
-mv t1, a0
+mv t0, a0
 j .L2
 .L2:
-lw t0, n
-sub t0, t1, t0
-sltz t0, t0
-bne t0, zero, .L3
+lw t1, n
+sub t1, t0, t1
+sltz t1, t1
+bne t1, zero, .L3
 j .L4
 .L3:
-li t0, 4
-mul t0, t1, t0
-add t0, a1, t0
-lw t0, 0(t0)
-mv a0, t0
-sd t1, 96(sp)
-sd a1, 88(sp)
+li t1, 4
+mul t1, t0, t1
+add t1, a1, t1
+lw t1, 0(t1)
+mv a0, t1
+sd a1, 96(sp)
+sd t0, 88(sp)
 call putint
-ld t1, 96(sp)
-ld a1, 88(sp)
-li t0, 10
+ld a1, 96(sp)
+ld t0, 88(sp)
+li t1, 10
 li a0, 10
 sd a1, 112(sp)
-sd t1, 104(sp)
+sd t0, 104(sp)
 call putch
 ld a1, 112(sp)
-ld t1, 104(sp)
-li t0, 1
-addiw t1, t1, 1
+ld t0, 104(sp)
+li t1, 1
+addiw t0, t0, 1
 j .L2
 .L4:
 li a0, 0

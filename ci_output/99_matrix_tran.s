@@ -1,9 +1,9 @@
         .bss
-L:
+N:
         .zero   4
 M:
         .zero   4
-N:
+L:
         .zero   4
 
         .text
@@ -13,8 +13,8 @@ tran:
 .entry_tran:
 addi sp, sp, -120
 sd s0, 112(sp)
-sd s2, 104(sp)
-sd s1, 96(sp)
+sd s1, 104(sp)
+sd s2, 96(sp)
 ld t1, 120(sp)
 .L1:
 addi s1, sp, 0
@@ -145,8 +145,8 @@ flw ft5, 0(t0)
 fsw ft5, 0(s0)
 li a0, 0
 ld s0, 112(sp)
-ld s2, 104(sp)
-ld s1, 96(sp)
+ld s1, 104(sp)
+ld s2, 96(sp)
 addi sp, sp, 120
 ret
 
@@ -154,7 +154,6 @@ main:
 .entry_main:
 addi sp, sp, -272
 sd ra, 264(sp)
-mv zero, zero
 .L3:
 li t1, 3
 lui t0, %hi(N)
@@ -218,15 +217,15 @@ addiw t0, t0, 1
 j .L4
 .L6:
 sd t2, -8(sp)
-sd a6, 136(sp)
+sd a7, 136(sp)
 sd t2, 128(sp)
-sd a7, 120(sp)
+sd a6, 120(sp)
 addi sp, sp, -8
 call tran
 addi sp, sp, 8
-ld a6, 136(sp)
+ld a7, 136(sp)
 ld t2, 128(sp)
-ld a7, 120(sp)
+ld a6, 120(sp)
 mv t1, a0
 j .L7
 .L7:
@@ -242,14 +241,14 @@ add t0, a6, t0
 flw ft5, 0(t0)
 fcvt.w.s t0, ft5, rtz
 mv a0, t0
-sd a6, 168(sp)
-sd t1, 160(sp)
-sd t2, 152(sp)
+sd t1, 168(sp)
+sd t2, 160(sp)
+sd a6, 152(sp)
 sd a7, 144(sp)
 call putint
-ld a6, 168(sp)
-ld t1, 160(sp)
-ld t2, 152(sp)
+ld t1, 168(sp)
+ld t2, 160(sp)
+ld a6, 152(sp)
 ld a7, 144(sp)
 li t0, 1
 addiw t1, t1, 1
@@ -277,46 +276,46 @@ add t0, a7, t0
 flw ft5, 0(t0)
 fcvt.w.s t0, ft5, rtz
 mv a0, t0
-sd t1, 208(sp)
+sd t2, 208(sp)
 sd a7, 200(sp)
-sd t2, 192(sp)
+sd t1, 192(sp)
 call putint
-ld t1, 208(sp)
+ld t2, 208(sp)
 ld a7, 200(sp)
-ld t2, 192(sp)
+ld t1, 192(sp)
 li t0, 1
 addiw t1, t1, 1
 j .L10
 .L12:
-li t0, 10
-li t1, 0
+li t1, 10
+li t0, 0
 li a0, 10
-sd t2, 224(sp)
-sd t1, 216(sp)
+sd t0, 224(sp)
+sd t2, 216(sp)
 call putch
-ld t2, 224(sp)
-ld t1, 216(sp)
+ld t0, 224(sp)
+ld t2, 216(sp)
 j .L13
 .L13:
-lw t0, N
-sub t0, t1, t0
-sltz t0, t0
-bne t0, zero, .L14
+lw t1, N
+sub t1, t0, t1
+sltz t1, t1
+bne t1, zero, .L14
 j .L15
 .L14:
-li t0, 4
-mul t0, t1, t0
-add t0, t2, t0
-flw ft5, 0(t0)
-fcvt.w.s t0, ft5, rtz
-mv a0, t0
-sd t1, 240(sp)
+li t1, 4
+mul t1, t0, t1
+add t1, t2, t1
+flw ft5, 0(t1)
+fcvt.w.s t1, ft5, rtz
+mv a0, t1
+sd t0, 240(sp)
 sd t2, 232(sp)
 call putint
-ld t1, 240(sp)
+ld t0, 240(sp)
 ld t2, 232(sp)
-li t0, 1
-addiw t1, t1, 1
+li t1, 1
+addiw t0, t0, 1
 j .L13
 .L15:
 li t0, 10
@@ -326,4 +325,4 @@ li a0, 0
 ld ra, 264(sp)
 addi sp, sp, 272
 ret
-j .L4
+j .L7

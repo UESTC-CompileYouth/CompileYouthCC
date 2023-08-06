@@ -8,8 +8,8 @@ a:
 f1:
 .entry_f1:
 addi sp, sp, -40
-sd s1, 32(sp)
-sd s0, 24(sp)
+sd s0, 32(sp)
+sd s1, 24(sp)
 .L1:
 addi s1, sp, 0
 sd a0, 0(s1)
@@ -64,8 +64,8 @@ li t0, 4
 mul t0, t1, t0
 add t0, s0, t0
 lw a0, 0(t0)
-ld s1, 32(sp)
-ld s0, 24(sp)
+ld s0, 32(sp)
+ld s1, 24(sp)
 addi sp, sp, 40
 ret
 
@@ -154,7 +154,6 @@ addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
-mv zero, zero
 .L3:
 addi t2, sp, 0
 li t1, 0

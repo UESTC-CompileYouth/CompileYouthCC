@@ -61,7 +61,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-sd s0, 464(sp)
+sd s0, 456(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -105,7 +105,6 @@ addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
-mv zero, zero
 .L1:
 addi s1, sp, 0
 li t1, 0
@@ -44203,7 +44202,7 @@ addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
 addi sp, sp, 2032
-ld s0, 464(sp)
+ld s0, 456(sp)
 addi sp, sp, -2032
 addi sp, sp, -2032
 addi sp, sp, -2032
@@ -44269,32 +44268,32 @@ func:
 .entry_func:
 addi sp, sp, -272
 sd ra, 264(sp)
-sd s4, 256(sp)
-sd s3, 248(sp)
-sd s2, 240(sp)
-sd s5, 232(sp)
-sd s0, 224(sp)
-sd s1, 208(sp)
+sd s3, 256(sp)
+sd s0, 248(sp)
+sd s5, 240(sp)
+sd s1, 224(sp)
+sd s4, 216(sp)
+sd s2, 208(sp)
 lw t0, 272(sp)
 .L8:
-addi s3, sp, 0
-sw a0, 0(s3)
-addi s2, sp, 4
-sd a1, 0(s2)
-addi s5, sp, 12
-sw a2, 0(s5)
+addi s2, sp, 0
+sw a0, 0(s2)
+addi s5, sp, 4
+sd a1, 0(s5)
+addi s3, sp, 12
+sw a2, 0(s3)
 addi s4, sp, 16
 sd a3, 0(s4)
-addi s0, sp, 24
-sw a4, 0(s0)
+addi a1, sp, 24
+sw a4, 0(a1)
 addi a2, sp, 28
 sw a5, 0(a2)
-addi a1, sp, 32
-sd a6, 0(a1)
-addi s1, sp, 40
-sw a7, 0(s1)
-addi a3, sp, 44
-sw t0, 0(a3)
+addi a3, sp, 32
+sd a6, 0(a3)
+addi s0, sp, 40
+sw a7, 0(s0)
+addi s1, sp, 44
+sw t0, 0(s1)
 li t0, 0
 j .L9
 .L9:
@@ -44304,8 +44303,8 @@ sltz t1, t1
 bne t1, zero, .L10
 j .L11
 .L10:
-lw a0, 0(s3)
-ld t2, 0(s2)
+lw a0, 0(s2)
+ld t2, 0(s5)
 li t1, 236
 mul t1, a0, t1
 add t2, t2, t1
@@ -44313,15 +44312,15 @@ li t1, 4
 mul t1, t0, t1
 add t1, t2, t1
 lw a0, 0(t1)
-sd t0, 72(sp)
-sd a2, 64(sp)
-sd a1, 56(sp)
-sd a3, 48(sp)
+sd a3, 72(sp)
+sd a1, 64(sp)
+sd a2, 56(sp)
+sd t0, 48(sp)
 call putint
-ld t0, 72(sp)
-ld a2, 64(sp)
-ld a1, 56(sp)
-ld a3, 48(sp)
+ld a3, 72(sp)
+ld a1, 64(sp)
+ld a2, 56(sp)
+ld t0, 48(sp)
 li t1, 1
 addiw t0, t0, 1
 j .L9
@@ -44334,7 +44333,7 @@ call putch
 ld a2, 96(sp)
 ld a3, 88(sp)
 ld a1, 80(sp)
-lw t2, 0(s5)
+lw t2, 0(s3)
 ld t1, 0(s4)
 li t0, 4
 mul t0, t2, t0
@@ -44348,52 +44347,52 @@ ld a1, 120(sp)
 ld a3, 112(sp)
 ld a2, 104(sp)
 li a0, 10
-sd a3, 144(sp)
+sd a1, 144(sp)
 sd a2, 136(sp)
-sd a1, 128(sp)
+sd a3, 128(sp)
 call putch
-ld a3, 144(sp)
+ld a1, 144(sp)
 ld a2, 136(sp)
-ld a1, 128(sp)
+ld a3, 128(sp)
 .L12:
-lw t1, 0(a3)
+lw t1, 0(s1)
 li t0, 10
 addi t0, t1, -10
 sltz t0, t0
 bne t0, zero, .L13
 j .L14
 .L13:
-lw t2, 0(a3)
-ld t1, 0(a1)
+lw t2, 0(s1)
+ld t1, 0(a3)
 li t0, 4
 mul t0, t2, t0
 add t2, t1, t0
-lw t1, 0(s1)
+lw t1, 0(s0)
 li t0, 128875
 mulw t1, t1, t0
 li t0, 3724
 remw t0, t1, t0
 sw t0, 0(t2)
-lw t1, 0(a3)
+lw t1, 0(s1)
 li t0, 1
 addiw t0, t1, 1
-sw t0, 0(a3)
-lw t1, 0(s1)
+sw t0, 0(s1)
+lw t1, 0(s0)
 li t0, 7
 addiw t0, t1, 7
-sw t0, 0(s1)
+sw t0, 0(s0)
 j .L12
 .L14:
-lw t1, 0(s0)
+lw t1, 0(a1)
 lw t0, 0(a2)
 addw a0, t1, t0
 ld ra, 264(sp)
-ld s4, 256(sp)
-ld s3, 248(sp)
-ld s2, 240(sp)
-ld s5, 232(sp)
-ld s0, 224(sp)
-ld s1, 208(sp)
+ld s3, 256(sp)
+ld s0, 248(sp)
+ld s5, 240(sp)
+ld s1, 224(sp)
+ld s4, 216(sp)
+ld s2, 208(sp)
 addi sp, sp, 272
 ret
 j .L9

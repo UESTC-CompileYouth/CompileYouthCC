@@ -3,7 +3,6 @@
 
 main:
 .entry_main:
-mv zero, zero
 .L1:
 li t0, 5
 li a0, 5

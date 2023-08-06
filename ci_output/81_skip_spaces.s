@@ -5,19 +5,18 @@ main:
 .entry_main:
 addi sp, sp, -480
 sd ra, 472(sp)
-sd s0, 464(sp)
-mv zero, zero
+sd s0, 456(sp)
 .L1:
 addi s0, sp, 0
 li t1, 0
 li t0, 0
 j .L2
 .L2:
-sd t1, 408(sp)
-sd t0, 400(sp)
+sd t0, 408(sp)
+sd t1, 400(sp)
 call getint
-ld t1, 408(sp)
-ld t0, 400(sp)
+ld t0, 408(sp)
+ld t1, 400(sp)
 li t2, 0
 addi t2, a0, 0
 snez t2, t2
@@ -57,7 +56,7 @@ j .L5
 li t1, 79
 remw a0, t0, t1
 ld ra, 472(sp)
-ld s0, 464(sp)
+ld s0, 456(sp)
 addi sp, sp, 480
 ret
 j .L2

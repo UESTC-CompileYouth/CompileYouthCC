@@ -99,7 +99,6 @@ main:
 .entry_main:
 addi sp, sp, -104
 sd ra, 96(sp)
-mv zero, zero
 .L19:
 li t1, 10
 lui t0, %hi(n)
@@ -184,18 +183,18 @@ mul t1, t0, t1
 add t1, t2, t1
 lw t1, 0(t1)
 mv a0, t1
-sd t2, 56(sp)
-sd t0, 48(sp)
+sd t0, 56(sp)
+sd t2, 48(sp)
 call putint
-ld t2, 56(sp)
-ld t0, 48(sp)
+ld t0, 56(sp)
+ld t2, 48(sp)
 li t1, 10
 li a0, 10
-sd t0, 72(sp)
-sd t2, 64(sp)
+sd t2, 72(sp)
+sd t0, 64(sp)
 call putch
-ld t0, 72(sp)
-ld t2, 64(sp)
+ld t2, 72(sp)
+ld t0, 64(sp)
 li t1, 1
 addiw t0, t0, 1
 j .L20

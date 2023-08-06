@@ -5,7 +5,6 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L1:
 call if_ifElse_
 ld ra, 16(sp)
@@ -14,7 +13,6 @@ ret
 
 if_ifElse_:
 .entry_if_ifElse_:
-mv zero, zero
 .L3:
 li t0, 5
 li t1, 10
@@ -34,11 +32,8 @@ mv a0, t0
 ret
 .L6:
 li t0, 25
-j .L8
+j .L5
 .L7:
 li t1, 15
 addiw t0, t0, 15
-j .L8
-.L8:
-mv zero, zero
 j .L5

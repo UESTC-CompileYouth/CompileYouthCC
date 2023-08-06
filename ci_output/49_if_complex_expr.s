@@ -5,14 +5,13 @@ main:
 .entry_main:
 addi sp, sp, -72
 sd ra, 64(sp)
-sd s1, 48(sp)
+sd s1, 56(sp)
 sd s0, 40(sp)
-mv zero, zero
 .L1:
 li s1, 5
 li s0, 5
 li t2, 1
-li t1, 2
+li t0, 2
 li t1, -2
 li t0, 2
 li a0, 1
@@ -65,7 +64,7 @@ call putint
 .L7:
 li a0, 0
 ld ra, 64(sp)
-ld s1, 48(sp)
+ld s1, 56(sp)
 ld s0, 40(sp)
 addi sp, sp, 72
 ret

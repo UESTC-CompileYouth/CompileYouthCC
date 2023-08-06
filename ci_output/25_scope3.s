@@ -6,8 +6,7 @@ main:
 addi sp, sp, -56
 sd ra, 48(sp)
 sd s0, 40(sp)
-sd s1, 24(sp)
-mv zero, zero
+sd s1, 32(sp)
 .L1:
 li a0, 97
 call putch
@@ -62,6 +61,6 @@ li t1, 77
 li a0, 46
 ld ra, 48(sp)
 ld s0, 40(sp)
-ld s1, 24(sp)
+ld s1, 32(sp)
 addi sp, sp, 56
 ret

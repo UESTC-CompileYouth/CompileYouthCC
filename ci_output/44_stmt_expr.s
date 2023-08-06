@@ -13,7 +13,6 @@ main:
 .entry_main:
 addi sp, sp, -24
 sd ra, 16(sp)
-mv zero, zero
 .L1:
 li t0, 0
 li t2, 1
