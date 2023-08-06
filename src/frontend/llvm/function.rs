@@ -244,19 +244,28 @@ impl Function {
         }
     }
 
+    ///
+    /// # Correctness
+    /// please make sure the basic block have no connection with other basic block
+    ///
     pub fn remove_bb(&mut self, bb_id: i32) {
         assert!(self.entry_bb_id() != bb_id);
+        for prev_bb in self.bb(bb_id).unwrap().prev_bb().clone() {
+            self.bb_mut(prev_bb)
+                .expect(format!("bb {} not exist", prev_bb).as_str())
+                .succ_bb_mut()
+                .retain(|bb_iter| *bb_iter != bb_id);
+        }
         for succ_bb in self.bb(bb_id).unwrap().succ_bb().clone() {
             self.bb_mut(succ_bb)
                 .expect(format!("bb {} not exist", succ_bb).as_str())
                 .prev_bb_mut()
                 .retain(|bb_iter| *bb_iter != bb_id);
         }
-        let need_remove_instrs = self.layout.inst_iter(bb_id).collect::<Vec<_>>();
-        self.layout.remove_bb(bb_id);
-        for inst_id in need_remove_instrs {
+        for inst_id in self.layout.inst_iter(bb_id) {
             self.instructions.remove(&inst_id);
         }
+        self.layout.remove_bb(bb_id);
         self.basic_blocks_mut().remove(&bb_id);
     }
 

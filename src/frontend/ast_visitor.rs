@@ -198,14 +198,8 @@ impl SysYAstVisitor<'_> {
         if shape.len() == 0 {
             panic!("Invalid Init List");
         }
-        let mut total_size = 1;
-        let mut child_size = 1;
-        for i in 0..shape.len() {
-            total_size *= shape[i];
-            if i > 0 {
-                child_size *= shape[i];
-            }
-        }
+        let total_size: i32 = shape.iter().product();
+        let child_size: i32 = shape[1..].iter().product();
         if total_size == 0 {
             return;
         }
@@ -221,27 +215,30 @@ impl SysYAstVisitor<'_> {
                     scalar_child.exp().unwrap().accept(self);
                     let return_content = self.return_content();
                     if self.value_mode == ValueMode::Const {
-                        let value = match return_content.into_exp().unwrap() {
-                            AstExp::StaticValue(immediate) => immediate,
-                            _ => panic!("Invalid Init List"),
-                        };
-                        let ssa_res = SSARightValue::new_imme(value);
-                        result.push(ssa_res);
+                        let value = return_content
+                            .into_exp()
+                            .unwrap()
+                            .into_static_value()
+                            .unwrap();
+                        result.push(SSARightValue::new_imme(value));
                     } else {
-                        let ssa_res = match return_content {
-                            AstReturnContent::Exp(AstExp::SSAValue(ssa_res)) => ssa_res,
-                            _ => panic!("Invalid Init List"),
-                        };
+                        let ssa_res = return_content.into_exp().unwrap().into_ssa_value().unwrap();
                         result.push(ssa_res);
                     }
                     cnt += 1;
                 }
                 InitValContextAll::ListInitvalContext(list_child) => {
-                    if cnt % child_size != 0 || cnt + child_size > total_size {
+                    if cnt + child_size > total_size {
                         panic!("Invalid Init List");
                     }
-                    self.dfs_var_init(list_child, &mut child_shape, result);
-                    cnt += child_size;
+                    let cur_ceil =
+                        (result.len() / (child_size as usize) + 1) * (child_size as usize);
+                    let need = cur_ceil - result.len();
+                    let mut child_result = Vec::new();
+                    self.dfs_var_init(list_child, &mut child_shape, &mut child_result);
+                    child_result.truncate(need);
+                    result.append(&mut child_result);
+                    cnt += need as i32;
                 }
                 InitValContextAll::Error(_) => {}
             }
@@ -2501,7 +2498,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let res_type = Type::new_type(lhs.get_type(), rhs.get_type());
         let lhs = self.convert_type(lhs, res_type);
         let rhs = self.convert_type(rhs, res_type);
-        let ret_ssa = self.cur_function().new_reg(res_type);
+        let ret_ssa = self.cur_function().new_reg(Type::Int);
         let cmp_ir = if res_type.is_int() {
             Instruction::new(
                 Box::new(Icmp {

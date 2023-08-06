@@ -6,7 +6,7 @@ use crate::frontend::llvm::{
     llvm_module::LLVMModule,
     ssa::SSARightValue,
 };
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 /// mem2reg for function
 fn mem2reg_for_func(func: &mut Function) -> HashSet<SSARightValue> {
@@ -117,52 +117,4 @@ pub fn mem2reg_without_renaming(module: &mut LLVMModule) {
         println!("mem2reg_for_func {}: {:?}", f.name(), value_reg);
         ssa_construction_without_renaming(f, &value_reg);
     });
-}
-
-pub fn remove_unreachable_bb_module(module: &mut LLVMModule) {
-    module.for_each_user_func_mut(|f| remove_unreachable_bb_function(f));
-}
-
-fn remove_unreachable_bb_function(f: &mut Function) {
-    let bbs = f
-        .layout()
-        .basic_blocks()
-        .into_iter()
-        .map(|(bb, _)| *bb)
-        .collect::<HashSet<i32>>();
-
-    let mut visited: HashSet<i32> = HashSet::new();
-    let mut reachable: HashSet<i32> = HashSet::new();
-
-    dfs_mark_bb(&mut visited, &mut reachable, f.entry_bb_id(), f);
-
-    let mut unreachable_bbs = bbs
-        .difference(&reachable)
-        .into_iter()
-        .map(|id| *id)
-        .collect::<VecDeque<i32>>();
-    while !unreachable_bbs.is_empty() {
-        let current_bb = unreachable_bbs.pop_front().unwrap();
-        if f.bb(current_bb).unwrap().prev_bb().len() == 0 {
-            f.remove_bb(current_bb);
-        } else {
-            unreachable_bbs.push_back(current_bb);
-        }
-    }
-}
-
-fn dfs_mark_bb(
-    visited: &mut HashSet<i32>,
-    reachable: &mut HashSet<i32>,
-    current_bb: i32,
-    f: &Function,
-) {
-    if visited.contains(&current_bb) {
-        return;
-    }
-    visited.insert(current_bb);
-    reachable.insert(current_bb);
-    for succ in f.bb(current_bb).unwrap().succ_bb() {
-        dfs_mark_bb(visited, reachable, *succ, f);
-    }
 }
