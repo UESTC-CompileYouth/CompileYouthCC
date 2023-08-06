@@ -1,9 +1,31 @@
 use super::mem_scope::MemScope;
 use super::{basic_block::BasicBlock, instr::*, layout::*, ssa::*};
 use crate::common::r#type::Type;
+use enum_as_inner::EnumAsInner;
 use getset::{Getters, MutGetters, Setters};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+
+#[derive(Debug, EnumAsInner, Clone)]
+pub enum ArgumentList {
+    Variadic,
+    Normal(Vec<SSALeftValue>),
+}
+
+impl Default for ArgumentList {
+    fn default() -> Self {
+        Self::Normal(Vec::new())
+    }
+}
+
+impl ArgumentList {
+    pub fn is_normal(&self) -> bool {
+        match self {
+            Self::Normal(_) => true,
+            _ => false,
+        }
+    }
+}
 
 #[derive(Debug, Default, Getters, Setters, MutGetters)]
 pub struct Function {
@@ -14,7 +36,7 @@ pub struct Function {
     #[getset(get = "pub")]
     is_lib_func: bool,
     #[getset(get = "pub", get_mut = "pub", set = "pub")]
-    arg_list: Vec<(String, SSALeftValue)>,
+    arg_list: ArgumentList,
     #[getset(get = "pub", get_mut = "pub", set = "pub")]
     mem_scope: MemScope,
     #[getset(get = "pub")]
@@ -34,7 +56,7 @@ impl Function {
             ret_type: ret_type,
             layout: Layout::new(),
             is_lib_func: false,
-            arg_list: Vec::new(),
+            arg_list: ArgumentList::default(),
             mem_scope: MemScope::new(name.clone(), false),
             cur_inst_id: 1,
             cur_ssa_id: 0,
@@ -43,13 +65,13 @@ impl Function {
         }
     }
 
-    pub fn new_lib_func(name: String, ret_type: Type) -> Function {
+    pub fn new_lib_func(name: String, ret_type: Type, arg_list: ArgumentList) -> Function {
         Function {
-            name: name.clone(),
-            ret_type: ret_type,
+            name,
+            ret_type,
             layout: Layout::new(),
             is_lib_func: true,
-            arg_list: Vec::new(),
+            arg_list,
             mem_scope: MemScope::default(),
             cur_inst_id: 1,
             cur_ssa_id: 0,
@@ -62,25 +84,8 @@ impl Function {
         self.cur_ssa_id
     }
 
-    pub fn set_lib_func_arg_list(&mut self, type_list: Vec<Type>) {
-        let mut list: Vec<(String, SSALeftValue)> = vec![];
-        for ty in type_list {
-            if ty == Type::Void {
-                panic!("lib function {} cannot have void arg", self.name);
-            }
-            let id = self.alloc_ssa_id();
-            let arg_entry = SSALeftValue::new(id, ty);
-            list.push(("arg_".to_string() + &id.to_string(), arg_entry));
-        }
-        self.arg_list = list;
-    }
-
     pub fn inst_len(&self) -> i32 {
         self.cur_inst_id - 1
-    }
-
-    pub fn append_arg(&mut self, arg: (String, SSALeftValue)) {
-        self.arg_list.push(arg);
     }
 
     pub fn alloc_ssa_id(&mut self) -> i32 {
@@ -119,15 +124,23 @@ impl Function {
         bb_id
     }
 
-    pub fn add_inst2bb(&mut self, instr: Instruction) -> i32 {
+    pub fn add_inst2bb(&mut self, instr: Instruction) {
         let inst_id = self.alloc_inst_id();
         let bb_id = instr.bb_id();
+        if *self.bb_mut(bb_id).unwrap().have_exit() {
+            log::warn!(
+                "basic block {} already have exit, omit instruction: {:?}",
+                bb_id,
+                instr
+            );
+            return;
+        }
         if instr.is_branch() || instr.is_ret() {
-            if *self.bb_mut(bb_id).unwrap().have_exit() {
-                panic!("basic block {} already have exit", bb_id);
-            } else {
-                self.bb_mut(bb_id).unwrap().set_have_exit(true);
-            }
+            // if *self.bb_mut(bb_id).unwrap().have_exit() {
+            //     panic!("basic block {} already have exit", bb_id);
+            // } else {
+            self.bb_mut(bb_id).unwrap().set_have_exit(true);
+            //}
         }
         self.instructions.insert(inst_id, instr);
         let bb_node = self.layout.block_node(bb_id);
@@ -136,7 +149,6 @@ impl Function {
         } else {
             self.layout.append_inst(inst_id, bb_id);
         }
-        inst_id
     }
 
     pub fn add_insts2bb(&mut self, instrs: Vec<Instruction>) {
@@ -232,40 +244,32 @@ impl Function {
         }
     }
 
+    ///
+    /// # Correctness
+    /// please make sure the basic block have no connection with other basic block
+    ///
     pub fn remove_bb(&mut self, bb_id: i32) {
         assert!(self.entry_bb_id() != bb_id);
+        for prev_bb in self.bb(bb_id).unwrap().prev_bb().clone() {
+            self.bb_mut(prev_bb)
+                .expect(format!("bb {} not exist", prev_bb).as_str())
+                .succ_bb_mut()
+                .retain(|bb_iter| *bb_iter != bb_id);
+        }
         for succ_bb in self.bb(bb_id).unwrap().succ_bb().clone() {
             self.bb_mut(succ_bb)
                 .expect(format!("bb {} not exist", succ_bb).as_str())
                 .prev_bb_mut()
                 .retain(|bb_iter| *bb_iter != bb_id);
         }
-        let need_remove_instrs = self.layout.inst_iter(bb_id).collect::<Vec<_>>();
-        self.layout.remove_bb(bb_id);
-        for inst_id in need_remove_instrs {
+        for inst_id in self.layout.inst_iter(bb_id) {
             self.instructions.remove(&inst_id);
         }
+        self.layout.remove_bb(bb_id);
         self.basic_blocks_mut().remove(&bb_id);
     }
 
     pub fn remove_inst(&mut self, inst_id: i32) {
-        // if self.instructions.contains_key(&inst_id) {
-        //     if let Some(inst_node) = self.layout.instructions().get(&inst_id).cloned() {
-        //         // 调整layout中node的前后继关系
-        //         if let Some(prev_id) = inst_node.prev {
-        //             if let Some(prev_node) = self.layout.instructions_mut().get_mut(&prev_id) {
-        //                 prev_node.next = inst_node.next;
-        //             }
-        //         }
-
-        //         if let Some(succ_id) = inst_node.next {
-        //             if let Some(succ_node) = self.layout.instructions_mut().get_mut(&succ_id) {
-        //                 succ_node.prev = inst_node.prev;
-        //             }
-        //         }
-
-        //     }
-        // }
         // 删除指令
         self.layout.remove_inst(inst_id);
         self.instructions.remove(&inst_id);
@@ -306,19 +310,28 @@ impl Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_lib_func {
+            unimplemented!("lib func not support print");
+        }
         let mut func_def = format!("define {} @{}(", self.ret_type, self.name);
-        let size = self.arg_list.len();
+        let arg_list = self.arg_list.as_normal().unwrap();
+        let arg_num = arg_list.len();
         let mut cnt = 0;
-        for (_, var) in self.arg_list.iter() {
+        for var in arg_list.iter() {
             cnt += 1;
-            func_def.push_str(format!("{} ", var.get_type()).as_str());
-            for _i in var.get_shape() {
-                func_def.push_str("*");
+            func_def.push_str(format!("{}", var.ty()).as_str());
+            for i in var.shape() {
+                if *i == -1 {
+                    func_def.push_str("[]");
+                } else {
+                    func_def.push_str("[");
+                    func_def.push_str(i.to_string().as_str());
+                    func_def.push_str("]");
+                }
             }
 
-            func_def.push_str(" %");
-            func_def.push_str(var.id().to_string().as_str());
-            if cnt != size {
+            func_def.push_str(format!(" {}", var).as_str());
+            if cnt != arg_num {
                 func_def.push_str(", ");
             }
         }
@@ -326,8 +339,7 @@ impl Display for Function {
         writeln!(f, "{}", func_def)?;
 
         // visit basic blocks
-        let bb_iter = self.layout.block_iter();
-        for bb_id in bb_iter {
+        for bb_id in self.layout.block_iter() {
             let bb = self.basic_blocks.get(&bb_id).unwrap();
             write!(f, "{} ({}):", bb_id, bb.alias())?;
             if bb.prev_bb().len() != 0 {
@@ -337,13 +349,11 @@ impl Display for Function {
                 }
             }
             writeln!(f, "")?;
-            let inst_iter = self.layout.inst_iter(bb_id);
-            for inst_id in inst_iter {
+            for inst_id in self.layout.inst_iter(bb_id) {
                 let inst = self.instructions.get(&inst_id).unwrap();
                 write!(f, "  {:?}", inst)?;
             }
         }
-
         writeln!(f, "}}")?;
         Ok(())
     }

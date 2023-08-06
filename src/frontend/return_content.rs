@@ -25,7 +25,7 @@ pub enum AstReturnContent {
     FuncType(Type),
     NumLiteral(Immediate),
     Exp(AstExp),
-    Lvalue(SSALeftValue),
+    // Lvalue(SSALeftValue),
     FuncRparams(Vec<SSARightValue>),
     FuncFParams(Vec<(String, SSALeftValue)>),
     FuncFParam((String, SSALeftValue)),

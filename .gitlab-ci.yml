@@ -24,16 +24,19 @@ pre_check:
 unit_test:
   stage: test
   script:
-    - cargo test --release
-    
+    - cargo test
+
+
 # test SysYCC correctness 
 functional_test:
   stage: test
   script:
-    - cargo build --release
+    - rm -rf ci_output
+    - cargo build -r --bin compiler
+    - bash scripts/ci_functional_test.sh
     
 # test SysYCC optimization performance 
 performance_test:
   stage: test
   script:
-    - cargo build --release
+    - echo "todo"

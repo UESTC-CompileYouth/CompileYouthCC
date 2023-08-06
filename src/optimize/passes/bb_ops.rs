@@ -1,4 +1,5 @@
 use crate::common::r#type::Type;
+use crate::frontend::llvm::instr::FMov;
 use crate::frontend::llvm::{
     function::Function,
     instr::{Branch, Instruction, Mov, Phi},
@@ -101,10 +102,18 @@ pub fn remove_phi_in_function(f: &mut Function) {
             // println!("{:?}", mov_vec);
             let emit_copy = |a: &SSARightValue, b: &SSARightValue, f: &mut Function| {
                 // println!("!!!!!!!!!!!!");
-                f.add_inst2bb(Instruction::new(
-                    Box::new(Mov::new(b.clone(), a.clone())),
-                    new_bb_id,
-                ));
+                assert!(a.get_type() == b.get_type());
+                if a.get_type() == Type::Float {
+                    f.add_inst2bb(Instruction::new(
+                        Box::new(FMov::new(b.clone(), a.clone())),
+                        new_bb_id,
+                    ));
+                } else {
+                    f.add_inst2bb(Instruction::new(
+                        Box::new(Mov::new(b.clone(), a.clone())),
+                        new_bb_id,
+                    ));
+                }
             };
 
             let mut pred = HashMap::new();
@@ -196,12 +205,13 @@ pub fn remove_phi_in_function(f: &mut Function) {
 
 #[test]
 fn main() {
-    use super::mem2reg::{mem2reg, remove_unreachable_bb_module};
+    use super::mem2reg::mem2reg;
     use crate::common::test_file_iter::TestFileIter;
     use crate::frontend::antlr_dep::sysylexer::SysYLexer;
     use crate::frontend::antlr_dep::sysyparser::SysYParser;
     use crate::frontend::antlr_dep::sysyvisitor::SysYVisitor;
     use crate::frontend::ast_visitor::SysYAstVisitor;
+    use crate::optimize::passes::dce::remove_useless_bb;
     use antlr_rust::{common_token_stream::CommonTokenStream, InputStream};
     // use structopt::StructOpt;
 
@@ -259,7 +269,7 @@ fn main() {
 
         /* passes */
         // mem2reg
-        remove_unreachable_bb_module(&mut llvm_module);
+        remove_useless_bb(&mut llvm_module);
         mem2reg(&mut llvm_module);
 
         let main = llvm_module.functions_mut().get_mut("main").unwrap();

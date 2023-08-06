@@ -13,8 +13,9 @@ use sysycc_compiler::frontend::{
     error_listener::SysYErrorListener, llvm::llvm_module::LLVMModule,
 };
 use sysycc_compiler::optimize::passes::bb_ops::remove_phi;
-use sysycc_compiler::optimize::passes::dce::remove_unused_def;
-use sysycc_compiler::optimize::passes::mem2reg::{mem2reg, remove_unreachable_bb_module};
+use sysycc_compiler::optimize::passes::check_ir::check_module;
+use sysycc_compiler::optimize::passes::dce::{remove_unused_def, remove_useless_bb};
+use sysycc_compiler::optimize::passes::mem2reg::mem2reg;
 
 /// Command Line Options Parser
 #[derive(StructOpt, Debug)]
@@ -33,10 +34,15 @@ struct CompilerOptions {
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
-    simple_logger::init_with_level(
-        log::Level::from_str(&cmdline_options.log_level).expect("wrong log level"),
-    )
-    .expect("cannot init logger");
+    {
+        let env = env_logger::Env::new();
+        let mut builder = env_logger::Builder::new();
+        builder.filter_level(
+            log::LevelFilter::from_str(&cmdline_options.log_level).expect("wrong log level"),
+        );
+        builder.parse_env(env);
+        builder.init();
+    }
     let contents =
         std::fs::read_to_string(cmdline_options.input_file).expect("cannot open source file");
     let input = InputStream::new(contents.as_bytes());
@@ -62,10 +68,13 @@ fn main() {
     /* passes */
     // mem2reg
     // println!("{}", llvm_module);
-    remove_unreachable_bb_module(&mut llvm_module);
+    remove_useless_bb(&mut llvm_module);
     mem2reg(&mut llvm_module);
+    check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);
+    check_module(&llvm_module);
     remove_phi(&mut llvm_module);
+    // check_module(&llvm_module);
     llvm_module.before_backend();
 
     /* backend */

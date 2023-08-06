@@ -190,8 +190,7 @@ impl Layout {
             self.instructions.get_mut(&inst).unwrap().block = None;
             cur = self.instructions[&inst].next;
         }
-        let need_remove_instrs = self.inst_iter(id).collect::<Vec<_>>();
-        for inst in need_remove_instrs {
+        for inst in self.inst_iter(id).collect::<Vec<_>>() {
             self.instructions.remove(&inst);
         }
         self.basic_blocks.remove(&id);

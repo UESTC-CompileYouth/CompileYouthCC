@@ -1,13 +1,9 @@
-use crate::frontend::llvm::{
-    function::Function,
-    instr::{self, *},
-    llvm_module::LLVMModule,
-};
+use crate::frontend::llvm::{function::Function, instr::*, llvm_module::LLVMModule};
 use std::collections::{HashMap, HashSet};
 
-pub fn build_defs(f: &Function) -> HashMap<i32, i32> {
+fn build_defs(f: &Function) -> HashMap<i32, i32> {
     let mut defs = HashMap::new();
-    for (_, arg) in f.arg_list() {
+    for arg in f.arg_list().as_normal().unwrap().iter() {
         defs.insert(*arg.id(), 0); // instruction id 0 is reserved
     }
     for bb_id in f.layout().block_iter() {
@@ -23,7 +19,7 @@ pub fn build_defs(f: &Function) -> HashMap<i32, i32> {
     defs
 }
 
-pub fn check_ir(f: &Function) {
+fn check_ir(f: &Function) {
     let defs = build_defs(f);
     for bb_id in f.layout().block_iter() {
         let bb = f.bb(bb_id).unwrap();
@@ -70,27 +66,23 @@ pub fn check_ir(f: &Function) {
                 }
             }
         }
-        if f.name() != "_init" {
-            assert!(f.layout().inst_iter(bb_id).next() != None);
-            let last_instr_id = f
-                .layout()
-                .basic_blocks()
-                .get(&bb_id)
-                .unwrap()
-                .last_inst()
-                .unwrap();
-            let last_instr = f.instructions().get(&last_instr_id).unwrap();
-            if last_instr.is_branch() || last_instr.is_ret() {
-                continue;
-            } else {
-                panic!("bb {} does not end with branch or ret", bb_id);
-            }
+        assert!(f.layout().inst_iter(bb_id).next() != None);
+        let last_instr_id = f
+            .layout()
+            .basic_blocks()
+            .get(&bb_id)
+            .unwrap()
+            .last_inst()
+            .unwrap();
+        let last_instr = f.instructions().get(&last_instr_id).unwrap();
+        if last_instr.is_branch() || last_instr.is_ret() {
+            continue;
+        } else {
+            panic!("bb {} does not end with branch or ret", bb_id);
         }
     }
 }
 
-pub fn check_module(m: &LLVMModule) {
-    for (_, f) in m.functions() {
-        check_ir(f);
-    }
+pub fn check_module(module: &LLVMModule) {
+    module.for_each_user_func(check_ir);
 }

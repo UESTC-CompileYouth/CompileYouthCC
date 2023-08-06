@@ -17,9 +17,9 @@ if (($# >= 1)); then
 			output_path=$source_dir
 		fi
 		for syfile in $source_dir/*.sy; do
-			# echo "$syfile"
+			echo "$syfile"
 			syfile_basename=$(basename $syfile)
-			./build/RunCompiler -asm $syfile $output_path/${syfile_basename%%.sy}.s $log_level
+			./target/release/compiler $syfile -o $output_path/${syfile_basename%%.sy}.s --log-level $log_level
 		done
 	else
 		syfile=$source_path # is file
@@ -27,7 +27,7 @@ if (($# >= 1)); then
 		if [ -z "$output_path" ]; then
 			output_path=$(dirname $syfile)
 		fi
-		./build/RunCompiler -asm $syfile $output_path/${syfile_basename%%.sy}.s $log_level
+		./target/release/compiler $syfile -o $output_path/${syfile_basename%%.sy}.s --log-level $log_level
 	fi
 else
 	echo "use it like $: sh ./scripts/generate_my_asm.sh test/functional/30_continue.sy output/asm/functional info \
