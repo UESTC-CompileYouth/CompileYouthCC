@@ -6,11 +6,7 @@ use std::{
     vec,
 };
 
-use crate::backend::{
-    block::Block,
-    function::Function,
-    instr::{InstrTrait, RegType},
-};
+use crate::backend::{block::Block, function::Function, instr::InstrTrait};
 use crate::common::r#type::Type;
 
 pub(crate) struct LivenessAnalysis {
