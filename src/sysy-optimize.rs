@@ -16,7 +16,7 @@ use sysycc_compiler::optimize::passes::{
     check_ir::check_module,
     dce::remove_unused_def,
     gvn::global_value_numbering,
-    mem2reg::{mem2reg, remove_unreachable_bb_module},
+    mem2reg::mem2reg,
 };
 
 /// Command Line Options Parser
