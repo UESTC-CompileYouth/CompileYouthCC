@@ -13,7 +13,7 @@ use sysycc_compiler::frontend::{
 };
 use sysycc_compiler::optimize::passes::bb_ops::remove_phi;
 use sysycc_compiler::optimize::passes::check_ir::check_module;
-use sysycc_compiler::optimize::passes::dce::{remove_useless_bb, remove_unused_def};
+use sysycc_compiler::optimize::passes::dce::{remove_unused_def, remove_useless_bb};
 use sysycc_compiler::optimize::passes::mem2reg::mem2reg;
 
 /// Command Line Options Parser

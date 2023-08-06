@@ -1504,7 +1504,7 @@ mod tests {
         },
         optimize::passes::{
             bb_ops::remove_phi,
-            dce::{remove_useless_bb, remove_unused_def},
+            dce::{remove_unused_def, remove_useless_bb},
             mem2reg::mem2reg,
         },
     };

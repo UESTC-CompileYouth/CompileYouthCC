@@ -244,10 +244,10 @@ impl Function {
         }
     }
 
-    /// 
+    ///
     /// # Correctness
     /// please make sure the basic block have no connection with other basic block
-    /// 
+    ///
     pub fn remove_bb(&mut self, bb_id: i32) {
         assert!(self.entry_bb_id() != bb_id);
         for prev_bb in self.bb(bb_id).unwrap().prev_bb().clone() {
