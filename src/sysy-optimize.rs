@@ -29,10 +29,15 @@ struct CompilerOptions {
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
-    simple_logger::init_with_level(
-        log::Level::from_str(&cmdline_options.log_level).expect("wrong log level"),
-    )
-    .expect("cannot init logger");
+    {
+        let env = env_logger::Env::new();
+        let mut builder = env_logger::Builder::new();
+        builder.filter_level(
+            log::LevelFilter::from_str(&cmdline_options.log_level).expect("wrong log level"),
+        );
+        builder.parse_env(env);
+        builder.init();
+    }
     let contents =
         std::fs::read_to_string(cmdline_options.input_file).expect("cannot open source file");
     let input = InputStream::new(contents.as_bytes());

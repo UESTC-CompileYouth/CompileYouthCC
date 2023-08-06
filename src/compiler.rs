@@ -4,6 +4,7 @@ extern crate structopt;
 use antlr_rust::{common_token_stream::CommonTokenStream, InputStream, Parser as AntlrParser};
 use std::fs::File;
 use std::io::Write;
+use std::str::FromStr;
 use structopt::StructOpt;
 use sysycc_compiler::backend::program::Program;
 use sysycc_compiler::frontend::{
@@ -26,17 +27,22 @@ struct CompilerOptions {
     #[structopt(short, help = "output assembly file")]
     output_file: Option<String>,
     #[structopt(long, default_value = "INFO", help = "config log filter level")]
-    _log_level: String,
+    log_level: String,
     #[structopt(short = "O", default_value = "0", help = "optimization level")]
     _optimization_level: u8,
 }
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
-    // simple_logger::init_with_level(
-    //     log::Level::from_str(&cmdline_options.log_level).expect("wrong log level"),
-    // )
-    // .expect("cannot init logger");
+    {
+        let env = env_logger::Env::new();
+        let mut builder = env_logger::Builder::new();
+        builder.filter_level(
+            log::LevelFilter::from_str(&cmdline_options.log_level).expect("wrong log level"),
+        );
+        builder.parse_env(env);
+        builder.init();
+    }
     let contents =
         std::fs::read_to_string(cmdline_options.input_file).expect("cannot open source file");
     let input = InputStream::new(contents.as_bytes());
