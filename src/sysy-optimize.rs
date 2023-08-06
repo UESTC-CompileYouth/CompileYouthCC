@@ -14,6 +14,7 @@ use sysycc_compiler::frontend::{
 use sysycc_compiler::optimize::passes::{
     check_ir::check_module,
     dce::remove_unused_def,
+    gvn::global_value_numbering,
     mem2reg::{mem2reg, remove_unreachable_bb_module},
 };
 
@@ -61,6 +62,8 @@ fn main() {
     // println!("{}", llvm_module);
     remove_unreachable_bb_module(&mut llvm_module);
     mem2reg(&mut llvm_module);
+    remove_unused_def(&mut llvm_module);
+    global_value_numbering(&mut llvm_module);
     remove_unused_def(&mut llvm_module);
     check_module(&llvm_module);
 

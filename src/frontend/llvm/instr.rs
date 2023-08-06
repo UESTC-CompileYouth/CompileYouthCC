@@ -71,7 +71,7 @@ pub trait RegUseInstr: Instr + Debug {
     fn uses_mut(&mut self) -> Vec<&mut SSARightValue>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum UnaryOp {
     Neg,
     Not,
@@ -83,13 +83,16 @@ pub enum UnaryOp {
 }
 
 pub trait UnaryInstr: RegUseInstr + RegWriteInstr {
+    fn d1(&self) -> &SSARightValue {
+        self.des_register().unwrap()
+    }
     fn s1(&self) -> &SSARightValue {
         self.uses()[0]
     }
     fn unary_op(&self) -> UnaryOp;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -109,6 +112,9 @@ pub enum BinaryOp {
 }
 
 pub trait BinaryInstr: RegUseInstr + RegWriteInstr {
+    fn d1(&self) -> &SSARightValue {
+        self.des_register().unwrap()
+    }
     fn s1(&self) -> &SSARightValue {
         self.uses()[0]
     }
@@ -398,6 +404,13 @@ pub struct Mov {
     d1: SSARightValue,
     #[getset(get = "pub", get_mut = "pub")]
     s1: SSARightValue,
+}
+
+impl Mov {
+    pub fn set_s1(&mut self, s1: SSARightValue) {
+        assert!(s1.get_type() == Type::Int);
+        self.s1 = s1;
+    }
 }
 
 impl Debug for Mov {
@@ -1319,7 +1332,7 @@ impl UnaryInstr for Not {
     }
 }
 
-#[derive(PartialEq, EnumString, Clone, new)]
+#[derive(Debug, PartialEq, EnumString, Clone, new, Eq, Hash, Copy)]
 pub enum CmpType {
     #[strum(serialize = "==")]
     EQ,

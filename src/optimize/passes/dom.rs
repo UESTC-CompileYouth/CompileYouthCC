@@ -1,11 +1,12 @@
 use crate::frontend::llvm::function::Function;
-use getset::Getters;
+use getset::{Getters, MutGetters};
 use std::collections::{HashMap, HashSet};
 
 type IdBB = i32;
 
-#[derive(Debug, Getters)]
+#[derive(Debug, Getters, MutGetters)]
 pub struct DominatorTreeBuilder<'func_lifetime> {
+    #[getset(get = "pub", get_mut = "pub")]
     f: &'func_lifetime Function,
     root: IdBB,
     #[getset(get = "pub")]
@@ -124,11 +125,7 @@ impl<'func_lifetime> DominatorTreeBuilder<'func_lifetime> {
         }
     }
 
-    fn build_dfsn_order(
-        &mut self,
-        visited: &mut HashSet<IdBB>,
-        root: IdBB,
-    ) {
+    fn build_dfsn_order(&mut self, visited: &mut HashSet<IdBB>, root: IdBB) {
         if !visited.contains(&root) {
             visited.insert(root);
             self.dfsn_order.push(root);
