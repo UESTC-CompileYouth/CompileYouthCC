@@ -725,26 +725,34 @@ impl<'a> GVNContext<'a> {
                             .insert(key);
                     }
                 }
-            } else if let Some(load_instr) = self
-                .func
-                .instructions()
-                .get(&i)
-                .unwrap()
-                .instr()
-                .as_any()
-                .downcast_ref::<Load>()
-            {
-                let key = load_instr.addr().clone();
-                if self.addr_values.contains_key(&key) {
-                    self.replace_same_value(*load_instr.d1().id(), self.addr_values[&key]);
-                } else {
-                    self.addr_values.insert(key.clone(), *load_instr.d1().id());
-                    self.gvn_nodes
-                        .get_mut(node_id)
-                        .unwrap()
-                        .new_addrs
-                        .insert(key);
-                }
+            // } else if let Some(load_instr) = self
+            //     .func
+            //     .instructions()
+            //     .get(&i)
+            //     .unwrap()
+            //     .instr()
+            //     .as_any()
+            //     .downcast_ref::<Load>()
+            // {
+            //     let key = load_instr.addr().clone();
+            //     if self.addr_values.contains_key(&key) {
+            //         self.replace_same_value(*load_instr.d1().id(), self.addr_values[&key]);
+            //     } else {
+            //         self.addr_values.insert(key.clone(), *load_instr.d1().id());
+            //         self.gvn_nodes
+            //             .get_mut(node_id)
+            //             .unwrap()
+            //             .new_addrs
+            //             .insert(key);
+            //     }
+            // } else if let Some(store_instr) = self. func.instructions().get(&i).unwrap().instr().as_any().downcast_ref::<Store>() {
+            //     let addr = store_instr.addr();
+            //     let s1 = store_instr.s1();
+            //     if !s1.is_immediate() && !s1.is_global() {
+            //         if self.scalar_value_by_reg.contains_key(s1.id()) {
+            //             self.scalar_value_by_reg.insert(*addr.id(), self.scalar_value_by_reg[s1.id()]);
+            //         }
+            //     }
             } else if let Some(phi_instr) = self
                 .func
                 .instructions()
