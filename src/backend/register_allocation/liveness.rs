@@ -6,11 +6,7 @@ use std::{
     vec,
 };
 
-use crate::backend::{
-    block::Block,
-    function::Function,
-    instr::{InstrTrait, RegType},
-};
+use crate::backend::{block::Block, function::Function, instr::InstrTrait};
 use crate::common::r#type::Type;
 
 pub(crate) struct LivenessAnalysis {
@@ -25,21 +21,13 @@ impl LivenessAnalysis {
 
         for block in function.blocks().iter() {
             // 获取block中的inst_ids
-            let mut insts: Vec<(i32, Box<&dyn InstrTrait>)> = vec![];
-            let mut i = 0;
-            for ele in block.instrs().iter() {
-                let b = Box::new(ele.as_ref().clone());
-                insts.push((i, b));
-                i += 1;
-            }
-            insts.reverse();
-
-            // println!("SHOW YOU !!!!");
-            // insts.iter().for_each(|(id, i)| {
-            //     println!("{}: {} {:?}", id, i.gen_asm(), i.get_operands());
-            // });
-            // println!("END SHOW YOU !!!!");
-
+            let insts = block
+                .instrs()
+                .iter()
+                .enumerate()
+                .map(|(i, ele)| (i as i32, ele))
+                .rev()
+                .collect();
             // 构造block_liveness
             res.block_liveness_map.insert(
                 *block.id(),
@@ -52,7 +40,7 @@ impl LivenessAnalysis {
             let mut changed = false;
             for block in function.blocks().iter() {
                 // let bb = function.basic_blocks().get(&block_id).unwrap();
-                let block_liveness = res.block_liveness_map.get(&block.id()).unwrap();
+                let block_liveness = res.block_liveness_map.get(block.id()).unwrap();
                 changed = changed
                     || block_liveness.clone().borrow_mut().update(
                         block,
@@ -96,7 +84,7 @@ impl Display for BlockLiveness {
 }
 
 impl BlockLiveness {
-    pub(crate) fn new(insts: Vec<(i32, Box<&dyn InstrTrait>)>, reg_type: Type) -> BlockLiveness {
+    pub(crate) fn new(insts: Vec<(i32, &Box<dyn InstrTrait>)>, reg_type: Type) -> BlockLiveness {
         let mut block_liveness = BlockLiveness {
             inst_gen_map: HashMap::new(),
             inst_kill_map: HashMap::new(),
@@ -186,7 +174,7 @@ impl BlockLiveness {
         let mut out;
 
         for succ in bb.out_edges().iter() {
-            let succ_bb_block_liveness = block_liveness.get(&succ).unwrap();
+            let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
             let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
             let succ_bb_first_inst = succ_bb_block_liveness.first_inst_id();
 

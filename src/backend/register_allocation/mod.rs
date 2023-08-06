@@ -56,20 +56,20 @@ impl Debug for InterferenceGraph {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "k: {}", self.k)?;
         writeln!(f, "nodes: {:?}", self.nodes.keys().sorted())?;
-        println!("EDGES: ");
+        writeln!(f, "EDGES: ")?;
         for (n, node) in self.nodes.iter() {
-            println!("{}: {:?}", n, node.adj_list);
+            writeln!(f, "{}: {:?}", n, node.adj_list)?;
         }
         writeln!(f, "combined_mapping: {:?}", self.combined_mapping)?;
         writeln!(f, "move_edges: {:?}", self.move_edges)?;
-        println!("COLORING: ");
+        writeln!(f, "COLORING: ")?;
         for (n, node) in self.nodes.iter() {
-            println!("{}: {}", n, node.color);
+            writeln!(f, "{}: {}", n, node.color)?;
         }
         for u in self.combined_mapping.keys() {
             let mapped = &self.map_combine(*u);
             let u_color = self.nodes.get(mapped).unwrap().color;
-            println!("{} -> {}: {}", u, mapped, u_color);
+            writeln!(f, "{} -> {}: {}", u, mapped, u_color)?;
         }
         Ok(())
     }
@@ -135,12 +135,11 @@ impl InterferenceGraph {
             let nu = self.map_combine(u);
             let nv = self.map_combine(v);
 
-            if self.nodes.get(&nu).unwrap().move_adj_list.contains(&nv) {
-                if self.can_coalesce(nu, nv) {
-                    // remove move edges if it's also a normal edge
-                    self.coalesce(nu, nv);
-                    has_coalesce = true;
-                }
+            if self.nodes.get(&nu).unwrap().move_adj_list.contains(&nv) && self.can_coalesce(nu, nv)
+            {
+                // remove move edges if it's also a normal edge
+                self.coalesce(nu, nv);
+                has_coalesce = true;
             }
         }
 
@@ -659,10 +658,10 @@ fn replace_regs(function: &mut Function, reg_map: &HashMap<i32, i32>) {
     }
 }
 
-pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
+pub(crate) fn register_allocate(func: &mut Function) {
     let mut register_allocate = |reg_type| {
         for block in func.blocks_mut() {
-            if block.instrs().len() == 0 {
+            if block.instrs().is_empty() {
                 block.instrs_mut().push(Box::new(RegInstr::new_move(
                     Reg::new_int(0),
                     Reg::new_int(0),
@@ -1560,7 +1559,7 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/87_many_params.sy")
+        let contents = std::fs::read_to_string("test/hidden_functional/29_long_line.sy")
             .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
