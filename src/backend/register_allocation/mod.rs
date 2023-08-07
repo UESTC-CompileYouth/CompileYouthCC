@@ -1,5 +1,6 @@
 pub mod liveness;
 use crate::common::r#type::Type;
+
 use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 
@@ -173,34 +174,24 @@ impl InterferenceGraph {
         if self.has_edge(u, v) {
             return false;
         }
-        let mut shared_neighbor = HashSet::new();
-        let mut unshared_neighbor = HashSet::new();
-
         let u_node = self.nodes.get(&u).unwrap();
         let v_node = self.nodes.get(&v).unwrap();
 
         // we just use the remain graph to check if we can coalesce
-        for neighbor in u_node.adj_list_in_graph.iter() {
-            if v_node.adj_list_in_graph.contains(neighbor) {
-                shared_neighbor.insert(*neighbor);
-            } else {
-                unshared_neighbor.insert(*neighbor);
-            }
-        }
-        for neighbor in v_node.adj_list_in_graph.iter() {
-            if !u_node.adj_list_in_graph.contains(neighbor) {
-                unshared_neighbor.insert(*neighbor);
-            }
-        }
-
         let mut big_degree_cnt = 0;
-        for n in shared_neighbor {
-            if self.nodes.get(&n).unwrap().degree() > self.k {
+        for n in u_node.adj_list_in_graph.iter() {
+            if v_node.adj_list_in_graph.contains(n) {
+                if self.nodes.get(n).unwrap().degree() > self.k {
+                    big_degree_cnt += 1;
+                }
+            } else if self.nodes.get(n).unwrap().degree() >= self.k {
                 big_degree_cnt += 1;
             }
         }
-        for n in unshared_neighbor {
-            if self.nodes.get(&n).unwrap().degree() >= self.k {
+        for n in v_node.adj_list_in_graph.iter() {
+            if !u_node.adj_list_in_graph.contains(n)
+                && self.nodes.get(n).unwrap().degree() >= self.k
+            {
                 big_degree_cnt += 1;
             }
         }
@@ -259,11 +250,7 @@ impl InterferenceGraph {
 
     pub fn simplify(&mut self) -> Vec<i32> {
         // remove move edges if it's also a normal edge
-        for (u, v) in self.move_edges.clone() {
-            if self.has_edge(u, v) {
-                self.remove_move_edge(u, v);
-            }
-        }
+        self.remove_invalid_move_edges();
 
         let mut res = Vec::new();
 
@@ -296,7 +283,7 @@ impl InterferenceGraph {
 
             node.in_graph = false;
 
-            let adj_list: Vec<i32> = node.adj_list.iter().map(|x| *x).collect();
+            let adj_list: Vec<i32> = node.adj_list.iter().copied().collect();
 
             node.adj_list_in_graph.clear();
 
@@ -304,11 +291,9 @@ impl InterferenceGraph {
                 let adj_node = self.nodes.get_mut(adj).unwrap();
                 adj_node.adj_list_in_graph.retain(|x| *x != id);
 
-                if can_simpilify(&adj_node) {
-                    if !visited.contains(adj) {
-                        stk.push(*adj);
-                        visited.insert(*adj);
-                    }
+                if can_simpilify(adj_node) && !visited.contains(adj) {
+                    stk.push(*adj);
+                    visited.insert(*adj);
                 }
             }
         }
@@ -338,35 +323,35 @@ impl InterferenceGraph {
         }
         special_mapping.insert(0, -5);
 
-        for (reg_id, color) in special_mapping.clone().iter() {
-            if let Some(mut node) = self.nodes.get_mut(reg_id) {
-                node.color = *color;
+        for (reg_id, color) in special_mapping {
+            if let Some(mut node) = self.nodes.get_mut(&reg_id) {
+                node.color = color;
 
                 // if the special node has moved edges, try to coalesce them first
                 let move_adj_list = node.move_adj_list.clone();
                 move_adj_list.iter().for_each(|n| {
-                    if self.can_coalesce(*reg_id, *n) {
-                        self.coalesce(*reg_id, *n);
+                    if self.can_coalesce(reg_id, *n) {
+                        self.coalesce(reg_id, *n);
                     }
                 });
 
                 // remove all the edges
-                let node = self.nodes.get_mut(reg_id).unwrap();
+                let node = self.nodes.get_mut(&reg_id).unwrap();
                 let adj_list = node.adj_list_in_graph.clone();
                 adj_list.iter().for_each(|n| {
                     let adj_node = self.nodes.get_mut(n).unwrap();
-                    adj_node.adj_list_in_graph.retain(|x| *x != *reg_id);
+                    adj_node.adj_list_in_graph.retain(|x| *x != reg_id);
                 });
 
                 // because we have removed the node from the graph, the moved edge is no use
-                let node = self.nodes.get_mut(reg_id).unwrap();
+                let node = self.nodes.get_mut(&reg_id).unwrap();
                 let move_adj_list = node.move_adj_list.clone();
                 move_adj_list.iter().for_each(|n| {
-                    self.remove_move_edge(*reg_id, *n);
+                    self.remove_move_edge(reg_id, *n);
                 });
 
                 // clear the adj list
-                let node = self.nodes.get_mut(reg_id).unwrap();
+                let node = self.nodes.get_mut(&reg_id).unwrap();
                 node.adj_list.clear();
                 node.move_adj_list.clear();
             }
@@ -374,20 +359,6 @@ impl InterferenceGraph {
     }
 
     pub fn assign_color(&mut self, node_id: i32) -> i32 {
-        // if node_id < 5 {
-        //     // special
-        //     let mut node = self.nodes.get_mut(&node_id).unwrap();
-        //     node.color = node_id + SPECIAL_COLOR_OFFSET;
-        //     node.in_graph = true;
-        //     return node.color;
-        // } else if node_id < 32 {
-        //     // 已经分配了就不用分配了，假设总共有 32 个寄存器！！！
-        //     let mut node = self.nodes.get_mut(&node_id).unwrap();
-        //     node.color = node_id - 5;
-        //     node.in_graph = true;
-        //     return node.color;
-        // }
-
         if self.nodes.get(&node_id).unwrap().color != UNCOLORED {
             return self.nodes.get(&node_id).unwrap().color;
         }
@@ -416,18 +387,13 @@ impl InterferenceGraph {
         // if reg_id == 0 {
         //     return;
         // }
-        if !self.nodes.contains_key(&reg_id) {
-            self.nodes.insert(
-                reg_id,
-                Node {
-                    in_graph: true,
-                    color: UNCOLORED,
-                    adj_list: HashSet::new(),
-                    move_adj_list: HashSet::new(),
-                    adj_list_in_graph: HashSet::new(),
-                },
-            );
-        }
+        self.nodes.entry(reg_id).or_insert(Node {
+            in_graph: true,
+            color: UNCOLORED,
+            adj_list: HashSet::new(),
+            move_adj_list: HashSet::new(),
+            adj_list_in_graph: HashSet::new(),
+        });
     }
 
     pub fn remove_edge(&mut self, u: i32, v: i32) {
@@ -764,9 +730,9 @@ pub(crate) fn register_allocate(func: &mut Function) {
 
             if !spill_set.is_empty() {
                 // println!("{:?}", spill_set);
-                // for ele in &spill_set {
-                //     println!("{:?}", ele);
-                // }
+                for ele in &spill_set {
+                    // println!("{:?}", ele);
+                }
                 // let n = spill_set.iter().next().unwrap();
                 for n in &spill_set {
                     // println!("SPILL {}", n);

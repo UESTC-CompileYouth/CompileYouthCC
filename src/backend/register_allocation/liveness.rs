@@ -227,12 +227,12 @@ impl BlockLiveness {
             let s: HashSet<_> = out.difference(kill).cloned().collect();
             in_ = gen.union(&s).cloned().collect::<HashSet<i32>>();
 
-            if !in_.eq(self.get_inst_in(inst_id)) {
+            if in_.len() != self.get_inst_in(inst_id).len() {
                 changed = true;
                 self.set_inst_in(inst_id, in_.clone());
             }
 
-            if !out.eq(self.get_inst_out(inst_id)) {
+            if out.len() != self.get_inst_out(inst_id).len() {
                 changed = true;
                 self.set_inst_out(inst_id, out.clone());
             }
