@@ -278,21 +278,6 @@ impl<'a> GVNContext<'a> {
         }
     }
 
-    // fn process_reg(&mut self, instr_id: i32, d1_s1: (SSARightValue,SSARightValue), node_id: &i32) {
-    //     // if self.scalar_value_by_reg.contains_key(d1_s1.1.id()) {
-    //         // let value = self.scalar_value_by_reg[d1_s1.1.id()];
-    //         // let instr = self.func.instructions_mut().get_mut(&instr_id).unwrap().instr_mut().as_any_mut().downcast_mut::<Mov>().unwrap();
-    //         // let ssa_r_value = SSARightValue::new_imme(value);
-    //         // instr.set_s1(ssa_r_value);
-    //         // self.scalar_reg_by_value.insert(value, *d1_s1.0.id());
-    //         // self.scalar_value_by_reg.insert(*d1_s1.0.id(), value);
-    //         // self.gvn_nodes.get_mut(node_id).unwrap().new_const_regs.insert(*d1_s1.0.id());
-
-    //     // } else {
-    //         // value maybe from call
-    //     // }
-    // }
-
     fn set_load_const(&mut self, inst_id: i32, d1: i32, v: Immediate) {
         if v.get_type() == Type::Int {
             let new_instr = Instruction::new(
@@ -371,10 +356,9 @@ impl<'a> GVNContext<'a> {
                 .downcast_ref::<Mov>()
             {
                 if mov_instr.s1().is_immediate() || mov_instr.s1().is_global() {
-                    self.process_scalar((mov_instr.d1().clone(), mov_instr.s1().clone()), node_id)
+                    // self.process_scalar((mov_instr.d1().clone(), mov_instr.s1().clone()), node_id)
                 } else {
-                    // self.process_reg(i, (mov_instr.d1().clone(),mov_instr.s1().clone()), node_id)
-                    self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
+                    // self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
                 }
             } else if let Some(fmov_instr) = self
                 .func
