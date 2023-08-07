@@ -1054,7 +1054,8 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                     ret_bb,
                 );
                 self.cur_function().add_inst2bb(load);
-                let ret = Instruction::new(Box::new(Ret::new(Some(ret_rvalue.clone()))), ret_bb);
+                let real_ret_value = self.convert_type(ret_rvalue, func_type);
+                let ret = Instruction::new(Box::new(Ret::new(Some(real_ret_value))), ret_bb);
                 self.module
                     .functions_mut()
                     .get_mut(&func_name)
@@ -1533,8 +1534,10 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                     };
                     if self.ret_bb_opt.is_none() {
                         // single-return, just return in current bb
+                        let func_type = *self.cur_function().ret_type();
+                        let real_ret_value = self.convert_type(rvalue, func_type);
                         let ret = Instruction::new(
-                            Box::new(Ret::new(Some(rvalue))),
+                            Box::new(Ret::new(Some(real_ret_value))),
                             self.cur_bb.unwrap(),
                         );
                         self.cur_function().add_inst2bb(ret);
