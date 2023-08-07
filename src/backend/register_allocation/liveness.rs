@@ -1,12 +1,12 @@
+use fnv::FnvHashMap as HashMap;
+use fnv::FnvHashSet as HashSet;
+use itertools::Itertools;
 use std::{
     cell::RefCell,
     // collections::{HashMap, HashSet},
     rc::Rc,
     vec,
 };
-use fnv::FnvHashMap as HashMap;
-use fnv::FnvHashSet as HashSet;
-use itertools::Itertools;
 
 use crate::backend::{block::Block, function::Function, instr::InstrTrait};
 use crate::common::r#type::Type;
