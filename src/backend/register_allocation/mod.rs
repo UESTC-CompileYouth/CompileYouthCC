@@ -1585,8 +1585,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/hidden_functional/29_long_line.sy")
-            .expect("cannot open source file");
+        let contents =
+            std::fs::read_to_string("test/homemade/last.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1672,7 +1672,7 @@ mod tests {
             insert_prologue(func);
             insert_epilogue(func);
         }
-        // println!("==================");
-        // println!("{}", p.gen_asm());
+        println!("==================");
+        println!("{}", p.gen_asm());
     }
 }
