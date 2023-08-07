@@ -356,9 +356,9 @@ impl<'a> GVNContext<'a> {
                 .downcast_ref::<Mov>()
             {
                 if mov_instr.s1().is_immediate() {
-                    // self.process_scalar((mov_instr.d1().clone(), mov_instr.s1().clone()), node_id)
+                    self.process_scalar((mov_instr.d1().clone(), mov_instr.s1().clone()), node_id)
                 } else {
-                    self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
+                    // self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
                 }
             } else if let Some(fmov_instr) = self
                 .func
