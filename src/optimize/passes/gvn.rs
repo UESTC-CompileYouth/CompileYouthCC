@@ -355,10 +355,10 @@ impl<'a> GVNContext<'a> {
                 .as_any()
                 .downcast_ref::<Mov>()
             {
-                if mov_instr.s1().is_immediate() || mov_instr.s1().is_global() {
+                if mov_instr.s1().is_immediate() {
                     // self.process_scalar((mov_instr.d1().clone(), mov_instr.s1().clone()), node_id)
                 } else {
-                    // self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
+                    self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
                 }
             } else if let Some(fmov_instr) = self
                 .func
@@ -369,7 +369,7 @@ impl<'a> GVNContext<'a> {
                 .as_any()
                 .downcast_ref::<FMov>()
             {
-                if fmov_instr.s1().is_immediate() || fmov_instr.s1().is_global() {
+                if fmov_instr.s1().is_immediate() {
                     self.process_scalar((fmov_instr.d1().clone(), fmov_instr.s1().clone()), node_id)
                 } else {
                     self.replace_same_value(*fmov_instr.d1().id(), *fmov_instr.s1().id());
@@ -382,7 +382,7 @@ impl<'a> GVNContext<'a> {
                 .instr()
                 .try_as_unary_instr()
             {
-                if unary_instr.s1().is_immediate() || unary_instr.s1().is_global() {
+                if unary_instr.s1().is_immediate() {
                     let value = unary_instr.s1().get_value().unwrap();
                     let computed = unary_compute(unary_instr.unary_op(), value);
                     self.process_computed(i, *unary_instr.d1().id(), computed, node_id);
@@ -412,16 +412,12 @@ impl<'a> GVNContext<'a> {
                 .instr()
                 .try_as_binary_instr()
             {
-                if (binary_instr.s1().is_immediate() || binary_instr.s1().is_global())
-                    && (binary_instr.s2().is_immediate() || binary_instr.s2().is_global())
-                {
+                if binary_instr.s1().is_immediate() && binary_instr.s2().is_immediate() {
                     let value1 = binary_instr.s1().get_value().unwrap();
                     let value2 = binary_instr.s2().get_value().unwrap();
                     let computed = binary_compute(binary_instr.binary_op(), value1, value2);
                     self.process_computed(i, *binary_instr.d1().id(), computed, node_id);
-                } else if (!binary_instr.s1().is_immediate() && !binary_instr.s1().is_global())
-                    && (binary_instr.s2().is_immediate() || binary_instr.s2().is_global())
-                {
+                } else if !binary_instr.s1().is_immediate() && binary_instr.s2().is_immediate() {
                     if self
                         .scalar_value_by_reg
                         .contains_key(binary_instr.s1().id())
@@ -433,9 +429,7 @@ impl<'a> GVNContext<'a> {
                     } else {
                         // value maybe from other block
                     }
-                } else if (binary_instr.s1().is_immediate() || binary_instr.s1().is_global())
-                    && (!binary_instr.s2().is_immediate() && !binary_instr.s2().is_global())
-                {
+                } else if binary_instr.s1().is_immediate() && !binary_instr.s2().is_immediate() {
                     if self
                         .scalar_value_by_reg
                         .contains_key(binary_instr.s2().id())
