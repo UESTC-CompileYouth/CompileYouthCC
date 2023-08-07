@@ -4,8 +4,9 @@ use crate::common::r#type::Type;
 use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 
-use std::collections::{HashMap, HashSet};
-
+// use std::collections::{HashMap, HashSet};
+use fnv::FnvHashMap as HashMap;
+use fnv::FnvHashSet as HashSet;
 use itertools::Itertools;
 
 use self::liveness::LivenessAnalysis;
@@ -84,9 +85,9 @@ impl InterferenceGraph {
         let liveness = LivenessAnalysis::of(func, reg_type);
         let mut ig = InterferenceGraph {
             k: max_reg_cnt,
-            nodes: HashMap::new(),
-            combined_mapping: HashMap::new(),
-            move_edges: HashSet::new(),
+            nodes: HashMap::default(),
+            combined_mapping: HashMap::default(),
+            move_edges: HashSet::default(),
         };
 
         ig.add_node(0);
@@ -267,7 +268,7 @@ impl InterferenceGraph {
             .rev()
             .collect_vec();
 
-        let mut visited = HashSet::new();
+        let mut visited = HashSet::default();
         stk.iter().for_each(|x| {
             visited.insert(*x);
         });
@@ -316,7 +317,7 @@ impl InterferenceGraph {
     pub fn assign_special(&mut self) {
         self.remove_invalid_move_edges();
 
-        let mut special_mapping = HashMap::new();
+        let mut special_mapping = HashMap::default();
         // special reg alloc for a0-a7 which are used to pass args
         for reg in A0..=A7 {
             special_mapping.insert(reg, reg - 5);
@@ -390,9 +391,9 @@ impl InterferenceGraph {
         self.nodes.entry(reg_id).or_insert(Node {
             in_graph: true,
             color: UNCOLORED,
-            adj_list: HashSet::new(),
-            move_adj_list: HashSet::new(),
-            adj_list_in_graph: HashSet::new(),
+            adj_list: HashSet::default(),
+            move_adj_list: HashSet::default(),
+            adj_list_in_graph: HashSet::default(),
         });
     }
 
@@ -665,7 +666,7 @@ pub(crate) fn register_allocate(func: &mut Function) {
             }
         }
 
-        let mut allocation = HashMap::new();
+        let mut allocation = HashMap::default();
 
         // 1. build  interference graph
         // println!("BUILD GRAPH");
@@ -713,7 +714,7 @@ pub(crate) fn register_allocate(func: &mut Function) {
 
             // println!("PASS TRY FREEZE");
 
-            let mut spill_set = HashSet::new();
+            let mut spill_set = HashSet::default();
 
             if stk.len() != ig.nodes.len() {
                 stk.extend(ig.simplify_optimistic());
@@ -903,7 +904,7 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
         let mut sf = sf.borrow_mut();
 
         // collect_callee_saved_regs
-        let mut regs = HashSet::new();
+        let mut regs = HashSet::default();
         // if there is a call, then it is not a leaf function
         let mut is_leaf = true;
         for block in func.blocks().iter() {
@@ -949,7 +950,7 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
         for block in func.blocks_mut().iter_mut() {
             let mut insert_pos = vec![];
-            let mut insert_store_reg_offset_map = HashMap::new();
+            let mut insert_store_reg_offset_map = HashMap::default();
 
             for (inst_id, inst) in block.instrs().iter().enumerate() {
                 let mut need_push_args_to_stack = false;
@@ -1096,9 +1097,9 @@ pub fn peephole(func: &mut Function) -> bool {
     loop {
         let mut simplified = false;
 
-        let mut jump_map = HashMap::new();
-        let mut name2id = HashMap::new();
-        let mut id2name = HashMap::new();
+        let mut jump_map = HashMap::default();
+        let mut name2id = HashMap::default();
+        let mut id2name = HashMap::default();
 
         let mut jump_to_push: Box<dyn InstrTrait> =
             Box::new(JumpInstr::new_jump("impossible".to_string()));
@@ -1146,7 +1147,7 @@ pub fn peephole(func: &mut Function) -> bool {
         });
 
         // map id to new id, because we will remove some block
-        let mut map_id = HashMap::new();
+        let mut map_id = HashMap::default();
 
         {
             // adjust block's id, because block's id is related to its index in an array
@@ -1218,8 +1219,8 @@ pub fn peephole(func: &mut Function) -> bool {
 
     let mut constant_propagation_for_li = |reg_type| {
         for block in func.blocks_mut().iter_mut() {
-            let mut li_map = HashMap::new();
-            let mut rewrite_inst_map: HashMap<usize, Box<dyn InstrTrait>> = HashMap::new();
+            let mut li_map = HashMap::default();
+            let mut rewrite_inst_map: HashMap<usize, Box<dyn InstrTrait>> = HashMap::default();
 
             for (inst_idx, inst) in block.instrs_mut().iter_mut().enumerate() {
                 let (d, u1, u2) = inst.get_operands(reg_type);

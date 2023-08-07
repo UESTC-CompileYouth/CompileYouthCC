@@ -1,10 +1,11 @@
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    // collections::{HashMap, HashSet},
     rc::Rc,
     vec,
 };
-
+use fnv::FnvHashMap as HashMap;
+use fnv::FnvHashSet as HashSet;
 use itertools::Itertools;
 
 use crate::backend::{block::Block, function::Function, instr::InstrTrait};
@@ -17,11 +18,11 @@ pub(crate) struct LivenessAnalysis {
 impl LivenessAnalysis {
     pub fn of(func: &Function, reg_type: Type) -> LivenessAnalysis {
         let mut res = LivenessAnalysis {
-            block_liveness_map: HashMap::new(),
+            block_liveness_map: HashMap::default(),
         };
 
-        let mut insts_map = HashMap::new();
-        let mut changed_set = HashSet::new();
+        let mut insts_map = HashMap::default();
+        let mut changed_set = HashSet::default();
 
         for block in func.blocks().iter() {
             // 获取block中的inst_ids
@@ -91,7 +92,7 @@ impl LivenessAnalysis {
     }
 
     fn get_toplogical_order(&self, function: &Function) -> Vec<i32> {
-        let mut visited = HashSet::new();
+        let mut visited = HashSet::default();
         let mut res = vec![];
         let mut stack = vec![*function.entry_block_id()];
         while let Some(block_id) = stack.pop() {
@@ -122,10 +123,10 @@ pub struct BlockLiveness {
 impl BlockLiveness {
     pub(crate) fn new(insts: Vec<&Box<dyn InstrTrait>>, reg_type: Type) -> BlockLiveness {
         let mut block_liveness = BlockLiveness {
-            inst_gen_map: HashMap::new(),
-            inst_kill_map: HashMap::new(),
-            inst_in_map: HashMap::new(),
-            inst_out_map: HashMap::new(),
+            inst_gen_map: HashMap::default(),
+            inst_kill_map: HashMap::default(),
+            inst_in_map: HashMap::default(),
+            inst_out_map: HashMap::default(),
             inst_cnt: insts.len(),
         };
 
@@ -135,7 +136,7 @@ impl BlockLiveness {
 
             let (kill, gen1, gen2) = i.get_operands(reg_type);
 
-            let mut gen = HashSet::new();
+            let mut gen = HashSet::default();
             if gen1 != 0 {
                 gen.insert(gen1);
             }
@@ -150,12 +151,12 @@ impl BlockLiveness {
                 if kill != 0 {
                     vec![kill].into_iter().collect()
                 } else {
-                    HashSet::new()
+                    HashSet::default()
                 },
             );
 
-            block_liveness.set_inst_in(inst_id, HashSet::new());
-            block_liveness.set_inst_out(inst_id, HashSet::new());
+            block_liveness.set_inst_in(inst_id, HashSet::default());
+            block_liveness.set_inst_out(inst_id, HashSet::default());
         }
 
         block_liveness
@@ -202,7 +203,7 @@ impl BlockLiveness {
     ) -> bool {
         let mut changed = false;
 
-        let mut in_ = HashSet::new();
+        let mut in_ = HashSet::default();
         let mut out;
 
         for succ in bb.out_edges().iter() {
