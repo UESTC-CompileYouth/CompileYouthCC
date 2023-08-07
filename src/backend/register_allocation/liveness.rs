@@ -46,10 +46,10 @@ impl LivenessAnalysis {
 
         // 不动点算法：迭代直到不再变化
         // println!("BEGIN LIVENESS ANALYSIS ITERATON");
-        let mut loop_cnt = 0;
+        let mut _loop_cnt = 0;
         loop {
             // println!("{}", loop_cnt);
-            loop_cnt += 1;
+            _loop_cnt += 1;
             let mut changed = false;
             for &block_id in order.iter() {
                 let block = func.block(block_id);

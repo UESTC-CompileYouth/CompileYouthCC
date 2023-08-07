@@ -721,7 +721,7 @@ pub(crate) fn register_allocate(func: &mut Function) {
 
             if !spill_set.is_empty() {
                 // println!("{:?}", spill_set);
-                for ele in &spill_set {
+                for _ele in &spill_set {
                     // println!("{:?}", ele);
                 }
                 // let n = spill_set.iter().next().unwrap();
@@ -1547,7 +1547,7 @@ mod tests {
             program::Program,
             register_allocation::{
                 allocate_load_stack, backpatch_arg_stack_offset, insert_epilogue, insert_prologue,
-                peephole, register_allocate, save_callee_saved_regs, save_caller_saved_regs,
+                register_allocate, save_callee_saved_regs, save_caller_saved_regs,
                 InterferenceGraph,
             },
         },
@@ -1682,7 +1682,7 @@ mod tests {
             // }
 
             {
-                let mut peephole_cnt = 0;
+                let mut _peephole_cnt = 0;
                 // while peephole(func) {
                 // println!("PEEPHOLE {}: ", peephole_cnt);
                 // peephole_cnt += 1;
