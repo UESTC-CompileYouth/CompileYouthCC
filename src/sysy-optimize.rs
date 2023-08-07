@@ -13,7 +13,7 @@ use sysycc_compiler::frontend::{
 };
 use sysycc_compiler::optimize::passes::dce::remove_useless_bb;
 use sysycc_compiler::optimize::passes::{
-    check_ir::check_module, dce::remove_unused_def, mem2reg::mem2reg,
+    check_ir::check_module, dce::remove_unused_def, gcm::gcm_for_module, mem2reg::mem2reg,
 };
 
 /// Command Line Options Parser
@@ -67,6 +67,7 @@ fn main() {
     mem2reg(&mut llvm_module);
     check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);
+    gcm_for_module(&mut llvm_module);
     check_module(&llvm_module);
 
     if let Some(output_path) = cmdline_options.output_file {
