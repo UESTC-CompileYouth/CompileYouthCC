@@ -44,7 +44,7 @@ impl Program {
                 }
             })
             .collect();
-        let mut block_num = 0;
+        let mut block_num = 3; // 0-2 is reserved for lib functions
         let functions = module
             .functions
             .iter()
@@ -122,11 +122,55 @@ impl Program {
         }
         asm
     }
+
+    pub fn gen_lib_func_asm(&self) -> String {
+        "__sysy_homemade_mem_zero_init:
+addi    sp,sp,-48
+sd      ra,40(sp)
+sd      s0,32(sp)
+addi    s0,sp,48
+sd      a0,-40(s0)
+mv      a5,a1
+mv      a4,a2
+sw      a5,-44(s0)
+mv      a5,a4
+sw      a5,-48(s0)
+lw      a5,-44(s0)
+sw      a5,-20(s0)
+j       .L1
+.L2:
+lw      a5,-20(s0)
+slli    a5,a5,2
+ld      a4,-40(s0)
+add     a5,a4,a5
+sw      zero,0(a5)
+lw      a5,-20(s0)
+addiw   a5,a5,1
+sw      a5,-20(s0)
+.L1:
+lw      a5,-20(s0)
+mv      a4,a5
+lw      a5,-48(s0)
+sext.w  a4,a4
+sext.w  a5,a5
+blt     a4,a5,.L2
+nop
+nop
+ld      ra,40(sp)
+ld      s0,32(sp)
+addi    sp,sp,48
+jr      ra
+
+"
+        .to_string()
+    }
+
     pub fn gen_asm(&self) -> String {
         let mut asm = String::new();
         asm.push_str(self.gen_global_var_asm().as_str());
         asm.push_str("        .text\n");
-        asm.push_str(".global main\n");
+        asm.push_str(".global main\n\n");
+        asm.push_str(self.gen_lib_func_asm().as_str());
         for function in &self.functions {
             asm.push_str(&function.gen_asm());
         }
