@@ -981,7 +981,6 @@ impl InstrTrait for LoadStackInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        assert!(*self.rd.ty() == Type::Int);
         let size = *self.stack_object.borrow().size();
         let mut offset = if self.offset != -1 {
             self.offset
@@ -1004,17 +1003,23 @@ impl InstrTrait for LoadStackInstr {
         }
 
         if size == 4 {
-            asm.push_str(&format!("lw {}, {}(sp)\n", self.rd, offset));
+            if self.rd.ty() == &Type::Int {
+                asm.push_str(&format!("lw {}, {}(sp)\n", self.rd, offset));
+            } else if self.rd.ty() == &Type::Float {
+                asm.push_str(&format!("flw {}, {}(sp)\n", self.rd, offset));
+            } else {
+                unreachable!("load stack must be int or float");
+            }
         } else if size == 8 {
+            // address, saved in int register
+            assert!(self.rd.ty() == &Type::Int);
             asm.push_str(&format!("ld {}, {}(sp)\n", self.rd, offset));
         } else {
             unreachable!("size of stack object is not 4 or 8");
         }
-
         for offset in offsets {
             asm.push_str(&format!("addi sp, sp, {}\n", offset));
         }
-
         asm
     }
     fn uses(&self) -> Vec<Reg> {
