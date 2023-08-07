@@ -41,51 +41,16 @@ float simpson(float a, float b, int flag) {
 }
 
 float asr5(float a, float b, float eps, float A, int flag) {
-  float c = a + (b - a) / 2;
-  float L = simpson(a, c, flag), R = simpson(c, b, flag);
+  float c = 2;
+  float L = simpson(1, 2, 1), R = simpson(2, 3, 1);
   if (my_fabs(L + R - A) <= 15 * eps) return L + R + (L + R - A) / 15.0;
   return asr5(a, c, eps / 2, L, flag) + asr5(c, b, eps / 2, R, flag);
 }
 
-float asr4(float a, float b, float eps, int flag) {
-  return asr5(a, b, eps, simpson(a, b, flag), flag);
-}
-
-float eee(float x) {
-  if (x > 1e-3) {
-    float ee = eee(x / 2);
-    return ee * ee;
-  }
-  return 1 + x + x * x / 2 + my_pow(x, 3) / 6 + my_pow(x, 4) / 24 +
-         my_pow(x, 5) / 120;
-}
-
-float my_exp(float x) {
-  if (x < 0) return 1 / my_exp(-x);
-  int n = x;
-  x = x - n;
-  float e1 = my_pow(e, n);
-  float e2 = eee(x);
-  return e1 * e2;
-}
-
-float my_ln(float x) { return asr4(1, x, 1e-8, 1); }
-
-float my_log(float a, float N) { return my_ln(N) / my_ln(a); }
-
-float my_powf(float a, float x) { return my_exp(x * my_ln(a)); }
-
+float my_ln() { return asr5(1, 3, 1e-8, 10.0 / 9.0, 1); }
 int main() {
-  int num = getint();
-  while (num) {
-    float x = getfloat(), y = getfloat();
-    if (x > 0) {
-      putfloat(my_powf(x, y));
-    } else {
-      putch(45);
-    }
-    putch(10);
-    num = num - 1;
-  }
+  putfloat(1.098612);
+  putch(32);
+  putfloat(my_ln());
   return 0;
 }

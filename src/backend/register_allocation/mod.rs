@@ -78,7 +78,6 @@ impl Debug for InterferenceGraph {
 }
 
 const UNCOLORED: i32 = i32::MIN;
-const _SPECIAL_COLOR_OFFSET: i32 = -100;
 
 impl InterferenceGraph {
     pub(crate) fn build(func: &Function, max_reg_cnt: usize, reg_type: Type) -> Self {
@@ -679,16 +678,7 @@ pub(crate) fn register_allocate(func: &mut Function) {
 
         let mut stk = vec![];
 
-        let mut max_reg_id = -1;
-
-        for block in func.blocks_mut().iter_mut() {
-            for inst in block.instrs_mut().iter_mut() {
-                let (kill, gen1, gen2) = inst.get_operands(reg_type);
-                // update max reg id
-                max_reg_id = max(max(max_reg_id, kill), max(gen1, gen2));
-            }
-        }
-
+        let mut max_reg_id = 0xFFFFF;
         loop {
             // println!("BEGIN LOOP");
             // 2. simplify the graph
@@ -826,16 +816,21 @@ pub(crate) fn insert_prologue(function: &mut Function) {
         insert_idx += 1;
 
         for (reg_id, so_idx) in callee_saved_regs.iter() {
-            let reg = Reg::new_int(*reg_id);
+            let reg = if *reg_id > 0 {
+                Reg::new_int(*reg_id)
+            } else {
+                Reg::new_float(-*reg_id)
+            };
+
             let so = sf.get_stack_object(*so_idx);
-            let store = StoreInstr::new(
-                sp,
-                reg,
-                ImmeValueType::Direct(*so.borrow().position()),
-                None,
-                StoreType::Sd,
-            );
-            insts.insert(insert_idx, Box::new(store));
+
+            let offset = ImmeValueType::Direct(*so.borrow().position());
+            let store: Box<dyn InstrTrait> = if *reg_id > 0 {
+                Box::new(StoreInstr::new(sp, reg, offset, None, StoreType::Sd))
+            } else {
+                Box::new(FStoreInstr::new(sp, reg, offset, None))
+            };
+            insts.insert(insert_idx, store);
             insert_idx += 1;
         }
     }
@@ -886,11 +881,24 @@ pub(crate) fn insert_epilogue(function: &mut Function) {
     // insert_idx += 1;
 
     for (reg_id, so_idx) in callee_saved_regs.iter() {
-        let reg = Reg::new_int(*reg_id);
+        let reg = if *reg_id > 0 {
+            Reg::new_int(*reg_id)
+        } else {
+            Reg::new_float(-*reg_id)
+        };
         let so = sf.get_stack_object(*so_idx);
         let offset = *so.borrow().position();
-        let load = LoadInstr::new(reg, sp, offset, LoadType::Ld);
-        insts.insert(insert_idx, Box::new(load));
+        let load: Box<dyn InstrTrait> = if *reg_id > 0 {
+            Box::new(LoadInstr::new(reg, sp, offset, LoadType::Ld))
+        } else {
+            Box::new(FLoadInstr::new(
+                reg,
+                sp,
+                ImmeValueType::Direct(offset),
+                None,
+            ))
+        };
+        insts.insert(insert_idx, load);
         insert_idx += 1;
     }
 
@@ -915,8 +923,15 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
                 let t = inst.get_operands(reg_type);
                 let v = vec![t.0, t.1, t.2];
                 for reg_id in v.iter() {
-                    if *reg_id < 32
-                        && RegConvention::<i32>::REGISTER_USAGE[*reg_id as usize]
+                    if matches!(reg_type, Type::Int) {
+                        if *reg_id < 32
+                            && RegConvention::<i32>::REGISTER_USAGE[*reg_id as usize]
+                                == RegisterUsage::CalleeSaved
+                        {
+                            regs.insert(*reg_id);
+                        }
+                    } else if *reg_id < 32
+                        && RegConvention::<f32>::REGISTER_USAGE[*reg_id as usize]
                             == RegisterUsage::CalleeSaved
                     {
                         regs.insert(*reg_id);
@@ -925,13 +940,17 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
             }
         }
 
-        for ele in regs {
-            func.callee_saved_regs_mut().insert(ele, 0);
-        }
+        // for ele in regs {
+        //     func.callee_saved_regs_mut().insert(ele, 0);
+        // }
 
-        for reg in func.callee_saved_regs().clone().keys() {
+        for reg in regs {
             let idx = sf.push_dword();
-            func.callee_saved_regs_mut().insert(*reg, idx);
+            if matches!(reg_type, Type::Int) {
+                func.callee_saved_regs_mut().insert(reg, idx);
+            } else {
+                func.callee_saved_regs_mut().insert(-reg, idx);
+            }
         }
 
         if !is_leaf {
@@ -969,11 +988,20 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
                 let mut out = block_liveness.get_inst_out(inst_id as i32).clone();
                 // return value can be changed
                 out.remove(&A0);
-                out.retain(|x| {
-                    *x < 32
-                        && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
-                            == RegisterUsage::CallerSaved
-                });
+
+                if matches!(reg_type, Type::Int) {
+                    out.retain(|x| {
+                        *x < 32
+                            && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
+                                == RegisterUsage::CallerSaved
+                    });
+                } else {
+                    out.retain(|x| {
+                        *x < 32
+                            && RegConvention::<f32>::REGISTER_USAGE[*x as usize]
+                                == RegisterUsage::CallerSaved
+                    });
+                }
 
                 // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
                 let mut store_reg_offset = vec![];
@@ -1587,7 +1615,7 @@ mod tests {
     #[test]
     fn test() {
         let contents =
-            std::fs::read_to_string("test/homemade/last.sy").expect("cannot open source file");
+            std::fs::read_to_string("test/homemade/math.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1655,19 +1683,19 @@ mod tests {
 
             {
                 let mut peephole_cnt = 0;
-                while peephole(func) {
-                    // println!("PEEPHOLE {}: ", peephole_cnt);
-                    // peephole_cnt += 1;
-                    // for b in func.blocks().iter() {
-                    //     println!("{}:", b.name());
-                    //     for i in b.instrs().iter() {
-                    //         print!("\t{}", i.gen_asm());
-                    //     }
-                    // }
-                    // if peephole_cnt == 3 {
-                    //     break;
-                    // }
-                }
+                // while peephole(func) {
+                // println!("PEEPHOLE {}: ", peephole_cnt);
+                // peephole_cnt += 1;
+                // for b in func.blocks().iter() {
+                //     println!("{}:", b.name());
+                //     for i in b.instrs().iter() {
+                //         print!("\t{}", i.gen_asm());
+                //     }
+                // }
+                // if peephole_cnt == 3 {
+                //     break;
+                // }
+                // }
             }
 
             insert_prologue(func);
