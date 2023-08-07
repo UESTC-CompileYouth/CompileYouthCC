@@ -15,6 +15,7 @@ use sysycc_compiler::frontend::{
 use sysycc_compiler::optimize::passes::bb_ops::remove_phi;
 use sysycc_compiler::optimize::passes::check_ir::check_module;
 use sysycc_compiler::optimize::passes::dce::{remove_unused_def, remove_useless_bb};
+use sysycc_compiler::optimize::passes::gcm::gcm_for_module;
 use sysycc_compiler::optimize::passes::mem2reg::mem2reg;
 
 /// Command Line Options Parser
@@ -72,6 +73,8 @@ fn main() {
     mem2reg(&mut llvm_module);
     check_module(&llvm_module);
     remove_unused_def(&mut llvm_module);
+    check_module(&llvm_module);
+    gcm_for_module(&mut llvm_module);
     check_module(&llvm_module);
     remove_phi(&mut llvm_module);
     // check_module(&llvm_module);

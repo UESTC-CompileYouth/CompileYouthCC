@@ -122,7 +122,7 @@ pub trait BinaryInstr: RegUseInstr + RegWriteInstr {
 pub struct Instruction {
     #[getset(get = "pub", get_mut = "pub")]
     instr: Box<dyn Instr>,
-    #[getset(get_copy = "pub")]
+    #[getset(get_copy = "pub", get_mut = "pub")]
     bb_id: i32,
 }
 
@@ -148,6 +148,18 @@ impl Instruction {
     }
     pub fn is_reg_write(&self) -> bool {
         self.instr.as_any().type_id() == TypeId::of::<dyn RegWriteInstr>()
+    }
+    pub fn is_load(&self) -> bool {
+        self.instr.as_any().downcast_ref::<Load>().is_some()
+    }
+    pub fn is_store(&self) -> bool {
+        self.instr.as_any().downcast_ref::<Store>().is_some()
+    }
+    pub fn is_call(&self) -> bool {
+        self.instr.as_any().downcast_ref::<Call>().is_some()
+    }
+    pub fn is_alloca(&self) -> bool {
+        self.instr.as_any().downcast_ref::<Alloca>().is_some()
     }
 }
 

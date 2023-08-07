@@ -39,7 +39,7 @@ pub struct Function {
     arg_list: ArgumentList,
     #[getset(get = "pub", get_mut = "pub", set = "pub")]
     mem_scope: MemScope,
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     layout: Layout,
     cur_inst_id: i32,
     cur_ssa_id: i32,
