@@ -63,8 +63,9 @@ impl StackFrame {
     // align top to 8 bytes
     pub fn total_frame_size(&self) -> usize {
         let mut res = self.top;
-        if res % 8 != 0 {
-            res += 8 - res % 8;
+        let align = 16;
+        if res % align != 0 {
+            res += align - res % align;
         }
         res as usize
     }

@@ -31,12 +31,26 @@ for file in $functional_test_path/*.sy $hidden_functional_test_path/*.sy; do
 	file_basename=$(basename $file)
 	echo "test $file_basename"
 	output_asm_file=$output_path/${file_basename%%.sy}.s
+
+	start_time=$(date +%s%N)
+
 	$compiler_path $file -S -o $output_asm_file
 	if [ $? -ne 0 ]; then
 		echo "compile $file_basename failed !!!"
 		rm -rf $output_path
 		exit 1
 	fi
+
+	end_time=$(date +%s%N)
+	execution_time=$((end_time - start_time))
+
+	hours=$((execution_time / 3600000000000))
+	minutes=$(((execution_time % 3600000000000) / 60000000000))
+	seconds=$(((execution_time % 60000000000) / 1000000000))
+	microseconds=$(((execution_time % 1000000000) / 1000))
+
+	printf "COMPILE: %1dH-%1dM-%1dS-%1dus\n" $hours $minutes $seconds $microseconds
+
 	# assemble
 	output_obj_file=$output_path/${file_basename%%.sy}.o
 	$as_path -c $output_asm_file -o $output_obj_file

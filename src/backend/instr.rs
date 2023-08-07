@@ -581,7 +581,7 @@ impl InstrTrait for LoadInstr {
                 asm.push_str(&format!("ld {}, {}({})", self.rd, offset, self.rs1));
             }
         }
-        asm.push_str("\n");
+        asm.push('\n');
 
         for step in steps {
             asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
@@ -981,34 +981,46 @@ impl InstrTrait for LoadStackInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        assert!(*self.rd.ty() == Type::Int);
         let size = *self.stack_object.borrow().size();
-        if self.offset == -1 {
-            if size == 4 {
-                return format!(
-                    "lw {}, {}(sp)\n",
-                    self.rd,
-                    *self.stack_object.borrow().position()
-                );
-            } else if size == 8 {
-                return format!(
-                    "ld {}, {}(sp)\n",
-                    self.rd,
-                    *self.stack_object.borrow().position()
-                );
-            } else {
-                unreachable!("size of stack object is not 4 or 8");
-            }
+        let mut offset = if self.offset != -1 {
+            self.offset
         } else {
-            assert!(self.offset >= -2048 && self.offset <= 2047);
-            if size == 4 {
-                return format!("lw {}, {}(sp)\n", self.rd, self.offset);
-            } else if size == 8 {
-                return format!("ld {}, {}(sp)\n", self.rd, self.offset);
-            } else {
-                unreachable!("size of stack object is not 4 or 8");
-            }
+            *self.stack_object.borrow().position()
+        };
+        let step = 2032;
+        let mut asm = String::new();
+        let mut offsets = vec![];
+
+        while offset > 2047 {
+            asm.push_str(&format!("addi sp, sp, {}\n", step));
+            offset -= step;
+            offsets.push(-step);
         }
+        while offset < -2048 {
+            asm.push_str(&format!("addi sp, sp, {}\n", -step));
+            offset += step;
+            offsets.push(step);
+        }
+
+        if size == 4 {
+            if self.rd.ty() == &Type::Int {
+                asm.push_str(&format!("lw {}, {}(sp)\n", self.rd, offset));
+            } else if self.rd.ty() == &Type::Float {
+                asm.push_str(&format!("flw {}, {}(sp)\n", self.rd, offset));
+            } else {
+                unreachable!("load stack must be int or float");
+            }
+        } else if size == 8 {
+            // address, saved in int register
+            assert!(self.rd.ty() == &Type::Int);
+            asm.push_str(&format!("ld {}, {}(sp)\n", self.rd, offset));
+        } else {
+            unreachable!("size of stack object is not 4 or 8");
+        }
+        for offset in offsets {
+            asm.push_str(&format!("addi sp, sp, {}\n", offset));
+        }
+        asm
     }
     fn uses(&self) -> Vec<Reg> {
         vec![]
@@ -1176,8 +1188,24 @@ impl InstrTrait for ChangeSPInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        assert!(self.change >= -2048 && self.change <= 2047);
-        format!("addi sp, sp, {}\n", self.change)
+        let mut offset = self.change;
+        let mut asm = String::new();
+
+        while offset > 2047 {
+            asm.push_str(&format!("addi sp, sp, {}\n", 2047));
+            offset -= 2047;
+        }
+
+        while offset < -2048 {
+            asm.push_str(&format!("addi sp, sp, {}\n", -2048));
+            offset += 2048;
+        }
+
+        if offset != 0 {
+            asm.push_str(&format!("addi sp, sp, {}\n", offset));
+        }
+
+        asm
     }
     fn uses(&self) -> Vec<Reg> {
         vec![]

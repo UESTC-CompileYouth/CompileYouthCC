@@ -1,10 +1,12 @@
 pub mod liveness;
 use crate::common::r#type::Type;
+
 use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 
-use std::collections::{HashMap, HashSet};
-
+// use std::collections::{HashMap, HashSet};
+use fnv::FnvHashMap as HashMap;
+use fnv::FnvHashSet as HashSet;
 use itertools::Itertools;
 
 use self::liveness::LivenessAnalysis;
@@ -56,50 +58,63 @@ impl Debug for InterferenceGraph {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "k: {}", self.k)?;
         writeln!(f, "nodes: {:?}", self.nodes.keys().sorted())?;
-        println!("EDGES: ");
+        writeln!(f, "EDGES: ")?;
         for (n, node) in self.nodes.iter() {
-            println!("{}: {:?}", n, node.adj_list);
+            writeln!(f, "{}: {:?}", n, node.adj_list)?;
         }
         writeln!(f, "combined_mapping: {:?}", self.combined_mapping)?;
         writeln!(f, "move_edges: {:?}", self.move_edges)?;
-        println!("COLORING: ");
+        writeln!(f, "COLORING: ")?;
         for (n, node) in self.nodes.iter() {
-            println!("{}: {}", n, node.color);
+            writeln!(f, "{}: {}", n, node.color)?;
         }
         for u in self.combined_mapping.keys() {
             let mapped = &self.map_combine(*u);
             let u_color = self.nodes.get(mapped).unwrap().color;
-            println!("{} -> {}: {}", u, mapped, u_color);
+            writeln!(f, "{} -> {}: {}", u, mapped, u_color)?;
         }
         Ok(())
     }
 }
 
 const UNCOLORED: i32 = i32::MIN;
-const _SPECIAL_COLOR_OFFSET: i32 = -100;
 
 impl InterferenceGraph {
     pub(crate) fn build(func: &Function, max_reg_cnt: usize, reg_type: Type) -> Self {
         let liveness = LivenessAnalysis::of(func, reg_type);
         let mut ig = InterferenceGraph {
             k: max_reg_cnt,
-            nodes: HashMap::new(),
-            combined_mapping: HashMap::new(),
-            move_edges: HashSet::new(),
+            nodes: HashMap::default(),
+            combined_mapping: HashMap::default(),
+            move_edges: HashSet::default(),
         };
 
         ig.add_node(0);
 
         for (blockid, block_liveness) in liveness.block_liveness_map.iter() {
             let block_liveness = block_liveness.borrow();
-            for inst_id in block_liveness.insts.iter() {
+
+            for inst_id in 0..block_liveness.inst_cnt {
                 // try to allocate with same reg for reg instr, i.e. y = f(x)
-                let inst = &func.block(*blockid).instrs()[*inst_id as usize];
+                let inst = &func.block(*blockid).instrs()[inst_id];
                 let (x, y, z) = inst.get_operands(reg_type);
                 ig.add_node(x);
                 ig.add_node(y);
                 ig.add_node(z);
-                if inst.as_any().downcast_ref::<RegInstr>().is_some() {
+
+                let mut mov_edge = false;
+
+                if let Some(inst) = inst.as_any().downcast_ref::<RegInstr>() {
+                    if matches!(inst.ty(), RegType::Mv) {
+                        mov_edge = true;
+                    }
+                } else if let Some(inst) = inst.as_any().downcast_ref::<FRegInstr>() {
+                    if matches!(inst.ty(), FRegType::FmvS) {
+                        mov_edge = true;
+                    }
+                }
+
+                if mov_edge {
                     let u = y;
                     let d = x;
 
@@ -107,15 +122,15 @@ impl InterferenceGraph {
                         ig.add_move_edge(u, d);
                     }
 
-                    for v in block_liveness.get_inst_out(*inst_id).iter() {
+                    for v in block_liveness.get_inst_out(inst_id as i32).iter() {
                         if u != *v && *v != d {
                             ig.add_edge(d, *v);
                             ig.add_edge_in_graph(d, *v);
                         }
                     }
                 } else {
-                    for u in block_liveness.get_inst_kill(*inst_id).iter() {
-                        for v in block_liveness.get_inst_out(*inst_id).iter() {
+                    for u in block_liveness.get_inst_kill(inst_id as i32).iter() {
+                        for v in block_liveness.get_inst_out(inst_id as i32).iter() {
                             if u != v {
                                 ig.add_edge(*u, *v);
                                 ig.add_edge_in_graph(*u, *v);
@@ -135,12 +150,11 @@ impl InterferenceGraph {
             let nu = self.map_combine(u);
             let nv = self.map_combine(v);
 
-            if self.nodes.get(&nu).unwrap().move_adj_list.contains(&nv) {
-                if self.can_coalesce(nu, nv) {
-                    // remove move edges if it's also a normal edge
-                    self.coalesce(nu, nv);
-                    has_coalesce = true;
-                }
+            if self.nodes.get(&nu).unwrap().move_adj_list.contains(&nv) && self.can_coalesce(nu, nv)
+            {
+                // remove move edges if it's also a normal edge
+                self.coalesce(nu, nv);
+                has_coalesce = true;
             }
         }
 
@@ -160,34 +174,24 @@ impl InterferenceGraph {
         if self.has_edge(u, v) {
             return false;
         }
-        let mut shared_neighbor = HashSet::new();
-        let mut unshared_neighbor = HashSet::new();
-
         let u_node = self.nodes.get(&u).unwrap();
         let v_node = self.nodes.get(&v).unwrap();
 
         // we just use the remain graph to check if we can coalesce
-        for neighbor in u_node.adj_list_in_graph.iter() {
-            if v_node.adj_list_in_graph.contains(neighbor) {
-                shared_neighbor.insert(*neighbor);
-            } else {
-                unshared_neighbor.insert(*neighbor);
-            }
-        }
-        for neighbor in v_node.adj_list_in_graph.iter() {
-            if !u_node.adj_list_in_graph.contains(neighbor) {
-                unshared_neighbor.insert(*neighbor);
-            }
-        }
-
         let mut big_degree_cnt = 0;
-        for n in shared_neighbor {
-            if self.nodes.get(&n).unwrap().degree() > self.k {
+        for n in u_node.adj_list_in_graph.iter() {
+            if v_node.adj_list_in_graph.contains(n) {
+                if self.nodes.get(n).unwrap().degree() > self.k {
+                    big_degree_cnt += 1;
+                }
+            } else if self.nodes.get(n).unwrap().degree() >= self.k {
                 big_degree_cnt += 1;
             }
         }
-        for n in unshared_neighbor {
-            if self.nodes.get(&n).unwrap().degree() >= self.k {
+        for n in v_node.adj_list_in_graph.iter() {
+            if !u_node.adj_list_in_graph.contains(n)
+                && self.nodes.get(n).unwrap().degree() >= self.k
+            {
                 big_degree_cnt += 1;
             }
         }
@@ -246,11 +250,7 @@ impl InterferenceGraph {
 
     pub fn simplify(&mut self) -> Vec<i32> {
         // remove move edges if it's also a normal edge
-        for (u, v) in self.move_edges.clone() {
-            if self.has_edge(u, v) {
-                self.remove_move_edge(u, v);
-            }
-        }
+        self.remove_invalid_move_edges();
 
         let mut res = Vec::new();
 
@@ -267,7 +267,7 @@ impl InterferenceGraph {
             .rev()
             .collect_vec();
 
-        let mut visited = HashSet::new();
+        let mut visited = HashSet::default();
         stk.iter().for_each(|x| {
             visited.insert(*x);
         });
@@ -283,7 +283,7 @@ impl InterferenceGraph {
 
             node.in_graph = false;
 
-            let adj_list: Vec<i32> = node.adj_list.iter().map(|x| *x).collect();
+            let adj_list: Vec<i32> = node.adj_list.iter().copied().collect();
 
             node.adj_list_in_graph.clear();
 
@@ -291,11 +291,9 @@ impl InterferenceGraph {
                 let adj_node = self.nodes.get_mut(adj).unwrap();
                 adj_node.adj_list_in_graph.retain(|x| *x != id);
 
-                if can_simpilify(&adj_node) {
-                    if !visited.contains(adj) {
-                        stk.push(*adj);
-                        visited.insert(*adj);
-                    }
+                if can_simpilify(adj_node) && !visited.contains(adj) {
+                    stk.push(*adj);
+                    visited.insert(*adj);
                 }
             }
         }
@@ -318,42 +316,42 @@ impl InterferenceGraph {
     pub fn assign_special(&mut self) {
         self.remove_invalid_move_edges();
 
-        let mut special_mapping = HashMap::new();
+        let mut special_mapping = HashMap::default();
         // special reg alloc for a0-a7 which are used to pass args
         for reg in A0..=A7 {
             special_mapping.insert(reg, reg - 5);
         }
         special_mapping.insert(0, -5);
 
-        for (reg_id, color) in special_mapping.clone().iter() {
-            if let Some(mut node) = self.nodes.get_mut(reg_id) {
-                node.color = *color;
+        for (reg_id, color) in special_mapping {
+            if let Some(mut node) = self.nodes.get_mut(&reg_id) {
+                node.color = color;
 
                 // if the special node has moved edges, try to coalesce them first
                 let move_adj_list = node.move_adj_list.clone();
                 move_adj_list.iter().for_each(|n| {
-                    if self.can_coalesce(*reg_id, *n) {
-                        self.coalesce(*reg_id, *n);
+                    if self.can_coalesce(reg_id, *n) {
+                        self.coalesce(reg_id, *n);
                     }
                 });
 
                 // remove all the edges
-                let node = self.nodes.get_mut(reg_id).unwrap();
+                let node = self.nodes.get_mut(&reg_id).unwrap();
                 let adj_list = node.adj_list_in_graph.clone();
                 adj_list.iter().for_each(|n| {
                     let adj_node = self.nodes.get_mut(n).unwrap();
-                    adj_node.adj_list_in_graph.retain(|x| *x != *reg_id);
+                    adj_node.adj_list_in_graph.retain(|x| *x != reg_id);
                 });
 
                 // because we have removed the node from the graph, the moved edge is no use
-                let node = self.nodes.get_mut(reg_id).unwrap();
+                let node = self.nodes.get_mut(&reg_id).unwrap();
                 let move_adj_list = node.move_adj_list.clone();
                 move_adj_list.iter().for_each(|n| {
-                    self.remove_move_edge(*reg_id, *n);
+                    self.remove_move_edge(reg_id, *n);
                 });
 
                 // clear the adj list
-                let node = self.nodes.get_mut(reg_id).unwrap();
+                let node = self.nodes.get_mut(&reg_id).unwrap();
                 node.adj_list.clear();
                 node.move_adj_list.clear();
             }
@@ -361,20 +359,6 @@ impl InterferenceGraph {
     }
 
     pub fn assign_color(&mut self, node_id: i32) -> i32 {
-        // if node_id < 5 {
-        //     // special
-        //     let mut node = self.nodes.get_mut(&node_id).unwrap();
-        //     node.color = node_id + SPECIAL_COLOR_OFFSET;
-        //     node.in_graph = true;
-        //     return node.color;
-        // } else if node_id < 32 {
-        //     // 已经分配了就不用分配了，假设总共有 32 个寄存器！！！
-        //     let mut node = self.nodes.get_mut(&node_id).unwrap();
-        //     node.color = node_id - 5;
-        //     node.in_graph = true;
-        //     return node.color;
-        // }
-
         if self.nodes.get(&node_id).unwrap().color != UNCOLORED {
             return self.nodes.get(&node_id).unwrap().color;
         }
@@ -403,18 +387,13 @@ impl InterferenceGraph {
         // if reg_id == 0 {
         //     return;
         // }
-        if !self.nodes.contains_key(&reg_id) {
-            self.nodes.insert(
-                reg_id,
-                Node {
-                    in_graph: true,
-                    color: UNCOLORED,
-                    adj_list: HashSet::new(),
-                    move_adj_list: HashSet::new(),
-                    adj_list_in_graph: HashSet::new(),
-                },
-            );
-        }
+        self.nodes.entry(reg_id).or_insert(Node {
+            in_graph: true,
+            color: UNCOLORED,
+            adj_list: HashSet::default(),
+            move_adj_list: HashSet::default(),
+            adj_list_in_graph: HashSet::default(),
+        });
     }
 
     pub fn remove_edge(&mut self, u: i32, v: i32) {
@@ -542,34 +521,28 @@ impl InterferenceGraph {
     }
 }
 
-pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32, reg_type: Type) {
+pub(crate) fn spill_rewrite(
+    f: &mut Function,
+    spill_reg: i32,
+    reg_type: Type,
+    max_reg_id: &mut i32,
+) {
     let sf = f.sf().clone();
     let mut sf = sf.borrow_mut();
 
-    let mut max_reg_id = -1;
-
-    let mut store_after_ids = vec![];
-
-    let mut load_before_ids = vec![];
-
-    for block in f.blocks_mut().iter_mut() {
-        for inst in block.instrs_mut().iter_mut() {
-            let (kill, gen1, gen2) = inst.get_operands(reg_type);
-            // update max reg id
-            max_reg_id = max(max(max_reg_id, kill), max(gen1, gen2));
-        }
-    }
-
     // println!("MAX REG ID: {}", max_reg_id);
-    let store_reg_id = max_reg_id + 1;
-    let load_reg_id = max_reg_id + 2;
+    let store_reg_id = *max_reg_id + 1;
+    let load_reg_id = *max_reg_id + 2;
+
+    *max_reg_id += 2;
+
     // 可能可以优化
     let index = sf.push_dword();
     let so = sf.get_stack_object(index);
 
     // deal with def
-    for (bb_idx, block) in f.blocks_mut().iter_mut().enumerate() {
-        let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
+    for block in f.blocks_mut().iter_mut() {
+        let mut store_after_ids = vec![];
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
             let (kill, _, _) = inst.get_operands(reg_type);
             if kill == spill_reg {
@@ -578,70 +551,92 @@ pub(crate) fn spill_rewrite(f: &mut Function, spill_reg: i32, reg_type: Type) {
                     if *reg.id() == spill_reg {
                         reg.set_id(store_reg_id);
 
-                        store_after_ids.push((bb_idx, inst_index + 1 + offset));
-                        offset += 1;
+                        store_after_ids.push(inst_index + 1);
+                        break;
                     }
                 }
             }
         }
-    }
-
-    for (bb_idx, inst_index) in store_after_ids {
-        let sp = Reg::new_int(SP);
-        let reg_to_store = Reg::new_int(store_reg_id);
-        let offset = *so.borrow().position();
-        let ty = match *so.borrow().size() {
-            1 => StoreType::Sb,
-            2 => StoreType::Sh,
-            4 => StoreType::Sw,
-            8 => StoreType::Sd,
-            _ => panic!("invalid size"),
-        };
-        let store = Box::new(StoreInstr::new(
-            sp,
-            reg_to_store,
-            ImmeValueType::Direct(offset),
-            None,
-            ty,
-        ));
-        f.blocks_mut()[bb_idx]
-            .instrs_mut()
-            .insert(inst_index, store);
+        for inst_index in store_after_ids.iter().rev() {
+            let sp = Reg::new_int(SP);
+            let reg_to_store = if matches!(reg_type, Type::Int) {
+                Reg::new_int(store_reg_id)
+            } else {
+                Reg::new_float(store_reg_id)
+            };
+            let offset = *so.borrow().position();
+            let ty = StoreType::Sd;
+            // let ty = match *so.borrow().size() {
+            //     1 => StoreType::Sb,
+            //     2 => StoreType::Sh,
+            //     4 => StoreType::Sw,
+            //     8 => StoreType::Sd,
+            //     _ => panic!("invalid size"),
+            // };
+            let store: Box<dyn InstrTrait> = if matches!(reg_type, Type::Int) {
+                Box::new(StoreInstr::new(
+                    sp,
+                    reg_to_store,
+                    ImmeValueType::Direct(offset),
+                    None,
+                    ty,
+                ))
+            } else {
+                Box::new(FStoreInstr::new(
+                    sp,
+                    reg_to_store,
+                    ImmeValueType::Direct(offset),
+                    None,
+                ))
+            };
+            block.instrs_mut().insert(*inst_index, store);
+        }
     }
 
     // deal with use
-    for (bb_id, block) in f.blocks_mut().iter_mut().enumerate() {
-        let mut offset = 0; // 每次插入一个，后面的元素都要向后移动一格
+    for block in f.blocks_mut().iter_mut() {
+        let mut load_before_ids = vec![];
         for (inst_index, inst) in block.instrs_mut().iter_mut().enumerate() {
             let (_, gen1, gen2) = inst.get_operands(reg_type);
             if gen1 == spill_reg || gen2 == spill_reg {
+                let def_cnt = inst.defs().len();
                 let mut r = inst.regs_mut();
 
                 let mut flag = false; // 只插入一次
-                for reg in r.iter_mut() {
+                for reg in r.iter_mut().skip(def_cnt) {
                     if *reg.id() == spill_reg {
                         reg.set_id(load_reg_id);
 
                         if !flag {
-                            load_before_ids.push((bb_id, inst_index + offset));
-                            offset += 1;
+                            load_before_ids.push(inst_index);
                             flag = true;
                         }
                     }
                 }
             }
         }
-    }
 
-    let sp = Reg::new_int(SP);
+        let sp = Reg::new_int(SP);
 
-    for (bb_idx, inst_index) in load_before_ids {
-        let load_to_reg = Reg::new_int(load_reg_id);
-        let offset = *so.borrow().position();
-        let store = Box::new(LoadInstr::new(load_to_reg, sp, offset, LoadType::Ld));
-        f.blocks_mut()[bb_idx]
-            .instrs_mut()
-            .insert(inst_index, store);
+        for inst_index in load_before_ids.iter().rev() {
+            let load_to_reg = if matches!(reg_type, Type::Int) {
+                Reg::new_int(load_reg_id)
+            } else {
+                Reg::new_float(load_reg_id)
+            };
+            let offset = *so.borrow().position();
+            let store: Box<dyn InstrTrait> = if matches!(reg_type, Type::Int) {
+                Box::new(LoadInstr::new(load_to_reg, sp, offset, LoadType::Ld))
+            } else {
+                Box::new(FLoadInstr::new(
+                    load_to_reg,
+                    sp,
+                    ImmeValueType::Direct(offset),
+                    None,
+                ))
+            };
+            block.instrs_mut().insert(*inst_index, store);
+        }
     }
 }
 
@@ -659,10 +654,10 @@ fn replace_regs(function: &mut Function, reg_map: &HashMap<i32, i32>) {
     }
 }
 
-pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
+pub(crate) fn register_allocate(func: &mut Function) {
     let mut register_allocate = |reg_type| {
         for block in func.blocks_mut() {
-            if block.instrs().len() == 0 {
+            if block.instrs().is_empty() {
                 block.instrs_mut().push(Box::new(RegInstr::new_move(
                     Reg::new_int(0),
                     Reg::new_int(0),
@@ -670,33 +665,46 @@ pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
             }
         }
 
-        let mut allocation = HashMap::new();
+        let mut allocation = HashMap::default();
 
         // 1. build  interference graph
+        // println!("BUILD GRAPH");
         let mut ig = InterferenceGraph::build(func, MAX_USABLE_REG_CNT, reg_type);
+
+        // println!("ASSIGN SPECIAL");
         ig.assign_special();
 
         // println!("{:?}", ig);
 
         let mut stk = vec![];
 
+        let mut max_reg_id = 0xFFFFF;
         loop {
+            // println!("BEGIN LOOP");
             // 2. simplify the graph
             stk.extend(ig.simplify().into_iter());
+
+            // println!("PASS SIMPLIFY");
 
             // println!("{:?}", stk);
 
             // 3. coalesce move edges
             if ig.try_coalesce() {
+                // println!("3");
                 continue;
             }
+
+            // println!("PASS TRY COALESCE");
 
             // 4. freeze move edges related to small degree node
             if ig.try_freeze() {
+                // println!("4");
                 continue;
             }
 
-            let mut spill_set = HashSet::new();
+            // println!("PASS TRY FREEZE");
+
+            let mut spill_set = HashSet::default();
 
             if stk.len() != ig.nodes.len() {
                 stk.extend(ig.simplify_optimistic());
@@ -708,13 +716,19 @@ pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
                 let c = ig.assign_color(n);
                 if c == UNCOLORED {
                     spill_set.insert(n);
-                    break;
                 }
             }
 
             if !spill_set.is_empty() {
-                let n = spill_set.iter().next().unwrap();
-                spill_rewrite(func, *n, reg_type);
+                // println!("{:?}", spill_set);
+                for ele in &spill_set {
+                    // println!("{:?}", ele);
+                }
+                // let n = spill_set.iter().next().unwrap();
+                for n in &spill_set {
+                    // println!("SPILL {}", n);
+                    spill_rewrite(func, *n, reg_type, &mut max_reg_id);
+                }
 
                 // restart the whole process
                 stk.clear();
@@ -737,7 +751,9 @@ pub(crate) fn register_allocate<'a>(func: &'a mut Function) {
 
         // println!("{:?}", ig);
         replace_regs(func, &allocation);
+        // println!("END LOOP");
     };
+
     register_allocate(Type::Int);
     register_allocate(Type::Float);
 }
@@ -800,16 +816,21 @@ pub(crate) fn insert_prologue(function: &mut Function) {
         insert_idx += 1;
 
         for (reg_id, so_idx) in callee_saved_regs.iter() {
-            let reg = Reg::new_int(*reg_id);
+            let reg = if *reg_id > 0 {
+                Reg::new_int(*reg_id)
+            } else {
+                Reg::new_float(-*reg_id)
+            };
+
             let so = sf.get_stack_object(*so_idx);
-            let store = StoreInstr::new(
-                sp,
-                reg,
-                ImmeValueType::Direct(*so.borrow().position()),
-                None,
-                StoreType::Sd,
-            );
-            insts.insert(insert_idx, Box::new(store));
+
+            let offset = ImmeValueType::Direct(*so.borrow().position());
+            let store: Box<dyn InstrTrait> = if *reg_id > 0 {
+                Box::new(StoreInstr::new(sp, reg, offset, None, StoreType::Sd))
+            } else {
+                Box::new(FStoreInstr::new(sp, reg, offset, None))
+            };
+            insts.insert(insert_idx, store);
             insert_idx += 1;
         }
     }
@@ -860,11 +881,24 @@ pub(crate) fn insert_epilogue(function: &mut Function) {
     // insert_idx += 1;
 
     for (reg_id, so_idx) in callee_saved_regs.iter() {
-        let reg = Reg::new_int(*reg_id);
+        let reg = if *reg_id > 0 {
+            Reg::new_int(*reg_id)
+        } else {
+            Reg::new_float(-*reg_id)
+        };
         let so = sf.get_stack_object(*so_idx);
         let offset = *so.borrow().position();
-        let load = LoadInstr::new(reg, sp, offset, LoadType::Ld);
-        insts.insert(insert_idx, Box::new(load));
+        let load: Box<dyn InstrTrait> = if *reg_id > 0 {
+            Box::new(LoadInstr::new(reg, sp, offset, LoadType::Ld))
+        } else {
+            Box::new(FLoadInstr::new(
+                reg,
+                sp,
+                ImmeValueType::Direct(offset),
+                None,
+            ))
+        };
+        insts.insert(insert_idx, load);
         insert_idx += 1;
     }
 
@@ -878,7 +912,7 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
         let mut sf = sf.borrow_mut();
 
         // collect_callee_saved_regs
-        let mut regs = HashSet::new();
+        let mut regs = HashSet::default();
         // if there is a call, then it is not a leaf function
         let mut is_leaf = true;
         for block in func.blocks().iter() {
@@ -889,8 +923,15 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
                 let t = inst.get_operands(reg_type);
                 let v = vec![t.0, t.1, t.2];
                 for reg_id in v.iter() {
-                    if *reg_id < 32
-                        && RegConvention::<i32>::REGISTER_USAGE[*reg_id as usize]
+                    if matches!(reg_type, Type::Int) {
+                        if *reg_id < 32
+                            && RegConvention::<i32>::REGISTER_USAGE[*reg_id as usize]
+                                == RegisterUsage::CalleeSaved
+                        {
+                            regs.insert(*reg_id);
+                        }
+                    } else if *reg_id < 32
+                        && RegConvention::<f32>::REGISTER_USAGE[*reg_id as usize]
                             == RegisterUsage::CalleeSaved
                     {
                         regs.insert(*reg_id);
@@ -899,13 +940,17 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
             }
         }
 
-        for ele in regs {
-            func.callee_saved_regs_mut().insert(ele, 0);
-        }
+        // for ele in regs {
+        //     func.callee_saved_regs_mut().insert(ele, 0);
+        // }
 
-        for reg in func.callee_saved_regs().clone().keys() {
+        for reg in regs {
             let idx = sf.push_dword();
-            func.callee_saved_regs_mut().insert(*reg, idx);
+            if matches!(reg_type, Type::Int) {
+                func.callee_saved_regs_mut().insert(reg, idx);
+            } else {
+                func.callee_saved_regs_mut().insert(-reg, idx);
+            }
         }
 
         if !is_leaf {
@@ -924,7 +969,7 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
 
         for block in func.blocks_mut().iter_mut() {
             let mut insert_pos = vec![];
-            let mut insert_store_reg_offset_map = HashMap::new();
+            let mut insert_store_reg_offset_map = HashMap::default();
 
             for (inst_id, inst) in block.instrs().iter().enumerate() {
                 let mut need_push_args_to_stack = false;
@@ -943,11 +988,20 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
                 let mut out = block_liveness.get_inst_out(inst_id as i32).clone();
                 // return value can be changed
                 out.remove(&A0);
-                out.retain(|x| {
-                    *x < 32
-                        && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
-                            == RegisterUsage::CallerSaved
-                });
+
+                if matches!(reg_type, Type::Int) {
+                    out.retain(|x| {
+                        *x < 32
+                            && RegConvention::<i32>::REGISTER_USAGE[*x as usize]
+                                == RegisterUsage::CallerSaved
+                    });
+                } else {
+                    out.retain(|x| {
+                        *x < 32
+                            && RegConvention::<f32>::REGISTER_USAGE[*x as usize]
+                                == RegisterUsage::CallerSaved
+                    });
+                }
 
                 // println!("ASM {} OUT {:?}", inst.gen_asm(), out);
                 let mut store_reg_offset = vec![];
@@ -1043,12 +1097,12 @@ pub fn peephole(func: &mut Function) -> bool {
         for (i, inst) in block.instrs_mut().iter_mut().enumerate() {
             if let Some(x) = inst.as_any().downcast_ref::<RegInstr>() {
                 let (u, v, _) = x.get_operands(Type::Int);
-                if matches!(x.ty(), RegType::Mv) && u == v && u != 0 {
+                if matches!(x.ty(), RegType::Mv) && u == v {
                     insts_to_remove.push(i);
                 }
             } else if let Some(x) = inst.as_any().downcast_ref::<FRegInstr>() {
                 let (u, v, _) = x.get_operands(Type::Float);
-                if matches!(x.ty(), FRegType::FmvS) && u == v && u != 0 {
+                if matches!(x.ty(), FRegType::FmvS) && u == v {
                     insts_to_remove.push(i);
                 }
             }
@@ -1071,9 +1125,9 @@ pub fn peephole(func: &mut Function) -> bool {
     loop {
         let mut simplified = false;
 
-        let mut jump_map = HashMap::new();
-        let mut name2id = HashMap::new();
-        let mut id2name = HashMap::new();
+        let mut jump_map = HashMap::default();
+        let mut name2id = HashMap::default();
+        let mut id2name = HashMap::default();
 
         let mut jump_to_push: Box<dyn InstrTrait> =
             Box::new(JumpInstr::new_jump("impossible".to_string()));
@@ -1121,7 +1175,7 @@ pub fn peephole(func: &mut Function) -> bool {
         });
 
         // map id to new id, because we will remove some block
-        let mut map_id = HashMap::new();
+        let mut map_id = HashMap::default();
 
         {
             // adjust block's id, because block's id is related to its index in an array
@@ -1193,8 +1247,8 @@ pub fn peephole(func: &mut Function) -> bool {
 
     let mut constant_propagation_for_li = |reg_type| {
         for block in func.blocks_mut().iter_mut() {
-            let mut li_map = HashMap::new();
-            let mut rewrite_inst_map: HashMap<usize, Box<dyn InstrTrait>> = HashMap::new();
+            let mut li_map = HashMap::default();
+            let mut rewrite_inst_map: HashMap<usize, Box<dyn InstrTrait>> = HashMap::default();
 
             for (inst_idx, inst) in block.instrs_mut().iter_mut().enumerate() {
                 let (d, u1, u2) = inst.get_operands(reg_type);
@@ -1560,8 +1614,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents = std::fs::read_to_string("test/functional/87_many_params.sy")
-            .expect("cannot open source file");
+        let contents =
+            std::fs::read_to_string("test/homemade/math.sy").expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1629,19 +1683,19 @@ mod tests {
 
             {
                 let mut peephole_cnt = 0;
-                while peephole(func) {
-                    println!("PEEPHOLE {}: ", peephole_cnt);
-                    peephole_cnt += 1;
-                    for b in func.blocks().iter() {
-                        println!("{}:", b.name());
-                        for i in b.instrs().iter() {
-                            print!("\t{}", i.gen_asm());
-                        }
-                    }
-                    // if peephole_cnt == 3 {
-                    //     break;
-                    // }
-                }
+                // while peephole(func) {
+                // println!("PEEPHOLE {}: ", peephole_cnt);
+                // peephole_cnt += 1;
+                // for b in func.blocks().iter() {
+                //     println!("{}:", b.name());
+                //     for i in b.instrs().iter() {
+                //         print!("\t{}", i.gen_asm());
+                //     }
+                // }
+                // if peephole_cnt == 3 {
+                //     break;
+                // }
+                // }
             }
 
             insert_prologue(func);
@@ -1649,7 +1703,5 @@ mod tests {
         }
         println!("==================");
         println!("{}", p.gen_asm());
-
-        return;
     }
 }
