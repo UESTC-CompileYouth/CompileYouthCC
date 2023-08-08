@@ -1391,48 +1391,48 @@ pub fn peephole(func: &mut Function) -> bool {
     constant_propagation_for_li(Type::Float);
 
     // remove unused def
-    let mut remove_unused_def = |reg_type| {
-        let analysis = LivenessAnalysis::of(func, reg_type);
-        for (block_id, liveness) in analysis.block_liveness_map.iter() {
-            let block = func.block_mut(*block_id);
-            let mut remove_indices = vec![];
-            let liveness = liveness.borrow();
-            for (inst_idx, inst) in block.instrs().iter().enumerate() {
-                let out = liveness.get_inst_out(inst_idx as i32);
-                let (d, _, _) = inst.get_operands(reg_type);
+    // let mut remove_unused_def = |reg_type| {
+    //     let analysis = LivenessAnalysis::of(func, reg_type);
+    //     for (block_id, liveness) in analysis.block_liveness_map.iter() {
+    //         let block = func.block_mut(*block_id);
+    //         let mut remove_indices = vec![];
+    //         let liveness = liveness.borrow();
+    //         for (inst_idx, inst) in block.instrs().iter().enumerate() {
+    //             let out = liveness.get_inst_out(inst_idx as i32);
+    //             let (d, _, _) = inst.get_operands(reg_type);
 
-                // no def
-                if d == 0 {
-                    continue;
-                }
+    //             // no def
+    //             if d == 0 {
+    //                 continue;
+    //             }
 
-                // store instruction is special
-                if inst.as_any().downcast_ref::<StoreInstr>().is_some() {
-                    continue;
-                }
+    //             // store instruction is special
+    //             if inst.as_any().downcast_ref::<StoreInstr>().is_some() {
+    //                 continue;
+    //             }
 
-                // maybe define a return value or args, it's difficult to analyze whether it's used
-                // todo: optimize this
-                if (A0..=A7).contains(&d)
-                    || RegConvention::<i32>::REGISTER_USAGE[d as usize] == RegisterUsage::Special
-                {
-                    continue;
-                }
+    //             // maybe define a return value or args, it's difficult to analyze whether it's used
+    //             // todo: optimize this
+    //             if (A0..=A7).contains(&d)
+    //                 || RegConvention::<i32>::REGISTER_USAGE[d as usize] == RegisterUsage::Special
+    //             {
+    //                 continue;
+    //             }
 
-                if d != 0 && !out.contains(&d) {
-                    // println!("remove {}", inst.gen_asm());
-                    remove_indices.push(inst_idx);
-                }
-            }
+    //             if d != 0 && !out.contains(&d) {
+    //                 // println!("remove {}", inst.gen_asm());
+    //                 remove_indices.push(inst_idx);
+    //             }
+    //         }
 
-            for idx in remove_indices.iter().rev() {
-                block.instrs_mut().remove(*idx);
-                changed = true;
-            }
-        }
-    };
-    remove_unused_def(Type::Int);
-    remove_unused_def(Type::Float);
+    //         for idx in remove_indices.iter().rev() {
+    //             block.instrs_mut().remove(*idx);
+    //             changed = true;
+    //         }
+    //     }
+    // };
+    // remove_unused_def(Type::Int);
+    // remove_unused_def(Type::Float);
     // // remove mov
     // let analysis = LivenessAnalysis::of(func);
     // let mut push_map = vec![];
