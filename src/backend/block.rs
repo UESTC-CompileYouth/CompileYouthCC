@@ -643,7 +643,16 @@ impl Block {
                         * FLOAT_SIZE as i32;
                 }
 
-                let mut offset = 0;
+                // stack address align, 16 byte
+                let align_size = if stack_passed % 16 != 0 {
+                    let align_size = 16 - stack_passed % 16;
+                    stack_passed += align_size;
+                    align_size
+                } else {
+                    0
+                };
+
+                let mut offset = -align_size;
                 for rs in arg_reg_vec.iter().rev() {
                     if rs.ty().is_int() {
                         int_arg_cnt -= 1;
