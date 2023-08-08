@@ -27,10 +27,38 @@ struct CompilerOptions {
     log_level: String,
     #[structopt(short = "O", default_value = "0", help = "optimization level")]
     _optimization_level: u8,
+    #[structopt(short = "--enable", help = "enable optimization passes")]
+    enable_passes: Vec<String>,
+    #[structopt(short = "--disable", help = "disable optimization passes")]
+    disable_passes: Vec<String>,
+}
+
+fn parse_passes(cmdline_options: &CompilerOptions) -> Vec<String> {
+    let mut passes = vec![
+        "opt".to_string(),
+        "mem2reg".to_string(),
+        "gvn".to_string(),
+        "gcm".to_string(),
+        "func_inline".to_string(),
+        "peephole".to_string(),
+        "asm".to_string(),
+    ];
+    for pass in cmdline_options.enable_passes.iter() {
+        if !passes.contains(pass) {
+            passes.push(pass.clone());
+        }
+    }
+    for pass in cmdline_options.disable_passes.iter() {
+        if let Some(pos) = passes.iter().position(|x| x == pass) {
+            passes.remove(pos);
+        }
+    }
+    passes
 }
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
+
     {
         let env = env_logger::Env::new();
         let mut builder = env_logger::Builder::new();
@@ -40,10 +68,12 @@ fn main() {
         builder.parse_env(env);
         builder.init();
     }
+
+    let enable_passes = parse_passes(&cmdline_options);
+
     let contents =
         std::fs::read_to_string(cmdline_options.input_file).expect("cannot open source file");
     let input = InputStream::new(contents.as_bytes());
-
     let lexer = SysYLexer::new(input);
     let token_stream = CommonTokenStream::new(lexer);
     let mut parser = SysYParser::new(token_stream);
@@ -63,16 +93,27 @@ fn main() {
     ast_visitor.return_content();
 
     /* passes */
-    optimize_ir(&mut llvm_module);
+    optimize_ir(&mut llvm_module, &enable_passes);
+
+    if enable_passes.contains(&"ir".to_string()) {
+        if let Some(output_path) = &cmdline_options.output_file {
+            let mut output_file = File::create(output_path).expect("cannot open output file");
+            write!(output_file, "{}", llvm_module).expect("cannot write to output file");
+        } else {
+            println!("{}", llvm_module);
+        }
+    }
 
     /* backend */
     let mut program = Program::from_llvm_module(&llvm_module);
     program.do_backend_passes();
 
-    if let Some(output_path) = cmdline_options.output_file {
-        let mut output_file = File::create(output_path).expect("cannot open output file");
-        write!(output_file, "{}", program.gen_asm()).expect("cannot write to output file");
-    } else {
-        println!("{}", program.gen_asm());
+    if enable_passes.contains(&"asm".to_string()) {
+        if let Some(output_path) = &cmdline_options.output_file {
+            let mut output_file = File::create(output_path).expect("cannot open output file");
+            write!(output_file, "{}", program.gen_asm()).expect("cannot write to output file");
+        } else {
+            println!("{}", program.gen_asm());
+        }
     }
 }

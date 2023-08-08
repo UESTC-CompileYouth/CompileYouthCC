@@ -8,27 +8,43 @@ use passes::gcm::gcm_for_module;
 use passes::gvn::global_value_numbering;
 use passes::mem2reg::mem2reg;
 
-fn gvn(llvm_module: &mut LLVMModule) {
-    global_value_numbering(llvm_module);
-    remove_unused_def(llvm_module);
-    check_module(llvm_module);
+fn gvn(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
+    if enable_passes.contains(&"gvn".to_string()) {
+        log::trace!("GVN...");
+        global_value_numbering(llvm_module);
+        remove_unused_def(llvm_module);
+        check_module(llvm_module);
+        log::trace!("GVN Done!")
+    }
 }
 
-fn gcm(llvm_module: &mut LLVMModule) {
-    gcm_for_module(llvm_module);
-    check_module(llvm_module);
+fn gcm(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
+    if enable_passes.contains(&"gcm".to_string()) {
+        log::trace!("GCM...");
+        gcm_for_module(llvm_module);
+        check_module(llvm_module);
+        log::trace!("GCM Done!")
+    }
 }
 
-pub fn optimize_ir(llvm_module: &mut LLVMModule) {
-    remove_useless_bb(llvm_module);
-    mem2reg(llvm_module);
-    remove_unused_def(llvm_module);
-    check_module(&llvm_module);
+pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
+    if enable_passes.contains(&"opt".to_string()) {
+        log::trace!("Optimizing...");
+        remove_useless_bb(llvm_module);
 
-    gvn(llvm_module);
-    gcm(llvm_module);
-    gvn(llvm_module);
+        if enable_passes.contains(&"mem2reg".to_string()) {
+            log::trace!("Mem2Reg...");
+            mem2reg(llvm_module);
+            remove_unused_def(llvm_module);
+            check_module(&llvm_module);
+            log::trace!("Mem2Reg Done!")
+        }
 
-    remove_phi(llvm_module);
+        gvn(llvm_module, enable_passes);
+        gcm(llvm_module, enable_passes);
+        gvn(llvm_module, enable_passes);
+        remove_phi(llvm_module);
+        log::trace!("Optimizing Done!")
+    }
     llvm_module.before_backend();
 }
