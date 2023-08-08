@@ -622,11 +622,18 @@ impl Block {
                 let float_arg_size = float_arg_cnt;
                 let mut stack_passed = 0;
                 if int_arg_size > RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
-                    for stack_arg in &arg_reg_vec[RegConvention::<i32>::ARGUMENT_REGISTER_COUNT..] {
-                        if is_addr_set.contains(stack_arg) {
-                            stack_passed += ADDRESS_SIZE as i32;
-                        } else {
-                            stack_passed += INT_SIZE as i32;
+                    let mut in_reg_int_arg = 0;
+                    for stack_arg in &arg_reg_vec {
+                        if stack_arg.ty() == &Type::Int {
+                            in_reg_int_arg += 1;
+                            if in_reg_int_arg <= RegConvention::<i32>::ARGUMENT_REGISTER_COUNT {
+                                continue;
+                            }
+                            if is_addr_set.contains(stack_arg) {
+                                stack_passed += ADDRESS_SIZE as i32;
+                            } else {
+                                stack_passed += INT_SIZE as i32;
+                            }
                         }
                     }
                 }
@@ -693,7 +700,26 @@ impl Block {
                         unimplemented!("unimplemented arg type: {:?}", rs.ty());
                     }
                 }
-                assert!(offset == (stack_passed as i32 * -1));
+                {
+                    // if function.name() == "params_mix" && call_instr.func_name() == "params_mix" {
+                    //     println!("stack passed: {}", stack_passed);
+                    //     for arg_ssa in call_instr.args() {
+                    //         if let Some(addr) = arg_ssa.inner().as_address() {
+                    //             println!("addr: {:?}", addr);
+                    //         } else {
+                    //             println!("scalar: {:?}", arg_ssa.inner());
+                    //         }
+                    //     }
+                    // }
+                    assert!(
+                        offset == (stack_passed as i32 * -1),
+                        "offset: {}, stack_passed: -{}, function {} call for {}",
+                        offset,
+                        stack_passed,
+                        function.name(),
+                        call_instr.func_name()
+                    );
+                }
 
                 if stack_passed > 0 {
                     risc_v_instrs.push(Box::new(ChangeSPInstr::new(stack_passed * -1)));

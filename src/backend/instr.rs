@@ -981,7 +981,6 @@ impl InstrTrait for LoadStackInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        assert!(*self.rd.ty() == Type::Int);
         let size = *self.stack_object.borrow().size();
         let mut offset = if self.offset != -1 {
             self.offset
@@ -1004,17 +1003,23 @@ impl InstrTrait for LoadStackInstr {
         }
 
         if size == 4 {
-            asm.push_str(&format!("lw {}, {}(sp)\n", self.rd, offset));
+            if self.rd.ty() == &Type::Int {
+                asm.push_str(&format!("lw {}, {}(sp)\n", self.rd, offset));
+            } else if self.rd.ty() == &Type::Float {
+                asm.push_str(&format!("flw {}, {}(sp)\n", self.rd, offset));
+            } else {
+                unreachable!("load stack must be int or float");
+            }
         } else if size == 8 {
+            // address, saved in int register
+            assert!(self.rd.ty() == &Type::Int);
             asm.push_str(&format!("ld {}, {}(sp)\n", self.rd, offset));
         } else {
             unreachable!("size of stack object is not 4 or 8");
         }
-
         for offset in offsets {
             asm.push_str(&format!("addi sp, sp, {}\n", offset));
         }
-
         asm
     }
     fn uses(&self) -> Vec<Reg> {
@@ -1299,18 +1304,39 @@ impl InstrTrait for FLoadInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rd.ty() == Type::Float);
-        match self.offset {
-            ImmeValueType::Direct(i) => {
-                assert!(i <= 2047 && i >= -2048);
+
+        if let ImmeValueType::Direct(i) = self.offset {
+            let mut s = String::new();
+            let mut offsets = vec![];
+
+            let mut offset = i;
+            let step = 2032;
+            while offset > 2047 {
+                s.push_str(&format!("addi sp, sp, {}\n", step));
+                offset -= step;
+                offsets.push(-step);
             }
-            _ => {}
+            while offset < -2048 {
+                s.push_str(&format!("addi sp, sp, {}\n", -step));
+                offset += step;
+                offsets.push(step);
+            }
+
+            s.push_str(&format!("flw {}, {}({})\n", self.rd, offset, self.rs1));
+
+            for ele in offsets {
+                s.push_str(&format!("addi sp, sp, {}\n", ele));
+            }
+
+            s
+        } else {
+            format!(
+                "flw {}, {}({})\n",
+                self.rd,
+                imme_string(&self.offset, &self.trunc),
+                self.rs1
+            )
         }
-        format!(
-            "flw {}, {}({})\n",
-            self.rd,
-            imme_string(&self.offset, &self.trunc),
-            self.rs1
-        )
     }
     fn uses(&self) -> Vec<Reg> {
         vec![self.rs1]
@@ -1342,18 +1368,39 @@ impl InstrTrait for FStoreInstr {
     fn gen_asm(&self) -> String {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rs2.ty() == Type::Float);
-        match self.offset {
-            ImmeValueType::Direct(i) => {
-                assert!(i <= 2047 && i >= -2048);
+
+        if let ImmeValueType::Direct(i) = self.offset {
+            let mut s = String::new();
+            let mut offsets = vec![];
+
+            let mut offset = i;
+            let step = 2032;
+            while offset > 2047 {
+                s.push_str(&format!("addi sp, sp, {}\n", step));
+                offset -= step;
+                offsets.push(-step);
             }
-            _ => {}
+            while offset < -2048 {
+                s.push_str(&format!("addi sp, sp, {}\n", -step));
+                offset += step;
+                offsets.push(step);
+            }
+
+            s.push_str(&format!("fsw {}, {}({})\n", self.rs2, offset, self.rs1));
+
+            for ele in offsets {
+                s.push_str(&format!("addi sp, sp, {}\n", ele));
+            }
+
+            s
+        } else {
+            format!(
+                "fsw {}, {}({})\n",
+                self.rs2,
+                imme_string(&self.offset, &self.trunc),
+                self.rs1
+            )
         }
-        format!(
-            "fsw {}, {}({})\n",
-            self.rs2,
-            imme_string(&self.offset, &self.trunc),
-            self.rs1
-        )
     }
     fn uses(&self) -> Vec<Reg> {
         vec![self.rs1, self.rs2]
