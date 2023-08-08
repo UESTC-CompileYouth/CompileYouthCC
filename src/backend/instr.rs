@@ -1240,7 +1240,14 @@ impl InstrTrait for CallInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        format!("call {}\n", self.label)
+        let func_name = if self.label == "starttime" {
+            "_sysy_starttime"
+        } else if self.label == "stoptime" {
+            "_sysy_stoptime"
+        } else {
+            &self.label
+        };
+        format!("call {}\n", func_name)
     }
     fn uses(&self) -> Vec<Reg> {
         let mut regs = vec![];
