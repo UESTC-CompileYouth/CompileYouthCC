@@ -1,14 +1,12 @@
+use crate::backend::{block::Block, function::Function, instr::InstrTrait};
+use crate::common::r#type::Type;
+use itertools::Itertools;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
     rc::Rc,
     vec,
 };
-
-use itertools::Itertools;
-
-use crate::backend::{block::Block, function::Function, instr::InstrTrait};
-use crate::common::r#type::Type;
 
 pub(crate) struct LivenessAnalysis {
     pub block_liveness_map: HashMap<i32, Rc<RefCell<BlockLiveness>>>,
@@ -45,10 +43,10 @@ impl LivenessAnalysis {
 
         // 不动点算法：迭代直到不再变化
         // println!("BEGIN LIVENESS ANALYSIS ITERATON");
-        let mut loop_cnt = 0;
+        let mut _loop_cnt = 0;
         loop {
             // println!("{}", loop_cnt);
-            loop_cnt += 1;
+            _loop_cnt += 1;
             let mut changed = false;
             for &block_id in order.iter() {
                 let block = func.block(block_id);
@@ -208,10 +206,10 @@ impl BlockLiveness {
         for succ in bb.out_edges().iter() {
             let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
             let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
-            let succ_bb_first_inst = *insts_map[succ].last().unwrap() as i32;
+            let succ_bb_first_inst = *insts_map[succ].last().unwrap_or(&usize::MAX);
 
-            if succ_bb_first_inst != -1 {
-                let succ_in = succ_bb_block_liveness.get_inst_in(succ_bb_first_inst);
+            if succ_bb_first_inst != usize::MAX {
+                let succ_in = succ_bb_block_liveness.get_inst_in(succ_bb_first_inst as i32);
                 // 所有后继块合并成一个虚拟块，计算该块的in
                 in_ = in_.union(succ_in).cloned().collect();
             }
