@@ -1395,7 +1395,7 @@ pub fn peephole(func: &mut Function) -> bool {
     //     let analysis = LivenessAnalysis::of(func, reg_type);
     //     for (block_id, liveness) in analysis.block_liveness_map.iter() {
     //         let block = func.block_mut(*block_id);
-    //         let mut remove_idx = vec![];
+    //         let mut remove_indices = vec![];
     //         let liveness = liveness.borrow();
     //         for (inst_idx, inst) in block.instrs().iter().enumerate() {
     //             let out = liveness.get_inst_out(inst_idx as i32);
@@ -1413,7 +1413,7 @@ pub fn peephole(func: &mut Function) -> bool {
 
     //             // maybe define a return value or args, it's difficult to analyze whether it's used
     //             // todo: optimize this
-    //             if d >= A0 && d <= A7
+    //             if (A0..=A7).contains(&d)
     //                 || RegConvention::<i32>::REGISTER_USAGE[d as usize] == RegisterUsage::Special
     //             {
     //                 continue;
@@ -1421,11 +1421,11 @@ pub fn peephole(func: &mut Function) -> bool {
 
     //             if d != 0 && !out.contains(&d) {
     //                 // println!("remove {}", inst.gen_asm());
-    //                 remove_idx.push(inst_idx);
+    //                 remove_indices.push(inst_idx);
     //             }
     //         }
 
-    //         for idx in remove_idx.iter().rev() {
+    //         for idx in remove_indices.iter().rev() {
     //             block.instrs_mut().remove(*idx);
     //             changed = true;
     //         }
