@@ -38,6 +38,13 @@ impl Immediate {
             Immediate::Float(_) => Type::Float,
         }
     }
+    #[inline(always)]
+    pub fn is_zero(&self) -> bool {
+        match self {
+            Immediate::Int(i) => *i == 0,
+            Immediate::Float(fl) => *fl == 0.0,
+        }
+    }
 }
 
 impl Display for Immediate {

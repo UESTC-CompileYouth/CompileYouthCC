@@ -9,22 +9,10 @@ functional_test_path=test/functional
 hidden_functional_test_path=test/hidden_functional
 sysylib_path=lib
 output_path=ci_output
-
-riscv_gnu_toolchain_bin_path=$1
-qemu_riscv64_path=$2
-
-if [ ! -d $riscv_gnu_toolchain_bin_path ]; then
-	echo "riscv-gnu-toolchain-bin path is not exist !!!"
-	exit 1
-fi
-
-if [ ! -f $qemu_riscv64_path ]; then
-	echo "qemu-riscv64 is not exist !!!"
-	exit 1
-fi
-
-gcc_path=$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-gcc
-as_path=$riscv_gnu_toolchain_bin_path/riscv64-unknown-elf-as
+riscv_gnu_toolchain_prefix=riscv64-linux-gnu-
+gcc_path=$riscv_gnu_toolchain_prefix"gcc"
+as_path=$riscv_gnu_toolchain_prefix"as"
+qemu_riscv64_path=qemu-riscv64-static
 
 rm -rf $output_path
 mkdir -p $output_path
@@ -43,12 +31,26 @@ for file in $functional_test_path/*.sy $hidden_functional_test_path/*.sy; do
 	file_basename=$(basename $file)
 	echo "test $file_basename"
 	output_asm_file=$output_path/${file_basename%%.sy}.s
+
+	start_time=$(date +%s%N)
+
 	$compiler_path $file -S -o $output_asm_file
 	if [ $? -ne 0 ]; then
 		echo "compile $file_basename failed !!!"
 		rm -rf $output_path
 		exit 1
 	fi
+
+	end_time=$(date +%s%N)
+	execution_time=$((end_time - start_time))
+
+	hours=$((execution_time / 3600000000000))
+	minutes=$(((execution_time % 3600000000000) / 60000000000))
+	seconds=$(((execution_time % 60000000000) / 1000000000))
+	microseconds=$(((execution_time % 1000000000) / 1000))
+
+	printf "COMPILE: %1dH-%1dM-%1dS-%1dus\n" $hours $minutes $seconds $microseconds
+
 	# assemble
 	output_obj_file=$output_path/${file_basename%%.sy}.o
 	$as_path -c $output_asm_file -o $output_obj_file

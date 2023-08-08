@@ -198,14 +198,8 @@ impl SysYAstVisitor<'_> {
         if shape.len() == 0 {
             panic!("Invalid Init List");
         }
-        let mut total_size = 1;
-        let mut child_size = 1;
-        for i in 0..shape.len() {
-            total_size *= shape[i];
-            if i > 0 {
-                child_size *= shape[i];
-            }
-        }
+        let total_size: i32 = shape.iter().product();
+        let child_size: i32 = shape[1..].iter().product();
         if total_size == 0 {
             return;
         }
@@ -221,27 +215,30 @@ impl SysYAstVisitor<'_> {
                     scalar_child.exp().unwrap().accept(self);
                     let return_content = self.return_content();
                     if self.value_mode == ValueMode::Const {
-                        let value = match return_content.into_exp().unwrap() {
-                            AstExp::StaticValue(immediate) => immediate,
-                            _ => panic!("Invalid Init List"),
-                        };
-                        let ssa_res = SSARightValue::new_imme(value);
-                        result.push(ssa_res);
+                        let value = return_content
+                            .into_exp()
+                            .unwrap()
+                            .into_static_value()
+                            .unwrap();
+                        result.push(SSARightValue::new_imme(value));
                     } else {
-                        let ssa_res = match return_content {
-                            AstReturnContent::Exp(AstExp::SSAValue(ssa_res)) => ssa_res,
-                            _ => panic!("Invalid Init List"),
-                        };
+                        let ssa_res = return_content.into_exp().unwrap().into_ssa_value().unwrap();
                         result.push(ssa_res);
                     }
                     cnt += 1;
                 }
                 InitValContextAll::ListInitvalContext(list_child) => {
-                    if cnt % child_size != 0 || cnt + child_size > total_size {
+                    if cnt + child_size > total_size {
                         panic!("Invalid Init List");
                     }
-                    self.dfs_var_init(list_child, &mut child_shape, result);
-                    cnt += child_size;
+                    let cur_ceil =
+                        (result.len() / (child_size as usize) + 1) * (child_size as usize);
+                    let need = cur_ceil - result.len();
+                    let mut child_result = Vec::new();
+                    self.dfs_var_init(list_child, &mut child_shape, &mut child_result);
+                    child_result.truncate(need);
+                    result.append(&mut child_result);
+                    cnt += need as i32;
                 }
                 InitValContextAll::Error(_) => {}
             }
@@ -289,6 +286,20 @@ impl SysYAstVisitor<'_> {
             }
         }
         result
+    }
+
+    fn is_init_value_all_zero(init_values: &Vec<SSARightValue>) -> bool {
+        for init_value in init_values {
+            match init_value.inner() {
+                SSARightValueInner::Immediate(imme) => {
+                    if !imme.is_zero() {
+                        return false;
+                    }
+                }
+                _ => return false,
+            }
+        }
+        true
     }
 
     fn generate_lvalue_init_ir(
@@ -362,6 +373,32 @@ impl SysYAstVisitor<'_> {
                 let sub_rvalue_vec = rvalue_vec[start..end].to_vec();
                 self.generate_lvalue_init_ir(bb_id, new_lvalue, sub_rvalue_vec, ir_vec);
             }
+        }
+    }
+
+    fn generate_lvalue_init_ir_wrap(
+        &mut self,
+        bb_id: i32,
+        lvalue: SSALeftValue,
+        rvalue_vec: Vec<SSARightValue>,
+        ir_vec: &mut Vec<Instruction>,
+    ) {
+        let shape = lvalue.get_shape();
+        if shape.len() > 0 && Self::is_init_value_all_zero(&rvalue_vec) {
+            let total_len: i32 = shape.iter().product();
+            let start = SSARightValue::new_imme(Immediate::Int(0));
+            let end = SSARightValue::new_imme(Immediate::Int(total_len));
+            let addr = lvalue.to_address();
+            ir_vec.push(Instruction::new(
+                Box::new(Call::new(
+                    None,
+                    "__sysy_homemade_mem_zero_init".to_string(),
+                    vec![addr, start, end],
+                )),
+                bb_id,
+            ));
+        } else {
+            self.generate_lvalue_init_ir(bb_id, lvalue, rvalue_vec, ir_vec);
         }
     }
 
@@ -515,6 +552,22 @@ impl SysYAstVisitor<'_> {
             .register_lib_func("starttime", Type::Void, ArgumentList::Normal(vec![]));
         self.module
             .register_lib_func("stoptime", Type::Void, ArgumentList::Normal(vec![]));
+
+        // our lib
+        // void __sysy_homemade_mem_zero_init(int addr[], int start, int end) {
+        //     for(int i = start; i < end; i++) {
+        //         addr[i] = 0;
+        //     }
+        // }
+        self.module.register_lib_func(
+            "__sysy_homemade_mem_zero_init",
+            Type::Void,
+            ArgumentList::Normal(vec![
+                SSALeftValue::new_arg_unknown_length_array(String::from("data"), 0, Type::Int),
+                SSALeftValue::new_arg_scalar(String::from("start"), 1, Type::Int),
+                SSALeftValue::new_arg_scalar(String::from("end"), 2, Type::Int),
+            ]),
+        )
     }
 
     #[inline(always)]
@@ -701,14 +754,24 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 self.generate_lvalue_zero_init_ir(entry_bb_id, entry.clone(), &mut instrs);
                 self.cur_function().add_instrs2bb_at_front(instrs);
                 let mut instrs: Vec<Instruction> = vec![];
-                self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), rvalue_vec, &mut instrs);
+                self.generate_lvalue_init_ir_wrap(
+                    cur_bb_id,
+                    entry.clone(),
+                    rvalue_vec,
+                    &mut instrs,
+                );
                 self.cur_function().add_insts2bb(instrs);
             } else {
                 instrs.push(Instruction::new(
                     Box::new(Alloca::new(entry.to_address())),
                     entry_bb_id,
                 ));
-                self.generate_lvalue_init_ir(entry_bb_id, entry.clone(), rvalue_vec, &mut instrs);
+                self.generate_lvalue_init_ir_wrap(
+                    entry_bb_id,
+                    entry.clone(),
+                    rvalue_vec,
+                    &mut instrs,
+                );
                 self.cur_function().add_insts2bb(instrs);
             }
             let func = self.cur_function();
@@ -911,10 +974,10 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             if cur_bb_id != entry_bb_id {
                 self.cur_function().add_instrs2bb_at_front(instrs);
                 let mut instrs: Vec<Instruction> = vec![];
-                self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), init_vals, &mut instrs);
+                self.generate_lvalue_init_ir_wrap(cur_bb_id, entry.clone(), init_vals, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             } else {
-                self.generate_lvalue_init_ir(cur_bb_id, entry.clone(), init_vals, &mut instrs);
+                self.generate_lvalue_init_ir_wrap(cur_bb_id, entry.clone(), init_vals, &mut instrs);
                 self.cur_function().add_insts2bb(instrs);
             }
             self.cur_function()
@@ -1057,7 +1120,8 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                     ret_bb,
                 );
                 self.cur_function().add_inst2bb(load);
-                let ret = Instruction::new(Box::new(Ret::new(Some(ret_rvalue.clone()))), ret_bb);
+                let real_ret_value = self.convert_type(ret_rvalue, func_type);
+                let ret = Instruction::new(Box::new(Ret::new(Some(real_ret_value))), ret_bb);
                 self.module
                     .functions_mut()
                     .get_mut(&func_name)
@@ -1536,8 +1600,10 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                     };
                     if self.ret_bb_opt.is_none() {
                         // single-return, just return in current bb
+                        let func_type = *self.cur_function().ret_type();
+                        let real_ret_value = self.convert_type(rvalue, func_type);
                         let ret = Instruction::new(
-                            Box::new(Ret::new(Some(rvalue))),
+                            Box::new(Ret::new(Some(real_ret_value))),
                             self.cur_bb.unwrap(),
                         );
                         self.cur_function().add_inst2bb(ret);
@@ -2501,7 +2567,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let res_type = Type::new_type(lhs.get_type(), rhs.get_type());
         let lhs = self.convert_type(lhs, res_type);
         let rhs = self.convert_type(rhs, res_type);
-        let ret_ssa = self.cur_function().new_reg(res_type);
+        let ret_ssa = self.cur_function().new_reg(Type::Int);
         let cmp_ir = if res_type.is_int() {
             Instruction::new(
                 Box::new(Icmp {

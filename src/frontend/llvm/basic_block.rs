@@ -16,7 +16,7 @@ pub struct BasicBlock {
     #[getset(get = "pub", get_mut = "pub")]
     prev_bb: Vec<i32>,
     #[new(default)]
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     succ_bb: Vec<i32>,
 }
 

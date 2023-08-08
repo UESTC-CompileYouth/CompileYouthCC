@@ -63,8 +63,9 @@ impl StackFrame {
     // align top to 8 bytes
     pub fn total_frame_size(&self) -> usize {
         let mut res = self.top;
-        if res % 8 != 0 {
-            res += 8 - res % 8;
+        let align = 16;
+        if res % align != 0 {
+            res += align - res % align;
         }
         res as usize
     }
@@ -243,11 +244,11 @@ impl Function {
             .get(&llvm_function.entry_bb_id())
             .unwrap();
         // fsrm
-        if name == "main" {
-            let rtz_reg = mapping_info.new_reg(Type::Int);
-            entry_block.push_back(Box::new(ImmeInstr::new_load_immediate(rtz_reg, 0b001)));
-            entry_block.push_back(Box::new(FsrmInstr::new(rtz_reg)));
-        }
+        // if name == "main" {
+        //     let rtz_reg = mapping_info.new_reg(Type::Int);
+        //     entry_block.push_back(Box::new(ImmeInstr::new_load_immediate(rtz_reg, 0b001)));
+        //     entry_block.push_back(Box::new(FsrmInstr::new(rtz_reg)));
+        // }
 
         if real_entry_block_id != 1 + entry_block_id {
             entry_block.push_back(Box::new(JumpInstr::new_jump(
