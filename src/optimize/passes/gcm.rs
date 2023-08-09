@@ -561,6 +561,7 @@ mod test {
     extern crate antlr_rust;
     extern crate structopt;
 
+    use super::gcm_for_module;
     use crate::frontend::{
         antlr_dep::sysylexer::SysYLexer, antlr_dep::sysyparser::SysYParser,
         antlr_dep::sysyvisitor::SysYVisitor, ast_visitor::SysYAstVisitor,
@@ -575,13 +576,13 @@ mod test {
     use antlr_rust::{common_token_stream::CommonTokenStream, InputStream, Parser as AntlrParser};
     use std::fs::File;
     use std::io::Write;
-
     use std::str::FromStr;
 
-    use super::gcm_for_module;
+    // #[test]
+    #[allow(dead_code)]
     fn main() {
         let file_name_noext = "56_sort_test2";
-        let path_buf = "./test/functional/";
+        let path_buf = "test/functional/";
         let test_infile_name = format!("{file_name_noext}.sy");
         let test_outfile_name = format!("{file_name_noext}.ll");
         let output_path = format!("./ci_output/{}", test_outfile_name);

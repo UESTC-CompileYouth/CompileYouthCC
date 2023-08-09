@@ -14,7 +14,11 @@ use crate::frontend::{
     },
     return_content::AstExp,
 };
-use antlr_rust::tree::{ParseTree, ParseTreeVisitorCompat, Tree, Visitable};
+use antlr_rust::{
+    parser_rule_context::ParserRuleContext,
+    token::Token,
+    tree::{ParseTree, ParseTreeVisitorCompat, Tree, Visitable},
+};
 use defaults::Defaults;
 use derive_new::new;
 use getset::{Getters, MutGetters};
@@ -955,11 +959,13 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
 
         if self.cur_func_name == "_init" {
             entry.set_global();
-            let init_value = init_vals
-                .iter()
-                .map(|val| val.inner().clone().into_immediate().unwrap())
-                .collect::<Vec<_>>();
-            entry.set_init_value(Some(init_value));
+            if !Self::is_init_value_all_zero(&init_vals) {
+                let init_value = init_vals
+                    .iter()
+                    .map(|val| val.inner().clone().into_immediate().unwrap())
+                    .collect::<Vec<_>>();
+                entry.set_init_value(Some(init_value));
+            }
             let global = Instruction::new(Box::new(GlobalDecl::new(entry.clone())), 0);
             self.cur_function().add_inst2bb(global);
             self.module.global_scope_mut().new_mem_object(entry.clone());
@@ -2075,6 +2081,22 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                     }
                 }
             }
+
+            if func_name == "starttime" || func_name == "stoptime" {
+                let line_no = ctx.start().get_line();
+                let line_no_reg =
+                    SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), Type::Int);
+                let mov_instr = Instruction::new(
+                    Box::new(Mov::new(
+                        line_no_reg.clone(),
+                        SSARightValue::new_imme(Immediate::new_int(line_no as i32)),
+                    )),
+                    cur_bb,
+                );
+                self.cur_function().add_inst2bb(mov_instr);
+                args.push(line_no_reg);
+            }
+
             let caller_entry = self.cur_function();
             if callee_entry_type != Type::Void {
                 let ret_value = caller_entry.new_reg(callee_entry_type);

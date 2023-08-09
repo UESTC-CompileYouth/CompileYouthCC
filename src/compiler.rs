@@ -12,11 +12,7 @@ use sysycc_compiler::frontend::{
     antlr_dep::sysyvisitor::SysYVisitor, ast_visitor::SysYAstVisitor,
     error_listener::SysYErrorListener, llvm::llvm_module::LLVMModule,
 };
-use sysycc_compiler::optimize::passes::bb_ops::remove_phi;
-use sysycc_compiler::optimize::passes::check_ir::check_module;
-use sysycc_compiler::optimize::passes::dce::{remove_unused_def, remove_useless_bb};
-use sysycc_compiler::optimize::passes::gcm::gcm_for_module;
-use sysycc_compiler::optimize::passes::mem2reg::mem2reg;
+use sysycc_compiler::optimize::optimize_ir;
 
 /// Command Line Options Parser
 #[derive(StructOpt, Debug)]
@@ -31,10 +27,38 @@ struct CompilerOptions {
     log_level: String,
     #[structopt(short = "O", default_value = "0", help = "optimization level")]
     _optimization_level: u8,
+    #[structopt(short = "--enable", help = "enable optimization passes")]
+    enable_passes: Vec<String>,
+    #[structopt(short = "--disable", help = "disable optimization passes")]
+    disable_passes: Vec<String>,
+}
+
+fn parse_passes(cmdline_options: &CompilerOptions) -> Vec<String> {
+    let mut passes = vec![
+        "opt".to_string(),
+        "mem2reg".to_string(),
+        "gvn".to_string(),
+        "gcm".to_string(),
+        "func_inline".to_string(),
+        "peephole".to_string(),
+        "asm".to_string(),
+    ];
+    for pass in cmdline_options.enable_passes.iter() {
+        if !passes.contains(pass) {
+            passes.push(pass.clone());
+        }
+    }
+    for pass in cmdline_options.disable_passes.iter() {
+        if let Some(pos) = passes.iter().position(|x| x == pass) {
+            passes.remove(pos);
+        }
+    }
+    passes
 }
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
+
     {
         let env = env_logger::Env::new();
         let mut builder = env_logger::Builder::new();
@@ -44,10 +68,12 @@ fn main() {
         builder.parse_env(env);
         builder.init();
     }
+
+    let enable_passes = parse_passes(&cmdline_options);
+
     let contents =
         std::fs::read_to_string(cmdline_options.input_file).expect("cannot open source file");
     let input = InputStream::new(contents.as_bytes());
-
     let lexer = SysYLexer::new(input);
     let token_stream = CommonTokenStream::new(lexer);
     let mut parser = SysYParser::new(token_stream);
@@ -67,27 +93,27 @@ fn main() {
     ast_visitor.return_content();
 
     /* passes */
-    // mem2reg
-    // println!("{}", llvm_module);
-    remove_useless_bb(&mut llvm_module);
-    mem2reg(&mut llvm_module);
-    check_module(&llvm_module);
-    remove_unused_def(&mut llvm_module);
-    check_module(&llvm_module);
-    gcm_for_module(&mut llvm_module);
-    check_module(&llvm_module);
-    remove_phi(&mut llvm_module);
-    // check_module(&llvm_module);
-    llvm_module.before_backend();
+    optimize_ir(&mut llvm_module, &enable_passes);
+
+    if enable_passes.contains(&"ir".to_string()) {
+        if let Some(output_path) = &cmdline_options.output_file {
+            let mut output_file = File::create(output_path).expect("cannot open output file");
+            write!(output_file, "{}", llvm_module).expect("cannot write to output file");
+        } else {
+            println!("{}", llvm_module);
+        }
+    }
 
     /* backend */
     let mut program = Program::from_llvm_module(&llvm_module);
     program.do_backend_passes();
 
-    if let Some(output_path) = cmdline_options.output_file {
-        let mut output_file = File::create(output_path).expect("cannot open output file");
-        write!(output_file, "{}", program.gen_asm()).expect("cannot write to output file");
-    } else {
-        println!("{}", program.gen_asm());
+    if enable_passes.contains(&"asm".to_string()) {
+        if let Some(output_path) = &cmdline_options.output_file {
+            let mut output_file = File::create(output_path).expect("cannot open output file");
+            write!(output_file, "{}", program.gen_asm()).expect("cannot write to output file");
+        } else {
+            println!("{}", program.gen_asm());
+        }
     }
 }
