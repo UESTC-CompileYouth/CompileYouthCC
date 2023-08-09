@@ -730,26 +730,26 @@ impl<'a> GVNContext<'a> {
                             .insert(key);
                     }
                 }
-            } else if let Some(load_instr) = self
-                .func
-                .instructions()
-                .get(&i)
-                .unwrap()
-                .instr()
-                .as_any()
-                .downcast_ref::<Load>()
-            {
-                let key = load_instr.addr().clone();
-                if self.addr_values.contains_key(&key) {
-                    self.replace_same_value(*load_instr.d1().id(), self.addr_values[&key]);
-                } else {
-                    self.addr_values.insert(key.clone(), *load_instr.d1().id());
-                    self.gvn_nodes
-                        .get_mut(node_id)
-                        .unwrap()
-                        .new_addrs
-                        .insert(key);
-                }
+            // } else if let Some(load_instr) = self
+            //     .func
+            //     .instructions()
+            //     .get(&i)
+            //     .unwrap()
+            //     .instr()
+            //     .as_any()
+            //     .downcast_ref::<Load>()
+            // {
+            //     let key = load_instr.addr().clone();
+            //     if self.addr_values.contains_key(&key) {
+            //         self.replace_same_value(*load_instr.d1().id(), self.addr_values[&key]);
+            //     } else {
+            //         self.addr_values.insert(key.clone(), *load_instr.d1().id());
+            //         self.gvn_nodes
+            //             .get_mut(node_id)
+            //             .unwrap()
+            //             .new_addrs
+            //             .insert(key);
+            //     }
             // } else if let Some(store_instr) = self. func.instructions().get(&i).unwrap().instr().as_any().downcast_ref::<Store>() {
             //     let addr = store_instr.addr();
             //     let s1 = store_instr.s1();
