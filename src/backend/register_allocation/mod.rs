@@ -1133,6 +1133,39 @@ fn peephole_remove_unused_def(func: &mut Function) -> bool {
     changed
 }
 
+fn peephole_ld(func: &mut Function) -> bool {
+    let mut changed = false;
+
+    for block in func.blocks_mut() {
+        let mut inst_to_remove = vec![];
+        for (i, inst) in block.instrs().iter().enumerate().skip(1) {
+            let last = &block.instrs()[i - 1];
+            if let Some(load) = inst.as_any().downcast_ref::<LoadInstr>() {
+                if let Some(store) = last.as_any().downcast_ref::<StoreInstr>() {
+                    if matches!(load.ty(), LoadType::Lw) && matches!(store.ty(), StoreType::Sw)
+                        || matches!(load.ty(), LoadType::Ld) && matches!(store.ty(), StoreType::Sd)
+                    {
+                        if let ImmeValueType::Direct(store_offset) = store.offset() {
+                            if *load.rs1().id() == *store.rs1().id()
+                                && load.offset() == store_offset
+                                && *load.rd().id() == *store.rs2().id()
+                            {
+                                inst_to_remove.push(i);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for i in inst_to_remove.iter().rev() {
+            block.instrs_mut().remove(*i);
+            changed = true;
+        }
+    }
+
+    changed
+}
+
 pub fn peephole(func: &mut Function) -> bool {
     let mut changed = false;
     // remove `mv t0, t0`
@@ -1437,6 +1470,7 @@ pub fn peephole(func: &mut Function) -> bool {
     constant_propagation_for_li(Type::Float);
 
     changed = changed || peephole_remove_unused_def(func);
+    changed = changed || peephole_ld(func);
 
     // remove unused def
     // let mut remove_unused_def = |reg_type| {

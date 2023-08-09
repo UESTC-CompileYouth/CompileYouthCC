@@ -548,11 +548,15 @@ pub(crate) enum LoadType {
 }
 
 // x[rd] = sext(M[x[rs1] + sext(offset)[31:0]])
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct LoadInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     rs1: Reg,
+    #[getset(get = "pub")]
     offset: i32,
+    #[getset(get = "pub")]
     ty: LoadType,
 }
 
@@ -628,12 +632,17 @@ pub(crate) enum StoreType {
 }
 
 // M[x[rs1] + sext(offset)] = x[rs2][31: 0]
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct StoreInstr {
+    #[getset(get = "pub")]
     rs1: Reg, // base address
+    #[getset(get = "pub")]
     rs2: Reg, // value
+    #[getset(get = "pub")]
     offset: ImmeValueType,
+    #[getset(get = "pub")]
     trunc: Option<TruncType>,
+    #[getset(get = "pub")]
     ty: StoreType,
 }
 
