@@ -39,4 +39,6 @@ functional_test:
 performance_test:
   stage: test
   script:
-    - echo "todo"
+    - rm -rf ci_output
+    - cargo build -r --bin compiler
+    - bash scripts/ci_performance_test.sh
