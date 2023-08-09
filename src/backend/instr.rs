@@ -8,10 +8,11 @@ use super::{
     misc::{AsmContext, InstCond, MappingInfo, StackObject},
     register::Reg,
 };
-use crate::common::r#type::Type;
+use crate::{backend::arch_info::A0, common::r#type::Type};
 use derive_new::new;
 use enum_as_inner::EnumAsInner;
 use getset::{Getters, MutGetters, Setters};
+use itertools::Itertools;
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Debug)]
@@ -66,6 +67,20 @@ pub trait InstrTrait: Debug {
     }
     fn is_relate(&self, reg: &Reg) -> bool {
         self.is_use(reg) || self.is_def(reg)
+    }
+    fn use_id_vec(&self, reg_type: Type) -> Vec<i32> {
+        self.uses()
+            .iter()
+            .filter(|x| *x.id() != 0 && *x.ty() == reg_type)
+            .map(|x| *x.id())
+            .collect_vec()
+    }
+    fn def_id_vec(&self, reg_type: Type) -> Vec<i32> {
+        self.defs()
+            .iter()
+            .filter(|x| *x.id() != 0 && *x.ty() == reg_type)
+            .map(|x| *x.id())
+            .collect_vec()
     }
     fn get_operands(&self, reg_type: Type) -> (i32, i32, i32) {
         let mut kill = 0;
@@ -949,7 +964,7 @@ impl InstrTrait for ReturnInstr {
     }
 
     fn uses(&self) -> Vec<Reg> {
-        vec![]
+        vec![Reg::new_int(A0), Reg::new_float(A0)]
     }
 
     fn defs(&self) -> Vec<Reg> {
@@ -1267,17 +1282,19 @@ impl InstrTrait for CallInstr {
     }
     fn defs(&self) -> Vec<Reg> {
         let mut regs = vec![];
-        for i in 0..std::cmp::min(self.int_arg_cnt, RegConvention::<i32>::COUNT) {
-            if RegConvention::<i32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
-                regs.push(Reg::new_int(i as _));
-            }
-        }
-        for i in 0..std::cmp::min(self.float_arg_cnt, RegConvention::<f32>::COUNT) {
-            if RegConvention::<f32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
-                regs.push(Reg::new_float(i as _));
-            }
-        }
-        regs.push(Reg::new_int(RA));
+        // for i in 0..std::cmp::min(self.int_arg_cnt, RegConvention::<i32>::COUNT) {
+        //     if RegConvention::<i32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
+        //         regs.push(Reg::new_int(i as _));
+        //     }
+        // }
+        // for i in 0..std::cmp::min(self.float_arg_cnt, RegConvention::<f32>::COUNT) {
+        //     if RegConvention::<f32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
+        //         regs.push(Reg::new_float(i as _));
+        //     }
+        // }
+        // regs.push(Reg::new_int(RA));
+        regs.push(Reg::new_int(A0));
+        regs.push(Reg::new_float(A0));
         regs
     }
     fn is_have_side_effect(&self) -> bool {
