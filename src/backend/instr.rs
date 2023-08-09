@@ -8,10 +8,11 @@ use super::{
     misc::{AsmContext, InstCond, MappingInfo, StackObject},
     register::Reg,
 };
-use crate::common::r#type::Type;
+use crate::{backend::arch_info::A0, common::r#type::Type};
 use derive_new::new;
 use enum_as_inner::EnumAsInner;
 use getset::{Getters, MutGetters, Setters};
+use itertools::Itertools;
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 #[derive(Debug)]
@@ -66,6 +67,20 @@ pub trait InstrTrait: Debug {
     }
     fn is_relate(&self, reg: &Reg) -> bool {
         self.is_use(reg) || self.is_def(reg)
+    }
+    fn use_id_vec(&self, reg_type: Type) -> Vec<i32> {
+        self.uses()
+            .iter()
+            .filter(|x| *x.id() != 0 && *x.ty() == reg_type && *x.id() != SP)
+            .map(|x| *x.id())
+            .collect_vec()
+    }
+    fn def_id_vec(&self, reg_type: Type) -> Vec<i32> {
+        self.defs()
+            .iter()
+            .filter(|x| *x.id() != 0 && *x.ty() == reg_type && *x.id() != SP)
+            .map(|x| *x.id())
+            .collect_vec()
     }
     fn get_operands(&self, reg_type: Type) -> (i32, i32, i32) {
         let mut kill = 0;
@@ -533,11 +548,15 @@ pub(crate) enum LoadType {
 }
 
 // x[rd] = sext(M[x[rs1] + sext(offset)[31:0]])
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct LoadInstr {
+    #[getset(get = "pub")]
     rd: Reg,
+    #[getset(get = "pub")]
     rs1: Reg,
+    #[getset(get = "pub")]
     offset: i32,
+    #[getset(get = "pub")]
     ty: LoadType,
 }
 
@@ -613,12 +632,17 @@ pub(crate) enum StoreType {
 }
 
 // M[x[rs1] + sext(offset)] = x[rs2][31: 0]
-#[derive(Debug, new)]
+#[derive(Debug, new, Getters)]
 pub(crate) struct StoreInstr {
+    #[getset(get = "pub")]
     rs1: Reg, // base address
+    #[getset(get = "pub")]
     rs2: Reg, // value
+    #[getset(get = "pub")]
     offset: ImmeValueType,
+    #[getset(get = "pub")]
     trunc: Option<TruncType>,
+    #[getset(get = "pub")]
     ty: StoreType,
 }
 
@@ -949,7 +973,8 @@ impl InstrTrait for ReturnInstr {
     }
 
     fn uses(&self) -> Vec<Reg> {
-        vec![]
+        vec![Reg::new_int(A0), Reg::new_float(A0)]
+        // vec![]
     }
 
     fn defs(&self) -> Vec<Reg> {
@@ -1267,17 +1292,19 @@ impl InstrTrait for CallInstr {
     }
     fn defs(&self) -> Vec<Reg> {
         let mut regs = vec![];
-        for i in 0..std::cmp::min(self.int_arg_cnt, RegConvention::<i32>::COUNT) {
-            if RegConvention::<i32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
-                regs.push(Reg::new_int(i as _));
-            }
-        }
-        for i in 0..std::cmp::min(self.float_arg_cnt, RegConvention::<f32>::COUNT) {
-            if RegConvention::<f32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
-                regs.push(Reg::new_float(i as _));
-            }
-        }
-        regs.push(Reg::new_int(RA));
+        // for i in 0..std::cmp::min(self.int_arg_cnt, RegConvention::<i32>::COUNT) {
+        //     if RegConvention::<i32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
+        //         regs.push(Reg::new_int(i as _));
+        //     }
+        // }
+        // for i in 0..std::cmp::min(self.float_arg_cnt, RegConvention::<f32>::COUNT) {
+        //     if RegConvention::<f32>::REGISTER_USAGE[i] == RegisterUsage::CallerSaved {
+        //         regs.push(Reg::new_float(i as _));
+        //     }
+        // }
+        // regs.push(Reg::new_int(RA));
+        regs.push(Reg::new_int(A0));
+        regs.push(Reg::new_float(A0));
         regs
     }
     fn is_have_side_effect(&self) -> bool {

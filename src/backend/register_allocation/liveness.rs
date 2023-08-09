@@ -114,6 +114,7 @@ pub struct BlockLiveness {
     inst_kill_map: HashMap<i32, HashSet<i32>>,
     inst_in_map: HashMap<i32, HashSet<i32>>,
     inst_out_map: HashMap<i32, HashSet<i32>>,
+    psuedo_in: HashSet<i32>,
     pub inst_cnt: usize,
 }
 
@@ -124,6 +125,7 @@ impl BlockLiveness {
             inst_kill_map: HashMap::new(),
             inst_in_map: HashMap::new(),
             inst_out_map: HashMap::new(),
+            psuedo_in: HashSet::new(),
             inst_cnt: insts.len(),
         };
 
@@ -131,27 +133,11 @@ impl BlockLiveness {
         for i in insts {
             inst_id -= 1;
 
-            let (kill, gen1, gen2) = i.get_operands(reg_type);
-
-            let mut gen = HashSet::new();
-            if gen1 != 0 {
-                gen.insert(gen1);
-            }
-            if gen2 != 0 {
-                gen.insert(gen2);
-            }
+            let kill = i.def_id_vec(reg_type).into_iter().collect::<HashSet<_>>();
+            let gen = i.use_id_vec(reg_type).into_iter().collect::<HashSet<_>>();
 
             block_liveness.set_inst_gen(inst_id, gen);
-
-            block_liveness.set_inst_kill(
-                inst_id,
-                if kill != 0 {
-                    vec![kill].into_iter().collect()
-                } else {
-                    HashSet::new()
-                },
-            );
-
+            block_liveness.set_inst_kill(inst_id, kill);
             block_liveness.set_inst_in(inst_id, HashSet::new());
             block_liveness.set_inst_out(inst_id, HashSet::new());
         }
@@ -206,9 +192,14 @@ impl BlockLiveness {
         for succ in bb.out_edges().iter() {
             let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
             let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
-            let succ_bb_first_inst = *insts_map[succ].last().unwrap_or(&usize::MAX);
 
-            if succ_bb_first_inst != usize::MAX {
+            if insts_map[succ].is_empty() {
+                let succ_in = &succ_bb_block_liveness.psuedo_in;
+                // 所有后继块合并成一个虚拟块，计算该块的in
+                in_ = in_.union(succ_in).cloned().collect();
+            } else {
+                let succ_bb_first_inst = *insts_map[succ].last().unwrap();
+
                 let succ_in = succ_bb_block_liveness.get_inst_in(succ_bb_first_inst as i32);
                 // 所有后继块合并成一个虚拟块，计算该块的in
                 in_ = in_.union(succ_in).cloned().collect();
@@ -216,23 +207,27 @@ impl BlockLiveness {
         }
 
         // 更新每条指令的in和out
-        for &inst_id in insts_map[bb.id()].iter() {
-            let inst_id = inst_id as i32;
-            let gen = self.get_inst_gen(inst_id);
-            let kill = self.get_inst_kill(inst_id);
+        if insts_map[bb.id()].is_empty() {
+            self.psuedo_in = in_;
+        } else {
+            for &inst_id in insts_map[bb.id()].iter() {
+                let inst_id = inst_id as i32;
+                let gen = self.get_inst_gen(inst_id);
+                let kill = self.get_inst_kill(inst_id);
 
-            out = in_.clone();
-            let s: HashSet<_> = out.difference(kill).cloned().collect();
-            in_ = gen.union(&s).cloned().collect::<HashSet<i32>>();
+                out = in_.clone();
+                let s: HashSet<_> = out.difference(kill).cloned().collect();
+                in_ = gen.union(&s).cloned().collect::<HashSet<i32>>();
 
-            if in_.len() != self.get_inst_in(inst_id).len() {
-                changed = true;
-                self.set_inst_in(inst_id, in_.clone());
-            }
+                if in_.len() != self.get_inst_in(inst_id).len() {
+                    changed = true;
+                    self.set_inst_in(inst_id, in_.clone());
+                }
 
-            if out.len() != self.get_inst_out(inst_id).len() {
-                changed = true;
-                self.set_inst_out(inst_id, out.clone());
+                if out.len() != self.get_inst_out(inst_id).len() {
+                    changed = true;
+                    self.set_inst_out(inst_id, out.clone());
+                }
             }
         }
 

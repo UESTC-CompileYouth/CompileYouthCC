@@ -959,11 +959,13 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
 
         if self.cur_func_name == "_init" {
             entry.set_global();
-            let init_value = init_vals
-                .iter()
-                .map(|val| val.inner().clone().into_immediate().unwrap())
-                .collect::<Vec<_>>();
-            entry.set_init_value(Some(init_value));
+            if !Self::is_init_value_all_zero(&init_vals) {
+                let init_value = init_vals
+                    .iter()
+                    .map(|val| val.inner().clone().into_immediate().unwrap())
+                    .collect::<Vec<_>>();
+                entry.set_init_value(Some(init_value));
+            }
             let global = Instruction::new(Box::new(GlobalDecl::new(entry.clone())), 0);
             self.cur_function().add_inst2bb(global);
             self.module.global_scope_mut().new_mem_object(entry.clone());
