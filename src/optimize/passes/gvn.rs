@@ -153,6 +153,7 @@ struct GVNContext<'a> {
     nodes: Vec<i32>,
     scalar_reg_by_value: HashMap<Immediate, i32>,
     scalar_value_by_reg: HashMap<i32, Immediate>,
+    mov_regs: HashMap<i32, i32>,
     unary_values: HashMap<(UnaryOp, i32), i32>,
     binary_values: HashMap<(BinaryOp, i32, i32), i32>,
     cmp_values: HashMap<(CmpType, i32, i32), i32>,
@@ -191,6 +192,7 @@ impl<'a> GVNContext<'a> {
             nodes,
             scalar_reg_by_value: HashMap::new(),
             scalar_value_by_reg: HashMap::new(),
+            mov_regs: HashMap::new(),
             unary_values: HashMap::new(),
             binary_values: HashMap::new(),
             cmp_values: HashMap::new(),
@@ -358,10 +360,17 @@ impl<'a> GVNContext<'a> {
                 if mov_instr.s1().is_immediate() {
                     self.process_scalar((mov_instr.d1().clone(), mov_instr.s1().clone()), node_id)
                 } else {
-                    if self.scalar_value_by_reg.contains_key(mov_instr.s1().id()) {
-                        self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
+                    if self.mov_regs.contains_key(mov_instr.s1().id()) {
+                        self.replace_same_value(
+                            *mov_instr.d1().id(),
+                            self.mov_regs[mov_instr.s1().id()],
+                        );
+                    } else if self.scalar_value_by_reg.contains_key(mov_instr.s1().id()) {
+                        let value = self.scalar_value_by_reg[mov_instr.s1().id()];
+                        self.process_computed(i, *mov_instr.d1().id(), value, node_id)
                     } else {
-                        // self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
+                        self.mov_regs
+                            .insert(*mov_instr.s1().id(), *mov_instr.d1().id());
                     }
                 }
             } else if let Some(fmov_instr) = self
@@ -376,7 +385,18 @@ impl<'a> GVNContext<'a> {
                 if fmov_instr.s1().is_immediate() {
                     self.process_scalar((fmov_instr.d1().clone(), fmov_instr.s1().clone()), node_id)
                 } else {
-                    self.replace_same_value(*fmov_instr.d1().id(), *fmov_instr.s1().id());
+                    if self.mov_regs.contains_key(fmov_instr.s1().id()) {
+                        self.replace_same_value(
+                            *fmov_instr.d1().id(),
+                            self.mov_regs[fmov_instr.s1().id()],
+                        );
+                    } else if self.scalar_value_by_reg.contains_key(fmov_instr.s1().id()) {
+                        let value = self.scalar_value_by_reg[fmov_instr.s1().id()];
+                        self.process_computed(i, *fmov_instr.d1().id(), value, node_id)
+                    } else {
+                        self.mov_regs
+                            .insert(*fmov_instr.s1().id(), *fmov_instr.d1().id());
+                    }
                 }
             } else if let Some(unary_instr) = self
                 .func
