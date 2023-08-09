@@ -71,14 +71,14 @@ pub trait InstrTrait: Debug {
     fn use_id_vec(&self, reg_type: Type) -> Vec<i32> {
         self.uses()
             .iter()
-            .filter(|x| *x.id() != 0 && *x.ty() == reg_type)
+            .filter(|x| *x.id() != 0 && *x.ty() == reg_type && *x.id() != SP)
             .map(|x| *x.id())
             .collect_vec()
     }
     fn def_id_vec(&self, reg_type: Type) -> Vec<i32> {
         self.defs()
             .iter()
-            .filter(|x| *x.id() != 0 && *x.ty() == reg_type)
+            .filter(|x| *x.id() != 0 && *x.ty() == reg_type && *x.id() != SP)
             .map(|x| *x.id())
             .collect_vec()
     }
@@ -965,6 +965,7 @@ impl InstrTrait for ReturnInstr {
 
     fn uses(&self) -> Vec<Reg> {
         vec![Reg::new_int(A0), Reg::new_float(A0)]
+        // vec![]
     }
 
     fn defs(&self) -> Vec<Reg> {

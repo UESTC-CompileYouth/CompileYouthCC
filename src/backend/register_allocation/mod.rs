@@ -1087,6 +1087,52 @@ pub(crate) fn save_caller_saved_regs(func: &mut Function) {
     save_caller_saved_regs(Type::Float);
 }
 
+fn peephole_remove_unused_def(func: &mut Function) -> bool {
+    let mut changed = false;
+
+    // remove unused def
+    let mut remove_unused_def = |reg_type| {
+        let analysis = LivenessAnalysis::of(func, reg_type);
+        for (block_id, liveness) in analysis.block_liveness_map.iter() {
+            let block = func.block_mut(*block_id);
+            let mut remove_indices = vec![];
+            let liveness = liveness.borrow();
+            for (inst_idx, inst) in block.instrs().iter().enumerate() {
+                let out = liveness.get_inst_out(inst_idx as i32);
+                let kill = inst.def_id_vec(reg_type);
+
+                // no def
+                if kill.is_empty() {
+                    continue;
+                }
+
+                // call instruction is special
+                if inst.as_any().downcast_ref::<CallInstr>().is_some() {
+                    continue;
+                }
+
+                // if inst.as_any().downcast_ref::<ImmeInstr>().is_none() {
+                //     continue;
+                // }
+
+                if kill.iter().all(|x| !out.contains(x)) {
+                    // println!("remove {}", inst.gen_asm());
+                    remove_indices.push(inst_idx);
+                }
+            }
+
+            for idx in remove_indices.iter().rev() {
+                block.instrs_mut().remove(*idx);
+                changed = true;
+            }
+        }
+    };
+
+    remove_unused_def(Type::Int);
+    // remove_unused_def(Type::Float);
+    changed
+}
+
 pub fn peephole(func: &mut Function) -> bool {
     let mut changed = false;
     // remove `mv t0, t0`
@@ -1389,6 +1435,8 @@ pub fn peephole(func: &mut Function) -> bool {
     };
     constant_propagation_for_li(Type::Int);
     constant_propagation_for_li(Type::Float);
+
+    changed = changed || peephole_remove_unused_def(func);
 
     // remove unused def
     // let mut remove_unused_def = |reg_type| {
