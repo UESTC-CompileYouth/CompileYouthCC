@@ -1202,18 +1202,18 @@ fn peephole_mv(func: &mut Function) -> bool {
 
     // remove mov
     let mut peephole_mv = |reg_type| {
-        let analysis = LivenessAnalysis::of(func, reg_type);
+        // let analysis = LivenessAnalysis::of(func, reg_type);
 
         // let mut push_map = vec![];
 
         for block_idx in 0..func.blocks().len() {
             // func.blocks_mut().iter_mut().for_each(|block| {
             // let mut remove_movs = vec![];
-            let liveness = analysis
-                .block_liveness_map
-                .get(func.blocks()[block_idx].id())
-                .unwrap()
-                .borrow();
+            // let liveness = analysis
+            //     .block_liveness_map
+            //     .get(func.blocks()[block_idx].id())
+            //     .unwrap()
+            //     .borrow();
 
             for inst_idx in 0..func.blocks()[block_idx].instrs().len() {
                 let mut y = -1;
@@ -1347,8 +1347,9 @@ fn peephole_mv(func: &mut Function) -> bool {
     changed
 }
 
-pub fn peephole(func: &mut Function) -> bool {
+fn peephole_mv_x_x(func: &mut Function) -> bool {
     let mut changed = false;
+
     // remove `mv t0, t0`
     // remove `fmv ft0, ft0`
     for block in func.blocks_mut().iter_mut() {
@@ -1379,6 +1380,12 @@ pub fn peephole(func: &mut Function) -> bool {
             changed = true;
         }
     }
+
+    changed
+}
+
+fn peephole_jump(func: &mut Function) -> bool {
+    let mut changed = false;
 
     // `j .L3; .L3: j .L4` => `j .L4;`
     loop {
@@ -1469,6 +1476,19 @@ pub fn peephole(func: &mut Function) -> bool {
                     *block_id = map_id[block_id];
                 }
             }
+
+            for block_id in block.in_edges_mut().iter_mut() {
+                let mut redirect = false;
+                if let Some(succ_label) = id2name.get(block_id) {
+                    if let Some(label) = jump_map.get(succ_label) {
+                        *block_id = map_id[&name2id[label]];
+                        redirect = true;
+                    }
+                }
+                if !redirect {
+                    *block_id = map_id[block_id];
+                }
+            }
         });
 
         if prev_block_id != -1 {
@@ -1503,6 +1523,12 @@ pub fn peephole(func: &mut Function) -> bool {
             changed = true;
         }
     }
+
+    changed
+}
+
+fn peephole_li(func: &mut Function) -> bool {
+    let mut changed = false;
 
     let mut constant_propagation_for_li = |reg_type| {
         for block in func.blocks_mut().iter_mut() {
@@ -1648,12 +1674,23 @@ pub fn peephole(func: &mut Function) -> bool {
         }
     };
     constant_propagation_for_li(Type::Int);
-    constant_propagation_for_li(Type::Float);
+    // constant_propagation_for_li(Type::Float);
 
-    changed = changed || peephole_remove_unused_def(func);
+    changed
+}
+
+pub fn peephole(func: &mut Function) -> bool {
+    let mut changed = false;
+
+    changed = changed || peephole_mv_x_x(func);
     changed = changed || peephole_ld(func);
 
+    changed = changed || peephole_li(func);
+
+    changed = changed || peephole_jump(func);
+
     changed = changed || peephole_mv(func);
+    changed = changed || peephole_mv_x_x(func);
     changed = changed || peephole_remove_unused_def(func);
 
     changed
