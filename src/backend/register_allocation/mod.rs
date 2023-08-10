@@ -737,14 +737,15 @@ pub(crate) fn register_allocate(func: &mut Function) {
 
             // 5. assign color
             // while !stk.is_empty() {
-            stk.sort_by(|x, y| {
-                ig.nodes
-                    .get(x)
-                    .unwrap()
-                    .spill_cost()
-                    .partial_cmp(&ig.nodes.get(y).unwrap().spill_cost())
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            stk.sort_by_key(|x| (ig.nodes.get(x).unwrap().spill_cost() * 10000f32) as u32);
+            // stk.sort_by(|x, y| {
+            //     ig.nodes
+            //         .get(x)
+            //         .unwrap()
+            //         .spill_cost()
+            //         .partial_cmp(&ig.nodes.get(y).unwrap().spill_cost())
+            //         .unwrap_or(std::cmp::Ordering::Equal)
+            // });
             for &n in stk.iter().rev() {
                 // let n = stk.pop().unwrap();
                 let c = ig.assign_color(n);

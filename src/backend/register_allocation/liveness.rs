@@ -193,21 +193,16 @@ impl BlockLiveness {
             let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
             let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
 
-            if insts_map[succ].is_empty() {
-                let succ_in = &succ_bb_block_liveness.psuedo_in;
-                // 所有后继块合并成一个虚拟块，计算该块的in
-                in_ = in_.union(succ_in).cloned().collect();
-            } else {
-                let succ_bb_first_inst = *insts_map[succ].last().unwrap();
-
-                let succ_in = succ_bb_block_liveness.get_inst_in(succ_bb_first_inst as i32);
-                // 所有后继块合并成一个虚拟块，计算该块的in
-                in_ = in_.union(succ_in).cloned().collect();
-            }
+            let succ_in = &succ_bb_block_liveness.psuedo_in;
+            // 所有后继块合并成一个虚拟块，计算该块的in
+            in_ = in_.union(succ_in).cloned().collect();
         }
 
         // 更新每条指令的in和out
         if insts_map[bb.id()].is_empty() {
+            if self.psuedo_in.len() != in_.len() {
+                changed = true;
+            }
             self.psuedo_in = in_;
         } else {
             for &inst_id in insts_map[bb.id()].iter() {
@@ -229,6 +224,8 @@ impl BlockLiveness {
                     self.set_inst_out(inst_id, out.clone());
                 }
             }
+
+            self.psuedo_in = in_;
         }
 
         changed
