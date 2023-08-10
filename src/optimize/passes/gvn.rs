@@ -363,18 +363,19 @@ impl<'a> GVNContext<'a> {
                 if mov_instr.s1().is_immediate() {
                     self.process_scalar((mov_instr.d1().clone(), mov_instr.s1().clone()), node_id)
                 } else {
-                    if self.mov_regs.contains_key(mov_instr.s1().id()) {
-                        self.replace_same_value(
-                            *mov_instr.d1().id(),
-                            self.mov_regs[mov_instr.s1().id()],
-                        );
-                    } else if self.scalar_value_by_reg.contains_key(mov_instr.s1().id()) {
-                        let value = self.scalar_value_by_reg[mov_instr.s1().id()];
-                        self.process_computed(i, *mov_instr.d1().id(), value, node_id)
-                    } else {
-                        self.mov_regs
-                            .insert(*mov_instr.s1().id(), *mov_instr.d1().id());
-                    }
+                    // if self.mov_regs.contains_key(mov_instr.s1().id()) {
+                    //     self.replace_same_value(
+                    //         *mov_instr.d1().id(),
+                    //         self.mov_regs[mov_instr.s1().id()],
+                    //     );
+                    // } else if self.scalar_value_by_reg.contains_key(mov_instr.s1().id()) {
+                    //     let value = self.scalar_value_by_reg[mov_instr.s1().id()];
+                    //     self.process_computed(i, *mov_instr.d1().id(), value, node_id)
+                    // } else {
+                    //     self.mov_regs
+                    //         .insert(*mov_instr.s1().id(), *mov_instr.d1().id());
+                    // }
+                    self.replace_same_value(*mov_instr.d1().id(), *mov_instr.s1().id());
                 }
             } else if let Some(fmov_instr) = self
                 .func
@@ -388,18 +389,19 @@ impl<'a> GVNContext<'a> {
                 if fmov_instr.s1().is_immediate() {
                     self.process_scalar((fmov_instr.d1().clone(), fmov_instr.s1().clone()), node_id)
                 } else {
-                    if self.mov_regs.contains_key(fmov_instr.s1().id()) {
-                        self.replace_same_value(
-                            *fmov_instr.d1().id(),
-                            self.mov_regs[fmov_instr.s1().id()],
-                        );
-                    } else if self.scalar_value_by_reg.contains_key(fmov_instr.s1().id()) {
-                        let value = self.scalar_value_by_reg[fmov_instr.s1().id()];
-                        self.process_computed(i, *fmov_instr.d1().id(), value, node_id)
-                    } else {
-                        self.mov_regs
-                            .insert(*fmov_instr.s1().id(), *fmov_instr.d1().id());
-                    }
+                    // if self.mov_regs.contains_key(fmov_instr.s1().id()) {
+                    //     self.replace_same_value(
+                    //         *fmov_instr.d1().id(),
+                    //         self.mov_regs[fmov_instr.s1().id()],
+                    //     );
+                    // } else if self.scalar_value_by_reg.contains_key(fmov_instr.s1().id()) {
+                    //     let value = self.scalar_value_by_reg[fmov_instr.s1().id()];
+                    //     self.process_computed(i, *fmov_instr.d1().id(), value, node_id)
+                    // } else {
+                    //     self.mov_regs
+                    //         .insert(*fmov_instr.s1().id(), *fmov_instr.d1().id());
+                    // }
+                    self.replace_same_value(*fmov_instr.d1().id(), *fmov_instr.s1().id());
                 }
             } else if let Some(unary_instr) = self
                 .func
