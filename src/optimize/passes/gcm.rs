@@ -84,6 +84,7 @@ pub struct GCMContext {
     uses: HashMap<RegId, HashSet<InstrId>>,
     #[getset(get = "pub", get_mut = "pub")]
     dom_depth: HashMap<BlockId, i32>,
+    func_arg_register_id: HashSet<RegId>,
 }
 
 #[inline]
@@ -106,8 +107,14 @@ impl GCMContext {
             defs: HashMap::new(),
             uses: HashMap::new(),
             dom_depth: HashMap::new(),
+            func_arg_register_id: HashSet::new(),
         }
     }
+    #[inline]
+    fn is_function_argument_reg(&self, reg_id: &RegId) -> bool {
+        return self.func_arg_register_id.contains(reg_id);
+    }
+
     fn schedule_early(&self, f: &mut Function, instr_visited: &mut HashSet<InstrId>) {
         let instrs = f
             .instructions()
@@ -115,14 +122,6 @@ impl GCMContext {
             .filter(|(_, instr_node)| is_pinned_instruction(*instr_node))
             .map(|(instr_id, _)| *instr_id)
             .collect::<Vec<InstrId>>();
-
-        let arg_reg_set = f
-            .arg_list()
-            .as_normal()
-            .unwrap()
-            .into_iter()
-            .map(|lval| *lval.id())
-            .collect::<HashSet<RegId>>();
 
         for cur_instr_id in instrs {
             if instr_visited.contains(&cur_instr_id) {
@@ -140,8 +139,8 @@ impl GCMContext {
                     } else {
                         // argument assertions to gurantee correctness
                         // each argument of function call is passed to local variable thus
-                        assert!(self.uses.get(&reg_use_id).unwrap().len() == 1);
-                        assert!(arg_reg_set.contains(&reg_use_id));
+                        // assert!(self.uses.get(&reg_use_id).unwrap().len() == 1);
+                        assert!(self.is_function_argument_reg(&reg_use_id));
                     }
                 }
             }
@@ -165,8 +164,16 @@ impl GCMContext {
                 let use_vec: Vec<RegId> = extract_use(reg_use_instr);
                 for reg_use_id in use_vec {
                     assert!(reg_use_id != -1);
-                    let def_instr_id: i32 = self.defs.get(&reg_use_id).unwrap().clone();
-                    let ret: BlockId = self.instr_schedule_early(def_instr_id, visited, f);
+                    let ret;
+                    if let Some(def_instr_id) = self.defs.get(&reg_use_id) {
+                        ret = self.instr_schedule_early(*def_instr_id, visited, f);
+                    } else {
+                        // argument assertions to gurantee correctness
+                        // each argument of function call is passed to local variable thus
+                        // assert!(self.uses.get(&reg_use_id).unwrap().len() == 1);
+                        assert!(self.is_function_argument_reg(&reg_use_id));
+                        ret = f.entry_bb_id();
+                    }
                     if self.dom_depth[&ret] > self.dom_depth[&target_bb] {
                         target_bb = ret;
                     }
@@ -353,6 +360,7 @@ impl GCMContext {
     }
 
     fn construct_def_use(&mut self, f: &Function) {
+        // construct normal def/use
         for bb_id in f.layout().block_iter() {
             for inst_id in f.layout().inst_iter(bb_id) {
                 // fetch out the instructions
@@ -361,6 +369,14 @@ impl GCMContext {
                 self.construct_def_use_for_instr(cur_instr, inst_id);
             }
         }
+        // reg_id from function declaration arg
+        self.func_arg_register_id = f
+            .arg_list()
+            .as_normal()
+            .unwrap()
+            .iter()
+            .map(|lval| lval.id().clone())
+            .collect::<HashSet<RegId>>();
     }
 
     fn construct_def_use_for_instr(&mut self, cur_instr: &Instruction, inst_id: i32) {

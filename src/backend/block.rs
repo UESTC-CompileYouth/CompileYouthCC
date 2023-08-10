@@ -529,19 +529,38 @@ impl Block {
                         .block_mapping()
                         .get(&branch_instr.label2.unwrap())
                         .unwrap();
-                    let label =
-                        BLOCK_LABEL_PREFIX.to_string() + true_target_block_id.to_string().as_str();
-                    risc_v_instrs.push(Box::new(BranchInstr::new(
-                        rd,
-                        Reg::new(ZERO, Type::Int),
-                        label,
-                        BranchType::Bne,
-                    )));
-                    if next_block_id.is_none() || false_target_block_id != next_block_id.unwrap() {
+                    // 如果条件为真的语句块不是下一个语句块，那么需要跳转到真的语句块
+                    if next_block_id.is_none() || true_target_block_id != next_block_id.unwrap() {
+                        let label = BLOCK_LABEL_PREFIX.to_string()
+                            + true_target_block_id.to_string().as_str();
+                        risc_v_instrs.push(Box::new(BranchInstr::new(
+                            rd,
+                            Reg::new(ZERO, Type::Int),
+                            label,
+                            BranchType::Bne,
+                        )));
+                        // 如果条件为假的语句块是下一个语句块，那么就不需要插入条件为假跳转到假的语句块
+                        if next_block_id.is_none()
+                            || false_target_block_id != next_block_id.unwrap()
+                        {
+                            let label = BLOCK_LABEL_PREFIX.to_string()
+                                + false_target_block_id.to_string().as_str();
+                            risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
+                        }
+                    }
+                    // 如果条件为真的语句块是下一个语句块，那么直接插入条件为假跳转到假的语句块
+                    else {
+                        // 条件为假的目标语句块一定不是下一个语句块
                         let label = BLOCK_LABEL_PREFIX.to_string()
                             + false_target_block_id.to_string().as_str();
-                        risc_v_instrs.push(Box::new(JumpInstr::new_jump(label)));
+                        risc_v_instrs.push(Box::new(BranchInstr::new(
+                            rd,
+                            Reg::new(ZERO, Type::Int),
+                            label,
+                            BranchType::Beq,
+                        )));
                     }
+
                     blocks[(self_block_id - block_id_offset) as usize]
                         .add_out_edge(true_target_block_id);
                     blocks[(true_target_block_id - block_id_offset) as usize]
