@@ -35,11 +35,21 @@ pub struct Node {
     pub adj_list: HashSet<i32>,
     pub move_adj_list: HashSet<i32>,
     pub adj_list_in_graph: HashSet<i32>,
+    pub def_plus_use_cnt: HashMap<i32, i32>,
 }
 
 impl Node {
     fn degree(&self) -> usize {
         self.adj_list_in_graph.len()
+    }
+
+    fn spill_cost(&self) -> f32 {
+        let mut cost = 0;
+        self.def_plus_use_cnt.iter().for_each(|(level, cnt)| {
+            cost += *cnt * 10i32.pow(*level as u32);
+        });
+
+        (cost as f32) / (self.adj_list.len() as f32)
     }
 }
 
@@ -92,14 +102,29 @@ impl InterferenceGraph {
 
         for (blockid, block_liveness) in liveness.block_liveness_map.iter() {
             let block_liveness = block_liveness.borrow();
+            let block_depth = func.block(*blockid).depth();
 
             for inst_id in 0..block_liveness.inst_cnt {
                 // try to allocate with same reg for reg instr, i.e. y = f(x)
                 let inst = &func.block(*blockid).instrs()[inst_id];
                 let (x, y, z) = inst.get_operands(reg_type);
-                ig.add_node(x);
-                ig.add_node(y);
-                ig.add_node(z);
+
+                let allocable = |reg_id: i32| reg_id != 0 && reg_id != SP;
+
+                let mut do_node = |reg_id| {
+                    if !allocable(reg_id) {
+                        return;
+                    }
+                    ig.add_node(reg_id);
+                    let n = ig.nodes.get_mut(&reg_id).unwrap();
+                    n.def_plus_use_cnt
+                        .entry(*block_depth)
+                        .and_modify(|cnt| *cnt += 1)
+                        .or_insert(1);
+                };
+                do_node(x);
+                do_node(y);
+                do_node(z);
 
                 let mut mov_edge = false;
 
@@ -392,6 +417,7 @@ impl InterferenceGraph {
             adj_list: HashSet::new(),
             move_adj_list: HashSet::new(),
             adj_list_in_graph: HashSet::new(),
+            def_plus_use_cnt: HashMap::new(),
         });
     }
 
@@ -710,8 +736,17 @@ pub(crate) fn register_allocate(func: &mut Function) {
             }
 
             // 5. assign color
-            while !stk.is_empty() {
-                let n = stk.pop().unwrap();
+            // while !stk.is_empty() {
+            stk.sort_by(|x, y| {
+                ig.nodes
+                    .get(x)
+                    .unwrap()
+                    .spill_cost()
+                    .partial_cmp(&ig.nodes.get(y).unwrap().spill_cost())
+                    .unwrap()
+            });
+            for &n in stk.iter().rev() {
+                // let n = stk.pop().unwrap();
                 let c = ig.assign_color(n);
                 if c == UNCOLORED {
                     spill_set.insert(n);
@@ -719,13 +754,7 @@ pub(crate) fn register_allocate(func: &mut Function) {
             }
 
             if !spill_set.is_empty() {
-                // println!("{:?}", spill_set);
-                for _ele in &spill_set {
-                    // println!("{:?}", ele);
-                }
-                // let n = spill_set.iter().next().unwrap();
                 for n in &spill_set {
-                    // println!("SPILL {}", n);
                     spill_rewrite(func, *n, reg_type, &mut max_reg_id);
                 }
 
