@@ -68,14 +68,16 @@ fn strength_reduction_for_func(func: &mut Function) {
                         if value != 0 && value & (value - 1) == 0 {
                             let power = value.trailing_zeros();
                             // println!("{} is 2 raised to the power of {}.", value, power);
-                            *inst = Instruction::new(
-                                Box::new(AShr::new(
-                                    div.d1().clone(),
-                                    div.s1().clone(),
-                                    SSARightValue::new_imme(Immediate::new_int(power as _)),
-                                )),
-                                bb_id,
-                            );
+                            if power == 1 {
+                                *inst = Instruction::new(
+                                    Box::new(AShr::new(
+                                        div.d1().clone(),
+                                        div.s1().clone(),
+                                        SSARightValue::new_imme(Immediate::new_int(power as _)),
+                                    )),
+                                    bb_id,
+                                );
+                            }
                         } else {
                         }
                     } else if value == 0 {
@@ -85,7 +87,7 @@ fn strength_reduction_for_func(func: &mut Function) {
                     else {
                     }
                 }
-            } else if let Some(srem) = inst.instr().as_any().downcast_ref::<Mod>() {
+            } else if let Some(_srem) = inst.instr().as_any().downcast_ref::<Mod>() {
             } else {
                 // do nothing
             }
