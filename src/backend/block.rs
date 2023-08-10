@@ -191,7 +191,10 @@ impl Block {
                     | BinaryOp::Sub
                     | BinaryOp::Mul
                     | BinaryOp::Div
-                    | BinaryOp::Mod => {
+                    | BinaryOp::Mod
+                    | BinaryOp::Shl
+                    | BinaryOp::LShr
+                    | BinaryOp::AShr => {
                         let rs1 = if s1_ssa.is_immediate() {
                             let imme = s1_ssa.get_value().unwrap().into_int().unwrap();
                             let rs1 = mapping_info.new_reg(s1_ssa.ty());
@@ -214,6 +217,9 @@ impl Block {
                             BinaryOp::Mul => RegRegType::Mulw,
                             BinaryOp::Div => RegRegType::Divw,
                             BinaryOp::Mod => RegRegType::Remw,
+                            BinaryOp::Shl => RegRegType::Sllw,
+                            BinaryOp::LShr => RegRegType::Srlw,
+                            BinaryOp::AShr => RegRegType::Sraw,
                             _ => unreachable!(),
                         };
                         risc_v_instrs.push(Box::new(RegRegInstr::new(rd, rs1, rs2, ty)));

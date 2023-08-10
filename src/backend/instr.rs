@@ -4,7 +4,7 @@
 /// 指令的分类不依据于指令的功能，而是依据于指令的格式，特殊指令的实现会单独实现
 ///
 use super::{
-    arch_info::{RegConvention, RegisterUsage, RA, SP},
+    arch_info::{RegConvention, SP},
     misc::{AsmContext, InstCond, MappingInfo, StackObject},
     register::Reg,
 };

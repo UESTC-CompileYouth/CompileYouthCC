@@ -43,6 +43,14 @@ pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
         gvn(llvm_module, enable_passes);
         gcm(llvm_module, enable_passes);
         gvn(llvm_module, enable_passes);
+
+        if enable_passes.contains(&"misc".to_string()) {
+            log::trace!("Misc...");
+            log::trace!("Stength Reduction...");
+            passes::misc::strength_reduction(llvm_module);
+            log::trace!("Stength Reduction Done!");
+            log::trace!("Misc Done!")
+        }
         remove_phi(llvm_module);
         log::trace!("Optimizing Done!")
     }
