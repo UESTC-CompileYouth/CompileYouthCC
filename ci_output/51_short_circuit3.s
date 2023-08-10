@@ -1,9 +1,9 @@
         .bss
 d:
         .zero   4
-a:
-        .zero   4
 b:
+        .zero   4
+a:
         .zero   4
 
         .text
@@ -47,30 +47,12 @@ addi    sp,sp,48
 jr      ra
 
 
-set_a:
-.entry_set_a:
-.L4:
-mv t0, a0
-lui t1, %hi(a)
-sw t0, %lo(a)(t1)
-lw a0, a
-ret
-
-set_d:
-.entry_set_d:
-.L6:
-mv t0, a0
-lui t1, %hi(d)
-sw t0, %lo(d)(t1)
-lw a0, d
-ret
-
 main:
 .entry_main:
 addi sp, sp, -256
 sd ra, 248(sp)
 sd s0, 232(sp)
-.L8:
+.L4:
 li t1, 2
 lui t0, %hi(a)
 sw t1, %lo(a)(t0)
@@ -83,10 +65,10 @@ addi t0, a0, 0
 snez t0, t0
 li t1, 1
 li s0, 0
-bne t0, zero, .L11
-j .L10
-.L9:
-.L10:
+bne t0, zero, .L7
+j .L6
+.L5:
+.L6:
 lw a0, a
 sd t1, 0(sp)
 call putint
@@ -115,19 +97,19 @@ call set_a
 ld t1, 32(sp)
 addi t0, a0, 0
 snez t0, t0
-bne t0, zero, .L14
-j .L13
-.L11:
+bne t0, zero, .L10
+j .L9
+.L7:
 li a0, 1
 sd t1, 40(sp)
 call set_b
 ld t1, 40(sp)
 addi t0, a0, 0
 snez t0, t0
-bne t0, zero, .L9
-j .L10
-.L12:
-.L13:
+bne t0, zero, .L5
+j .L6
+.L8:
+.L9:
 lw a0, a
 sd t1, 48(sp)
 call putint
@@ -147,19 +129,19 @@ ld t1, 72(sp)
 li t2, 2
 lui t0, %hi(d)
 sw t2, %lo(d)(t0)
-bne t1, zero, .L17
-j .L16
-.L14:
+bne t1, zero, .L13
+j .L12
+.L10:
 li a0, 1
 sd t1, 80(sp)
 call set_b
 ld t1, 80(sp)
 addi t0, a0, 0
 snez t0, t0
-bne t0, zero, .L12
-j .L13
-.L15:
-.L16:
+bne t0, zero, .L8
+j .L9
+.L11:
+.L12:
 lw a0, d
 sd t1, 88(sp)
 call putint
@@ -168,19 +150,19 @@ li a0, 32
 sd t1, 96(sp)
 call putch
 ld t1, 96(sp)
-bne t1, zero, .L18
-j .L20
-.L17:
+bne t1, zero, .L14
+j .L16
+.L13:
 li a0, 3
 sd t1, 104(sp)
 call set_d
 ld t1, 104(sp)
 addi t0, a0, 0
 snez t0, t0
-bne t0, zero, .L15
-j .L16
-.L18:
-.L19:
+bne t0, zero, .L11
+j .L12
+.L14:
+.L15:
 lw a0, d
 sd t1, 112(sp)
 call putint
@@ -189,128 +171,128 @@ li a0, 10
 sd t1, 120(sp)
 call putch
 ld t1, 120(sp)
-bne t1, zero, .L21
-j .L22
-.L20:
+bne t1, zero, .L17
+j .L18
+.L16:
 li a0, 4
 sd t1, 128(sp)
 call set_d
 ld t1, 128(sp)
 addi t0, a0, 0
 snez t0, t0
-bne t0, zero, .L18
-j .L19
-.L21:
+bne t0, zero, .L14
+j .L15
+.L17:
 li a0, 65
 sd t1, 136(sp)
 call putch
 ld t1, 136(sp)
-.L22:
-beq s0, zero, .L24
-.L23:
+.L18:
+beq s0, zero, .L20
+.L19:
 li a0, 66
 sd t1, 144(sp)
 call putch
 ld t1, 144(sp)
-.L24:
-beq s0, zero, .L26
-.L25:
+.L20:
+beq s0, zero, .L22
+.L21:
 li a0, 67
 sd t1, 152(sp)
 call putch
 ld t1, 152(sp)
-.L26:
-beq t1, zero, .L28
-.L27:
+.L22:
+beq t1, zero, .L24
+.L23:
 li a0, 68
 sd t1, 160(sp)
 call putch
 ld t1, 160(sp)
-.L28:
-beq s0, zero, .L30
-.L29:
+.L24:
+beq s0, zero, .L26
+.L25:
 li a0, 69
 sd t1, 168(sp)
 call putch
 ld t1, 168(sp)
-.L30:
-beq t1, zero, .L32
-.L31:
+.L26:
+beq t1, zero, .L28
+.L27:
 li a0, 70
 sd t1, 176(sp)
 call putch
 ld t1, 176(sp)
-.L32:
+.L28:
 li a0, 10
 sd t1, 184(sp)
 call putch
 ld t1, 184(sp)
-.L33:
-bne s0, zero, .L36
-j .L35
-.L34:
+.L29:
+bne s0, zero, .L32
+j .L31
+.L30:
 li a0, 32
 sd t1, 192(sp)
 call putch
 ld t1, 192(sp)
-j .L33
-.L35:
-bne s0, zero, .L37
-j .L39
-.L36:
-bne t1, zero, .L34
+j .L29
+.L31:
+bne s0, zero, .L33
 j .L35
-.L37:
+.L32:
+bne t1, zero, .L30
+j .L31
+.L33:
 li a0, 67
 sd t1, 200(sp)
 call putch
 ld t1, 200(sp)
-.L38:
-bne s0, zero, .L40
-j .L42
-.L39:
-bne t1, zero, .L37
+.L34:
+bne s0, zero, .L36
 j .L38
-.L40:
+.L35:
+bne t1, zero, .L33
+j .L34
+.L36:
 li a0, 72
 sd t1, 208(sp)
 call putch
 ld t1, 208(sp)
-.L41:
-bne t1, zero, .L45
-j .L44
-.L42:
-bne s0, zero, .L40
-j .L41
-.L43:
+.L37:
+bne t1, zero, .L41
+j .L40
+.L38:
+bne s0, zero, .L36
+j .L37
+.L39:
 li a0, 73
 sd t1, 216(sp)
 call putch
 ld t1, 216(sp)
-.L44:
-bne t1, zero, .L49
-j .L48
-.L45:
-bne t1, zero, .L43
+.L40:
+bne t1, zero, .L45
 j .L44
-.L46:
+.L41:
+bne t1, zero, .L39
+j .L40
+.L42:
 li a0, 74
 sd t1, 224(sp)
 call putch
 ld t1, 224(sp)
-.L47:
-bne t1, zero, .L50
-j .L52
-.L48:
+.L43:
 bne t1, zero, .L46
-j .L47
-.L49:
-bne s0, zero, .L46
 j .L48
-.L50:
+.L44:
+bne t1, zero, .L42
+j .L43
+.L45:
+bne s0, zero, .L42
+j .L44
+.L46:
 li a0, 75
 call putch
-.L51:
+.L47:
 li a0, 10
 call putch
 li a0, 0
@@ -318,17 +300,32 @@ ld ra, 248(sp)
 ld s0, 232(sp)
 addi sp, sp, 256
 ret
-.L52:
-beq s0, zero, .L51
+.L48:
+beq s0, zero, .L47
+.L49:
+bne t1, zero, .L46
+j .L47
+
+set_a:
+.entry_set_a:
+.L51:
+lui t1, %hi(a)
+sw a0, %lo(a)(t1)
+lw a0, a
+ret
+
+set_d:
+.entry_set_d:
 .L53:
-bne t1, zero, .L50
-j .L51
+lui t1, %hi(d)
+sw a0, %lo(d)(t1)
+lw a0, d
+ret
 
 set_b:
 .entry_set_b:
 .L55:
-mv t0, a0
 lui t1, %hi(b)
-sw t0, %lo(b)(t1)
+sw a0, %lo(b)(t1)
 lw a0, b
 ret

@@ -46,17 +46,17 @@ sd ra, 32(sp)
 .L4:
 li t1, 1
 li a0, 2
-li t2, 4
 li t0, 0
+li t2, 4
 beq t1, zero, .L7
 .L5:
-sd t0, 16(sp)
-sd t1, 8(sp)
-sd t2, 0(sp)
+sd t2, 16(sp)
+sd t0, 8(sp)
+sd t1, 0(sp)
 call putint
-ld t0, 16(sp)
-ld t1, 8(sp)
-ld t2, 0(sp)
+ld t2, 16(sp)
+ld t0, 8(sp)
+ld t1, 0(sp)
 .L6:
 bne t0, zero, .L9
 j .L11

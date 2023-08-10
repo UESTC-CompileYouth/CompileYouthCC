@@ -47,16 +47,15 @@ sd ra, 8(sp)
 li t2, 4
 li t1, 0
 li t0, -1
-beq t1, zero, .L9
-j .L7
+beq t1, zero, .L7
+j .L8
 .L7:
-mv a0, t0
+mv a0, t2
 call putint
 li a0, 0
 ld ra, 8(sp)
 addi sp, sp, 16
 ret
-j .L7
-.L9:
-mv t0, t2
+.L8:
+mv t2, t0
 j .L7

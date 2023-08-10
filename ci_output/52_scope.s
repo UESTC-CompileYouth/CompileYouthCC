@@ -49,31 +49,31 @@ addi sp, sp, -32
 sd ra, 24(sp)
 .L4:
 li t1, 0
-j .L14
+j .L13
 .L5:
-addi t0, t2, -100
+addi t0, t1, -100
 sltz t0, t0
 beq t0, zero, .L7
 .L6:
-sd t2, 8(sp)
-sd t1, 0(sp)
+sd t1, 8(sp)
+sd t2, 0(sp)
 call func
-ld t2, 8(sp)
-ld t1, 0(sp)
+ld t1, 8(sp)
+ld t2, 0(sp)
 addi t0, a0, -1
 seqz t0, t0
 bne t0, zero, .L8
 j .L9
 .L7:
-addi t0, t1, -100
+addi t0, t2, -100
 sltz t0, t0
 bne t0, zero, .L10
 j .L11
 .L8:
-addiw t1, t1, 1
+addiw t2, t2, 1
 j .L9
 .L9:
-addiw t2, t2, 1
+addiw t1, t1, 1
 j .L5
 .L10:
 li a0, 1
@@ -87,8 +87,7 @@ li a0, 0
 ld ra, 24(sp)
 addi sp, sp, 32
 ret
-j .L9
-.L14:
+.L13:
 mv t2, t1
 j .L5
 

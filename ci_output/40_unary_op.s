@@ -45,10 +45,11 @@ main:
 li t0, 0
 li t1, -1
 beq t0, zero, .L7
-j .L8
+j .L9
 .L7:
 mv a0, t0
 ret
-.L8:
+j .L7
+.L9:
 mv t0, t1
 j .L7

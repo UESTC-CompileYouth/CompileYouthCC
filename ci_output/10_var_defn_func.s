@@ -39,20 +39,18 @@ addi    sp,sp,48
 jr      ra
 
 
+defn:
+.entry_defn:
+.L4:
+li a0, 4
+ret
+
 main:
 .entry_main:
 addi sp, sp, -16
 sd ra, 8(sp)
-.L4:
+.L6:
 call defn
-mv t0, a0
-mv a0, t0
 ld ra, 8(sp)
 addi sp, sp, 16
-ret
-
-defn:
-.entry_defn:
-.L6:
-li a0, 4
 ret

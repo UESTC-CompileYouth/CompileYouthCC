@@ -53,7 +53,8 @@ jr      ra
 main:
 .entry_main:
 addi sp, sp, -16
-sd s0, 0(sp)
+sd s0, 8(sp)
+sd s1, 0(sp)
 .L4:
 li s0, 0
 j .L8
@@ -62,19 +63,23 @@ addi t0, s0, -6
 sltz t0, t0
 beq t0, zero, .L7
 .L6:
+addiw t2, s0, 1
 la t1, arr
 li t0, 4
 mul t0, s0, t0
-add t1, t1, t0
-addiw s0, s0, 1
-lw t0, 0(t1)
-addw t2, t2, t0
-j .L5
+add t0, t1, t0
+lw t0, 0(t0)
+addw s1, s1, t0
+j .L9
 .L7:
-mv a0, t2
-ld s0, 0(sp)
+mv a0, s1
+ld s0, 8(sp)
+ld s1, 0(sp)
 addi sp, sp, 16
 ret
 .L8:
-mv t2, s0
+mv s1, s0
+j .L5
+.L9:
+mv s0, t2
 j .L5

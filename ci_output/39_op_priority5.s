@@ -1,12 +1,12 @@
         .data
 c:
         .word   1
+d:
+        .word   2
 a:
         .word   1
 e:
         .word   4
-d:
-        .word   2
 
         .bss
 b:
@@ -55,12 +55,12 @@ jr      ra
 
 main:
 .entry_main:
-addi sp, sp, -48
-sd ra, 32(sp)
-sd s0, 16(sp)
-sd s1, 8(sp)
+addi sp, sp, -32
+sd ra, 24(sp)
+sd s0, 8(sp)
+sd s1, 0(sp)
 .L4:
-li a1, 0
+li a0, 0
 lw t1, a
 lw t0, b
 mulw t1, t1, t0
@@ -75,15 +75,13 @@ li s1, 1
 bne t0, zero, .L8
 j .L7
 .L6:
-mv a0, a1
-sd a1, 0(sp)
+mv a0, s1
 call putint
-ld a1, 0(sp)
-mv a0, a1
-ld ra, 32(sp)
-ld s0, 16(sp)
-ld s1, 8(sp)
-addi sp, sp, 48
+mv a0, s1
+ld ra, 24(sp)
+ld s0, 8(sp)
+ld s1, 0(sp)
+addi sp, sp, 32
 ret
 .L7:
 lw t2, a
@@ -98,8 +96,8 @@ divw t0, t1, t0
 subw t0, t2, t0
 sub t0, s0, t0
 seqz t0, t0
-bne t0, zero, .L9
-j .L6
+bne t0, zero, .L6
+j .L9
 .L8:
 lw t2, a
 lw t1, a
@@ -115,8 +113,8 @@ sub t0, t2, t0
 seqz t1, t0
 sltz t0, t0
 or t0, t1, t0
-bne t0, zero, .L9
+bne t0, zero, .L6
 j .L7
 .L9:
-mv a1, s1
+mv s1, a0
 j .L6

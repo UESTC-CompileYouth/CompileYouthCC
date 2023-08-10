@@ -1,7 +1,7 @@
         .bss
-a:
-        .zero   4
 b:
+        .zero   4
+a:
         .zero   4
 
         .text
@@ -61,16 +61,16 @@ lw t1, a
 lw t0, b
 sub t0, t1, t0
 seqz t0, t0
-li s0, 0
-li t2, 1
+li s0, 1
+li t2, 0
 bne t0, zero, .L7
-j .L8
+j .L10
 .L7:
 lw t1, a
 addi t0, t1, -3
 snez t0, t0
-bne t0, zero, .L10
-j .L8
+bne t0, zero, .L8
+j .L10
 .L8:
 mv a0, s0
 ld ra, 16(sp)

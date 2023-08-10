@@ -3,9 +3,9 @@ f:
         .zero   4
 g:
         .zero   4
-e:
-        .zero   4
 h:
+        .zero   4
+e:
         .zero   4
 
         .text
@@ -52,8 +52,8 @@ jr      ra
 EightWhile:
 .entry_EightWhile:
 addi sp, sp, -16
-sd s1, 8(sp)
-sd s0, 0(sp)
+sd s0, 8(sp)
+sd s1, 0(sp)
 .L4:
 li s1, 5
 li t2, 6
@@ -66,19 +66,18 @@ sltz t0, t0
 beq t0, zero, .L7
 j .L8
 .L7:
-mv t1, s0
 addw t0, t2, s0
 addw t0, s1, t0
 addw t2, t0, a0
 lw t0, e
-addw t1, t0, t1
+addw t1, t0, s0
 lw t0, g
 subw t1, t1, t0
 lw t0, h
 addw t0, t1, t0
 subw a0, t2, t0
-ld s1, 8(sp)
-ld s0, 0(sp)
+ld s0, 8(sp)
+ld s1, 0(sp)
 addi sp, sp, 16
 ret
 .L8:
@@ -105,8 +104,8 @@ sltz t0, t0
 beq t0, zero, .L16
 j .L17
 .L16:
-addiw s0, s0, -1
 addiw a0, a0, -1
+addiw s0, s0, -1
 j .L11
 .L17:
 lw t1, e

@@ -39,38 +39,39 @@ addi    sp,sp,48
 jr      ra
 
 
-main:
-.entry_main:
-addi sp, sp, -16
-sd ra, 8(sp)
-.L4:
-call ififElse
-ld ra, 8(sp)
-addi sp, sp, 16
-ret
-
 ififElse:
 .entry_ififElse:
 addi sp, sp, -16
 sd s0, 0(sp)
+.L4:
+li t2, 5
+li t0, 1
+li s0, 20
+li t1, 25
+beq t0, zero, .L6
+.L5:
+bne t0, zero, .L11
+j .L9
 .L6:
-li s0, 5
-li t1, 1
-li t0, 25
-li t2, 20
-beq t1, zero, .L13
-.L7:
-bne t1, zero, .L8
-j .L15
-.L8:
-mv a0, t0
+mv a0, t2
 ld s0, 0(sp)
 addi sp, sp, 16
 ret
-j .L8
-.L13:
-mv t0, s0
-j .L8
+j .L11
+.L9:
+.L10:
+mv t2, s0
+j .L6
+.L11:
+mv s0, t1
+j .L9
+
+main:
+.entry_main:
+addi sp, sp, -16
+sd ra, 8(sp)
 .L15:
-mv t0, t2
-j .L8
+call ififElse
+ld ra, 8(sp)
+addi sp, sp, 16
+ret

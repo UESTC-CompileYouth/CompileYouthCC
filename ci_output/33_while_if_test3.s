@@ -54,40 +54,38 @@ ret
 deepWhileBr:
 .entry_deepWhileBr:
 addi sp, sp, -16
-sd s0, 8(sp)
-sd s1, 0(sp)
+sd s1, 8(sp)
+sd s0, 0(sp)
 .L6:
-mv t1, a0
-mv t0, a1
-addw t1, t1, t0
-li s1, 42
-li s0, 168
-li t2, 1
+addw s1, a0, a1
+li s0, 1
+li t2, 42
+li t1, 168
 j .L7
 .L7:
-addi t0, t1, -75
+addi t0, s1, -75
 sltz t0, t0
 beq t0, zero, .L9
 .L8:
-addi t0, t1, -100
+addi t0, s1, -100
 sltz t0, t0
 bne t0, zero, .L10
 j .L7
 .L9:
-mv a0, t1
-ld s0, 8(sp)
-ld s1, 0(sp)
+mv a0, s1
+ld s1, 8(sp)
+ld s0, 0(sp)
 addi sp, sp, 16
 ret
 .L10:
-addw t1, t1, s1
-addi t0, t1, -99
+addw s1, s1, t2
+addi t0, s1, -99
 sgtz t0, t0
 bne t0, zero, .L12
 j .L7
 .L12:
-bne t2, zero, .L19
+bne s0, zero, .L21
 j .L7
-.L19:
-mv t1, s0
+.L21:
+mv s1, t1
 j .L7

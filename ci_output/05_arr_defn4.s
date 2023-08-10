@@ -43,8 +43,8 @@ main:
 .entry_main:
 addi sp, sp, -192
 sd ra, 184(sp)
-sd s0, 168(sp)
-sd s1, 160(sp)
+sd s1, 168(sp)
+sd s0, 160(sp)
 .L4:
 addi s0, sp, 0
 addi t2, s0, 0
@@ -199,7 +199,7 @@ addi t0, t2, 0
 lw t0, 0(t0)
 addw a0, s0, t0
 ld ra, 184(sp)
-ld s0, 168(sp)
-ld s1, 160(sp)
+ld s1, 168(sp)
+ld s0, 160(sp)
 addi sp, sp, 192
 ret

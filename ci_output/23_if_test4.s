@@ -54,23 +54,23 @@ if_ifElse_:
 addi sp, sp, -16
 sd s0, 0(sp)
 .L6:
-li s0, 5
+li t2, 5
 li t0, 1
-li t2, 25
-li t1, 20
-beq t0, zero, .L14
+li t1, 25
+li s0, 20
+beq t0, zero, .L15
 .L7:
-bne t0, zero, .L8
-j .L12
+bne t0, zero, .L13
+j .L8
 .L8:
-mv a0, t2
+mv a0, s0
 ld s0, 0(sp)
 addi sp, sp, 16
 ret
+j .L13
+.L13:
+mv s0, t1
 j .L8
-.L12:
-mv t2, t1
-j .L8
-.L14:
-mv t2, s0
+.L15:
+mv s0, t2
 j .L8

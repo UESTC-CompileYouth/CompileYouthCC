@@ -42,10 +42,10 @@ jr      ra
 whileIf:
 .entry_whileIf:
 addi sp, sp, -16
-sd s0, 8(sp)
-sd s1, 0(sp)
+sd s1, 8(sp)
+sd s0, 0(sp)
 .L4:
-li t2, 0
+li t1, 0
 li s1, 25
 li s0, 42
 j .L14
@@ -56,20 +56,20 @@ beq t0, zero, .L7
 .L6:
 addi t0, t2, -5
 seqz t0, t0
-bne t0, zero, .L15
+bne t0, zero, .L19
 j .L9
 .L7:
 mv a0, t1
-ld s0, 8(sp)
-ld s1, 0(sp)
+ld s1, 8(sp)
+ld s0, 0(sp)
 addi sp, sp, 16
 ret
-j .L15
+j .L19
 .L9:
 addi t0, t2, -10
 seqz t0, t0
 beq t0, zero, .L11
-j .L18
+j .L16
 .L11:
 li t0, 2
 mulw t1, t2, t0
@@ -78,13 +78,13 @@ j .L13
 addiw t2, t2, 1
 j .L5
 .L14:
-mv t1, t2
+mv t2, t1
 j .L5
-.L15:
-mv t1, s1
-j .L13
-.L18:
+.L16:
 mv t1, s0
+j .L13
+.L19:
+mv t1, s1
 j .L13
 
 main:

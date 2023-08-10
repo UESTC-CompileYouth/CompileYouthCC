@@ -39,40 +39,58 @@ addi    sp,sp,48
 jr      ra
 
 
+get_one:
+.entry_get_one:
+.L4:
+li a0, 1
+ret
+
+main:
+.entry_main:
+addi sp, sp, -16
+sd ra, 8(sp)
+.L6:
+li a1, 2
+li a0, 2
+call deepWhileBr
+call putint
+li a0, 0
+ld ra, 8(sp)
+addi sp, sp, 16
+ret
+
 deepWhileBr:
 .entry_deepWhileBr:
 addi sp, sp, -48
 sd ra, 32(sp)
 sd s0, 16(sp)
-.L4:
-mv t1, a0
-mv t0, a1
-addw t1, t1, t0
-li s0, 42
-li t2, 168
-j .L5
-.L5:
-addi t0, t1, -75
+.L8:
+addw s0, a0, a1
+li t2, 42
+li t1, 168
+j .L9
+.L9:
+addi t0, s0, -75
 sltz t0, t0
-beq t0, zero, .L7
-.L6:
-addi t0, t1, -100
+beq t0, zero, .L11
+.L10:
+addi t0, s0, -100
 sltz t0, t0
-bne t0, zero, .L8
-j .L5
-.L7:
-mv a0, t1
+bne t0, zero, .L12
+j .L9
+.L11:
+mv a0, s0
 ld ra, 32(sp)
 ld s0, 16(sp)
 addi sp, sp, 48
 ret
-.L8:
-addw t1, t1, s0
-addi t0, t1, -99
+.L12:
+addw s0, s0, t2
+addi t0, s0, -99
 sgtz t0, t0
-bne t0, zero, .L10
-j .L5
-.L10:
+bne t0, zero, .L14
+j .L9
+.L14:
 li a0, 0
 sd t1, 8(sp)
 sd t2, 0(sp)
@@ -81,30 +99,8 @@ ld t1, 8(sp)
 ld t2, 0(sp)
 addi t0, a0, -1
 seqz t0, t0
-bne t0, zero, .L14
-j .L5
-.L14:
-mv t1, t2
-j .L5
-
-get_one:
-.entry_get_one:
-.L23:
-li a0, 1
-ret
-
-main:
-.entry_main:
-addi sp, sp, -16
-sd ra, 8(sp)
-.L25:
-li a0, 2
-li a1, 2
-call deepWhileBr
-mv t0, a0
-mv a0, t0
-call putint
-li a0, 0
-ld ra, 8(sp)
-addi sp, sp, 16
-ret
+bne t0, zero, .L19
+j .L9
+.L19:
+mv s0, t1
+j .L9

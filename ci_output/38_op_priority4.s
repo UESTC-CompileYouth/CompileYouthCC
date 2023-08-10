@@ -1,5 +1,5 @@
         .bss
-e:
+d:
         .zero   4
 a:
         .zero   4
@@ -7,7 +7,7 @@ c:
         .zero   4
 b:
         .zero   4
-d:
+e:
         .zero   4
 
         .text
@@ -55,8 +55,8 @@ main:
 .entry_main:
 addi sp, sp, -32
 sd ra, 24(sp)
-sd s0, 8(sp)
-sd s1, 0(sp)
+sd s1, 8(sp)
+sd s0, 0(sp)
 .L4:
 call getint
 lui t0, %hi(a)
@@ -88,12 +88,12 @@ sub t0, s0, t0
 snez t0, t0
 li s0, 1
 beq t0, zero, .L8
-j .L10
+j .L9
 .L6:
 mv a0, s1
 ld ra, 24(sp)
-ld s0, 8(sp)
-ld s1, 0(sp)
+ld s1, 8(sp)
+ld s0, 0(sp)
 addi sp, sp, 32
 ret
 .L7:
@@ -107,7 +107,7 @@ lw t0, e
 addw t0, t1, t0
 sub t0, t2, t0
 seqz t0, t0
-bne t0, zero, .L10
+bne t0, zero, .L9
 j .L6
 .L8:
 lw t1, a
@@ -120,8 +120,8 @@ lw t0, d
 addw t0, t1, t0
 sub t0, t2, t0
 seqz t0, t0
-bne t0, zero, .L10
+bne t0, zero, .L9
 j .L7
-.L10:
+.L9:
 mv s1, s0
 j .L6

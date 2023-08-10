@@ -43,26 +43,23 @@ addi    sp,sp,48
 jr      ra
 
 
+func:
+.entry_func:
+.L4:
+addiw t0, a0, -1
+mv a0, t0
+ret
+
 main:
 .entry_main:
 addi sp, sp, -16
 sd ra, 8(sp)
-.L4:
+.L6:
 li t1, 10
 lui t0, %hi(a)
 sw t1, %lo(a)(t0)
 lw a0, a
 call func
-mv t0, a0
-mv a0, t0
 ld ra, 8(sp)
 addi sp, sp, 16
-ret
-
-func:
-.entry_func:
-.L6:
-mv t0, a0
-addiw t0, t0, -1
-mv a0, t0
 ret

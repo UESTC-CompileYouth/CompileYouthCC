@@ -39,38 +39,38 @@ addi    sp,sp,48
 jr      ra
 
 
+doubleWhile:
+.entry_doubleWhile:
+.L4:
+li t2, 5
+li t1, 7
+j .L5
+.L5:
+addi t0, t2, -100
+sltz t0, t0
+beq t0, zero, .L7
+j .L8
+.L7:
+mv a0, t1
+ret
+.L8:
+addi t0, t1, -100
+sltz t0, t0
+beq t0, zero, .L10
+.L9:
+addiw t1, t1, 6
+j .L8
+.L10:
+addiw t2, t2, 30
+addiw t1, t1, -100
+j .L5
+
 main:
 .entry_main:
 addi sp, sp, -16
 sd ra, 8(sp)
-.L4:
+.L16:
 call doubleWhile
 ld ra, 8(sp)
 addi sp, sp, 16
 ret
-
-doubleWhile:
-.entry_doubleWhile:
-.L6:
-li t2, 5
-li t1, 7
-j .L7
-.L7:
-addi t0, t2, -100
-sltz t0, t0
-beq t0, zero, .L9
-j .L10
-.L9:
-mv a0, t1
-ret
-.L10:
-addi t0, t1, -100
-sltz t0, t0
-beq t0, zero, .L12
-.L11:
-addiw t1, t1, 6
-j .L10
-.L12:
-addiw t1, t1, -100
-addiw t2, t2, 30
-j .L7

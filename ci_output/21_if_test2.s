@@ -47,44 +47,42 @@ sd s0, 0(sp)
 .L4:
 li s1, 5
 li t0, 0
-li s0, 20
-li t2, -5
-li a0, 25
+li s0, -5
+li t2, 20
 li t1, 1
+li a0, 25
 beq t0, zero, .L7
-j .L8
+j .L18
 .L6:
 bne t1, zero, .L11
 j .L10
 .L7:
-bne t0, zero, .L8
+bne t0, zero, .L18
 j .L6
 .L8:
-mv a0, s1
 ld s1, 8(sp)
 ld s0, 0(sp)
 addi sp, sp, 16
 ret
-j .L16
+j .L8
 .L10:
 bne t1, zero, .L14
-j .L21
+j .L22
 .L11:
-bne t0, zero, .L16
+bne t0, zero, .L8
 j .L10
 .L14:
-bne t0, zero, .L18
-j .L21
-.L16:
-.L17:
-mv s1, a0
-j .L8
+bne t0, zero, .L21
+j .L22
 .L18:
-mv a0, s0
-j .L16
+mv a0, s1
+j .L8
 .L21:
-mv s0, t2
-j .L18
+mv a0, t2
+j .L8
+.L22:
+mv t2, s0
+j .L21
 
 main:
 .entry_main:

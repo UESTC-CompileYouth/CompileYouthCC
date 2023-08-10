@@ -41,35 +41,30 @@ jr      ra
 
 main:
 .entry_main:
-addi sp, sp, -16
-sd s0, 0(sp)
 .L4:
-li t2, 0
-j .L12
+li t1, 0
+j .L11
 .L5:
-addi t0, s0, -100
+addi t0, t2, -100
 sltz t0, t0
 beq t0, zero, .L7
 .L6:
-addi t0, s0, -50
+addi t0, t2, -50
 seqz t0, t0
 bne t0, zero, .L8
 j .L9
 .L7:
-mv a0, t2
-ld s0, 0(sp)
-addi sp, sp, 16
+mv a0, t1
 ret
 .L8:
-addiw s0, s0, 1
+addiw t2, t2, 1
 j .L5
 .L9:
-mv t0, s0
-addiw t0, t0, 1
-addw t2, t2, s0
+addiw t0, t2, 1
+addw t1, t1, t2
 .L10:
-mv s0, t0
+mv t2, t0
 j .L5
-.L12:
-mv s0, t2
+.L11:
+mv t2, t1
 j .L5

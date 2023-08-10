@@ -39,37 +39,37 @@ addi    sp,sp,48
 jr      ra
 
 
-main:
-.entry_main:
-addi sp, sp, -16
-sd ra, 8(sp)
-.L4:
-call if_if_Else
-ld ra, 8(sp)
-addi sp, sp, 16
-ret
-
 if_if_Else:
 .entry_if_if_Else:
 addi sp, sp, -16
 sd s0, 0(sp)
-.L6:
+.L4:
 li s0, 5
 li t0, 1
-li t2, 20
-li t1, 25
-beq t0, zero, .L11
-.L7:
-bne t0, zero, .L12
-j .L15
-.L11:
-mv a0, t2
+li t2, 25
+li t1, 20
+beq t0, zero, .L9
+.L5:
+bne t0, zero, .L11
+j .L10
+.L9:
+mv a0, t1
 ld s0, 0(sp)
 addi sp, sp, 16
 ret
-.L12:
-mv t2, t1
-j .L11
-.L15:
+.L10:
 mv t1, s0
-j .L12
+j .L9
+.L11:
+mv t1, t2
+j .L9
+
+main:
+.entry_main:
+addi sp, sp, -16
+sd ra, 8(sp)
+.L15:
+call if_if_Else
+ld ra, 8(sp)
+addi sp, sp, 16
+ret

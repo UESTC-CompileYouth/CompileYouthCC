@@ -49,13 +49,11 @@ addi sp, sp, -16
 sd ra, 8(sp)
 .L4:
 call getint
-mv t1, a0
-addi t0, t1, -10
+addi t0, a0, -10
 sgtz t0, t0
 bne t0, zero, .L7
 j .L8
 .L7:
-mv a0, t1
 call func
 addi t0, a0, 0
 snez t0, t0
@@ -64,7 +62,7 @@ j .L8
 .L8:
 call getint
 mv t1, a0
-addi t0, t1, -11
+addi t0, a0, -11
 sgtz t0, t0
 bne t0, zero, .L11
 j .L12
@@ -78,7 +76,7 @@ j .L12
 .L12:
 call getint
 mv t1, a0
-addi t0, t1, -99
+addi t0, a0, -99
 seqz t2, t0
 sltz t0, t0
 or t0, t2, t0
@@ -94,7 +92,7 @@ j .L16
 .L16:
 call getint
 mv t1, a0
-addi t0, t1, -100
+addi t0, a0, -100
 seqz t2, t0
 sltz t0, t0
 or t0, t2, t0
@@ -133,9 +131,8 @@ func:
 addi sp, sp, -16
 sd ra, 8(sp)
 .L26:
-mv t0, a0
 lw t1, g
-addw t1, t1, t0
+addw t1, t1, a0
 lui t0, %hi(g)
 sw t1, %lo(g)(t0)
 lw a0, g

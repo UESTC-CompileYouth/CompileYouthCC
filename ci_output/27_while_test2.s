@@ -79,8 +79,8 @@ sltz t0, t0
 beq t0, zero, .L12
 j .L13
 .L12:
-addiw t2, t2, -2
 addiw s0, s0, 3
+addiw t2, t2, -2
 j .L7
 .L13:
 addi t0, s1, -7
@@ -88,8 +88,8 @@ seqz t0, t0
 beq t0, zero, .L15
 j .L16
 .L15:
-addiw t2, t2, 1
 addiw s1, s1, 1
+addiw t2, t2, 1
 j .L10
 .L16:
 addi t0, t1, -20
@@ -99,6 +99,6 @@ beq t0, zero, .L18
 addiw t1, t1, 3
 j .L16
 .L18:
-addiw s1, s1, -1
 addiw t1, t1, -1
+addiw s1, s1, -1
 j .L13
