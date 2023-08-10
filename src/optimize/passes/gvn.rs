@@ -30,6 +30,9 @@ pub fn binary_compute(op: BinaryOp, s1: Immediate, s2: Immediate) -> Immediate {
                 panic!("binary_compute: mod only support int");
             }
         }
+        BinaryOp::Shl => Immediate::Int(s1.as_int().unwrap() << s2.as_int().unwrap()),
+        BinaryOp::AShr => Immediate::Int(s1.as_int().unwrap() >> s2.as_int().unwrap()),
+        BinaryOp::LShr => Immediate::Int(s1.as_int().unwrap() >> s2.as_int().unwrap()),
         BinaryOp::FAdd => Immediate::Float(s1.as_float().unwrap() + s2.as_float().unwrap()),
         BinaryOp::FSub => Immediate::Float(s1.as_float().unwrap() - s2.as_float().unwrap()),
         BinaryOp::FMul => Immediate::Float(s1.as_float().unwrap() * s2.as_float().unwrap()),
