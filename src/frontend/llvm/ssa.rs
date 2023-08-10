@@ -353,7 +353,7 @@ impl SSALeftValue {
     }
 
     pub fn is_promotable(&self) -> bool {
-        !self.is_global && !self.is_arg && self.shape.is_empty() // && self.size == bitwidth 32
+        !self.is_global && self.shape.is_empty() && self.size() == 4 // && !self.is_arg
     }
 
     pub fn set_global(&mut self) {
