@@ -99,9 +99,9 @@ pub enum BinaryOp {
     Mul,
     Div,
     Mod,
-    // Shl,
-    // Shr,
-    // Sar,
+    Shl,
+    LShr,
+    AShr,
     // And,
     // Or,
     // Xor,
@@ -855,6 +855,7 @@ impl BinaryInstr for FSub {
 
 #[derive(PartialEq, Clone, new, Getters, MutGetters)]
 pub struct Mul {
+    #[getset(get = "pub", get_mut = "pub")]
     pub d1: SSARightValue,
     #[getset(get = "pub", get_mut = "pub")]
     pub s1: SSARightValue,
@@ -998,7 +999,224 @@ impl BinaryInstr for FMul {
 }
 
 #[derive(PartialEq, Clone, new, Getters, MutGetters)]
+pub struct Shl {
+    pub d1: SSARightValue,
+    #[getset(get = "pub", get_mut = "pub")]
+    pub s1: SSARightValue,
+    #[getset(get = "pub", get_mut = "pub")]
+    pub s2: SSARightValue,
+}
+
+impl Debug for Shl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        assert!(self.d1.get_type() == Type::Int);
+        assert!(self.s1.get_type() == Type::Int);
+        assert!(self.s2.get_type() == Type::Int);
+        writeln!(f, "{} = shl i32 {}, {}", self.d1, self.s1, self.s2)
+    }
+}
+
+impl Instr for Shl {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn try_as_reg_write_instr(&self) -> Option<&dyn RegWriteInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_use_instr(&self) -> Option<&dyn RegUseInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
+        Some(self)
+    }
+
+    fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
+        Some(self)
+    }
+}
+
+impl RegWriteInstr for Shl {
+    fn des_register(&self) -> Option<&SSARightValue> {
+        Some(&self.d1)
+    }
+    fn des_register_mut(&mut self) -> Option<&mut SSARightValue> {
+        Some(&mut self.d1)
+    }
+}
+
+impl RegUseInstr for Shl {
+    fn uses(&self) -> Vec<&SSARightValue> {
+        vec![&self.s1, &self.s2]
+    }
+    fn uses_mut(&mut self) -> Vec<&mut SSARightValue> {
+        vec![&mut self.s1, &mut self.s2]
+    }
+}
+
+impl BinaryInstr for Shl {
+    fn binary_op(&self) -> BinaryOp {
+        BinaryOp::Shl
+    }
+}
+
+#[derive(PartialEq, Clone, new, Getters, MutGetters)]
+pub struct LShr {
+    pub d1: SSARightValue,
+    #[getset(get = "pub", get_mut = "pub")]
+    pub s1: SSARightValue,
+    #[getset(get = "pub", get_mut = "pub")]
+    pub s2: SSARightValue,
+}
+
+impl Debug for LShr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        assert!(self.d1.get_type() == Type::Int);
+        assert!(self.s1.get_type() == Type::Int);
+        assert!(self.s2.get_type() == Type::Int);
+        writeln!(f, "{} = lshr i32 {}, {}", self.d1, self.s1, self.s2)
+    }
+}
+
+impl Instr for LShr {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn try_as_reg_write_instr(&self) -> Option<&dyn RegWriteInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_use_instr(&self) -> Option<&dyn RegUseInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
+        Some(self)
+    }
+
+    fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
+        Some(self)
+    }
+}
+
+impl RegWriteInstr for LShr {
+    fn des_register(&self) -> Option<&SSARightValue> {
+        Some(&self.d1)
+    }
+    fn des_register_mut(&mut self) -> Option<&mut SSARightValue> {
+        Some(&mut self.d1)
+    }
+}
+
+impl RegUseInstr for LShr {
+    fn uses(&self) -> Vec<&SSARightValue> {
+        vec![&self.s1, &self.s2]
+    }
+    fn uses_mut(&mut self) -> Vec<&mut SSARightValue> {
+        vec![&mut self.s1, &mut self.s2]
+    }
+}
+
+impl BinaryInstr for LShr {
+    fn binary_op(&self) -> BinaryOp {
+        BinaryOp::LShr
+    }
+}
+
+#[derive(PartialEq, Clone, new, Getters, MutGetters)]
+pub struct AShr {
+    pub d1: SSARightValue,
+    #[getset(get = "pub", get_mut = "pub")]
+    pub s1: SSARightValue,
+    #[getset(get = "pub", get_mut = "pub")]
+    pub s2: SSARightValue,
+}
+
+impl Debug for AShr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        assert!(self.d1.get_type() == Type::Int);
+        assert!(self.s1.get_type() == Type::Int);
+        assert!(self.s2.get_type() == Type::Int);
+        writeln!(f, "{} = ashr i32 {}, {}", self.d1, self.s1, self.s2)
+    }
+}
+
+impl Instr for AShr {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn try_as_reg_write_instr(&self) -> Option<&dyn RegWriteInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_use_instr(&self) -> Option<&dyn RegUseInstr> {
+        Some(self)
+    }
+
+    fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
+        Some(self)
+    }
+
+    fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
+        Some(self)
+    }
+}
+
+impl RegWriteInstr for AShr {
+    fn des_register(&self) -> Option<&SSARightValue> {
+        Some(&self.d1)
+    }
+    fn des_register_mut(&mut self) -> Option<&mut SSARightValue> {
+        Some(&mut self.d1)
+    }
+}
+
+impl RegUseInstr for AShr {
+    fn uses(&self) -> Vec<&SSARightValue> {
+        vec![&self.s1, &self.s2]
+    }
+    fn uses_mut(&mut self) -> Vec<&mut SSARightValue> {
+        vec![&mut self.s1, &mut self.s2]
+    }
+}
+
+impl BinaryInstr for AShr {
+    fn binary_op(&self) -> BinaryOp {
+        BinaryOp::AShr
+    }
+}
+
+#[derive(PartialEq, Clone, new, Getters, MutGetters)]
 pub struct Div {
+    #[getset(get = "pub", get_mut = "pub")]
     pub d1: SSARightValue,
     #[getset(get = "pub", get_mut = "pub")]
     pub s1: SSARightValue,
