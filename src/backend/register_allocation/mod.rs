@@ -5,6 +5,7 @@ use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 
 use std::collections::{HashMap, HashSet};
+use std::fs::remove_dir;
 
 use itertools::Itertools;
 
@@ -35,11 +36,21 @@ pub struct Node {
     pub adj_list: HashSet<i32>,
     pub move_adj_list: HashSet<i32>,
     pub adj_list_in_graph: HashSet<i32>,
+    pub def_plus_use_cnt: HashMap<i32, i32>,
 }
 
 impl Node {
     fn degree(&self) -> usize {
         self.adj_list_in_graph.len()
+    }
+
+    fn spill_cost(&self) -> f32 {
+        let mut cost = 0;
+        self.def_plus_use_cnt.iter().for_each(|(level, cnt)| {
+            cost += *cnt * 10i32.pow(*level as u32);
+        });
+
+        (cost as f32) / (self.adj_list.len() as f32)
     }
 }
 
@@ -92,14 +103,29 @@ impl InterferenceGraph {
 
         for (blockid, block_liveness) in liveness.block_liveness_map.iter() {
             let block_liveness = block_liveness.borrow();
+            let block_depth = func.block(*blockid).depth();
 
             for inst_id in 0..block_liveness.inst_cnt {
                 // try to allocate with same reg for reg instr, i.e. y = f(x)
                 let inst = &func.block(*blockid).instrs()[inst_id];
                 let (x, y, z) = inst.get_operands(reg_type);
-                ig.add_node(x);
-                ig.add_node(y);
-                ig.add_node(z);
+
+                let allocable = |reg_id: i32| reg_id != 0 && reg_id != SP;
+
+                let mut do_node = |reg_id| {
+                    if !allocable(reg_id) {
+                        return;
+                    }
+                    ig.add_node(reg_id);
+                    let n = ig.nodes.get_mut(&reg_id).unwrap();
+                    n.def_plus_use_cnt
+                        .entry(*block_depth)
+                        .and_modify(|cnt| *cnt += 1)
+                        .or_insert(1);
+                };
+                do_node(x);
+                do_node(y);
+                do_node(z);
 
                 let mut mov_edge = false;
 
@@ -392,6 +418,7 @@ impl InterferenceGraph {
             adj_list: HashSet::new(),
             move_adj_list: HashSet::new(),
             adj_list_in_graph: HashSet::new(),
+            def_plus_use_cnt: HashMap::new(),
         });
     }
 
@@ -710,8 +737,18 @@ pub(crate) fn register_allocate(func: &mut Function) {
             }
 
             // 5. assign color
-            while !stk.is_empty() {
-                let n = stk.pop().unwrap();
+            // while !stk.is_empty() {
+            stk.sort_by_key(|x| (ig.nodes.get(x).unwrap().spill_cost() * 10000f32) as u32);
+            // stk.sort_by(|x, y| {
+            //     ig.nodes
+            //         .get(x)
+            //         .unwrap()
+            //         .spill_cost()
+            //         .partial_cmp(&ig.nodes.get(y).unwrap().spill_cost())
+            //         .unwrap_or(std::cmp::Ordering::Equal)
+            // });
+            for &n in stk.iter().rev() {
+                // let n = stk.pop().unwrap();
                 let c = ig.assign_color(n);
                 if c == UNCOLORED {
                     spill_set.insert(n);
@@ -719,13 +756,7 @@ pub(crate) fn register_allocate(func: &mut Function) {
             }
 
             if !spill_set.is_empty() {
-                // println!("{:?}", spill_set);
-                for _ele in &spill_set {
-                    // println!("{:?}", ele);
-                }
-                // let n = spill_set.iter().next().unwrap();
                 for n in &spill_set {
-                    // println!("SPILL {}", n);
                     spill_rewrite(func, *n, reg_type, &mut max_reg_id);
                 }
 
@@ -1166,8 +1197,159 @@ fn peephole_ld(func: &mut Function) -> bool {
     changed
 }
 
-pub fn peephole(func: &mut Function) -> bool {
+fn peephole_mv(func: &mut Function) -> bool {
     let mut changed = false;
+
+    // remove mov
+    let mut peephole_mv = |reg_type| {
+        // let analysis = LivenessAnalysis::of(func, reg_type);
+
+        // let mut push_map = vec![];
+
+        for block_idx in 0..func.blocks().len() {
+            // func.blocks_mut().iter_mut().for_each(|block| {
+            // let mut remove_movs = vec![];
+            // let liveness = analysis
+            //     .block_liveness_map
+            //     .get(func.blocks()[block_idx].id())
+            //     .unwrap()
+            //     .borrow();
+
+            for inst_idx in 0..func.blocks()[block_idx].instrs().len() {
+                let mut y = -1;
+                let mut x = -1;
+                let block = &func.blocks()[block_idx];
+                if reg_type == Type::Int {
+                    if let Some(reg_inst) =
+                        block.instrs()[inst_idx].as_any().downcast_ref::<RegInstr>()
+                    {
+                        if matches!(reg_inst.ty(), RegType::Mv) {
+                            // y = x
+                            (y, x, _) = reg_inst.get_operands(reg_type);
+                        }
+                    }
+                } else if let Some(reg_inst) = block.instrs()[inst_idx]
+                    .as_any()
+                    .downcast_ref::<FRegInstr>()
+                {
+                    if matches!(reg_inst.ty(), FRegType::FmvS) {
+                        (y, x, _) = reg_inst.get_operands(reg_type);
+                    }
+                }
+                if y != -1 && x != -1 && y != 0 && x != 0 {
+                    let mut removable = true;
+                    // let mut need_push = true;
+                    for i in (inst_idx + 1)..block.instrs().len() {
+                        let inst = &block.instrs()[i];
+
+                        // mov for return
+                        // if inst.as_any().downcast_ref::<ReturnInstr>().is_some() && y == A0 {
+                        //     removable = false;
+                        //     // need_push = false;
+                        //     break;
+                        // } else
+                        if let Some(_call) = inst.as_any().downcast_ref::<CallInstr>() {
+                            if y == A0 {
+                                removable = false;
+                            }
+                            // let uses = inst.use_id_vec(reg_type);
+                            // if uses.contains(x) ||
+                            // mov for args
+                            // if (A0..=A7).contains(&y) && ((y - A0) as usize) < *call.int_arg_cnt() {
+                            //     removable = false;
+                            //     // need_push = false;
+                            //     break;
+                            // }
+                        }
+
+                        // if let Some(d) = inst.get_operands(reg_type).0;
+                        // if d == x {
+                        //     if liveness.get_inst_out(i as i32).contains(&y) {
+                        //         removable = false;
+                        //     }
+                        //     // need_push = false;
+                        //     break;
+                        // } else if d == y {
+                        //     // need_push = false;
+                        //     break;
+                        // }
+                    }
+
+                    if removable {
+                        let mut stk = vec![(*block.id(), inst_idx + 1)];
+                        let mut visited = HashSet::new();
+
+                        while !stk.is_empty() {
+                            let (bid, start_inst_idx) = stk.pop().unwrap();
+                            if !visited.contains(&bid) {
+                                visited.insert(bid);
+                            } else {
+                                continue;
+                            }
+                            let block = &mut func.block_mut(bid);
+                            let mut breaked = false;
+                            for i in start_inst_idx..block.instrs().len() {
+                                let inst = &mut block.instrs_mut()[i];
+                                let def_cnt = inst.defs().len();
+                                if !inst.regs_mut().is_empty() {
+                                    for reg in inst.regs_mut().iter_mut().skip(def_cnt) {
+                                        if *reg.id() == y && *reg.ty() == reg_type {
+                                            reg.set_id(x);
+                                            // println!("CHANGED FROM {} TO {}", y, x);
+                                            changed = true;
+                                        }
+                                    }
+                                }
+
+                                if let Some(d) = inst.def_id_vec(reg_type).first() {
+                                    let d = *d;
+                                    if d == y || d == x {
+                                        breaked = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if !breaked {
+                                let block = &func.block(bid);
+                                for &succ in block.out_edges() {
+                                    if func.block(succ).in_edges().len() == 1
+                                        && func.block(succ).in_edges()[0] == bid
+                                    {
+                                        stk.push((succ, 0));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // }
+                }
+            }
+
+            // remove the mov
+            // for inst_idx in remove_movs.iter().rev() {
+            //     // println!("REMOVE MOV: {}", block.instrs()[*inst_idx].gen_asm());
+            //     block.instrs_mut().remove(*inst_idx);
+            //     changed = true;
+            // }
+        }
+    };
+
+    peephole_mv(Type::Int);
+    peephole_mv(Type::Float);
+
+    // // push the mov to next block
+    // for (block_id, inst) in push_map {
+    //     let block = func.block_mut(block_id);
+    //     block.instrs_mut().insert(0, inst);
+    //     changed = true;
+    // }
+    changed
+}
+
+fn peephole_mv_x_x(func: &mut Function) -> bool {
+    let mut changed = false;
+
     // remove `mv t0, t0`
     // remove `fmv ft0, ft0`
     for block in func.blocks_mut().iter_mut() {
@@ -1198,6 +1380,12 @@ pub fn peephole(func: &mut Function) -> bool {
             changed = true;
         }
     }
+
+    changed
+}
+
+fn peephole_jump(func: &mut Function) -> bool {
+    let mut changed = false;
 
     // `j .L3; .L3: j .L4` => `j .L4;`
     loop {
@@ -1288,6 +1476,19 @@ pub fn peephole(func: &mut Function) -> bool {
                     *block_id = map_id[block_id];
                 }
             }
+
+            for block_id in block.in_edges_mut().iter_mut() {
+                let mut redirect = false;
+                if let Some(succ_label) = id2name.get(block_id) {
+                    if let Some(label) = jump_map.get(succ_label) {
+                        *block_id = map_id[&name2id[label]];
+                        redirect = true;
+                    }
+                }
+                if !redirect {
+                    *block_id = map_id[block_id];
+                }
+            }
         });
 
         if prev_block_id != -1 {
@@ -1322,6 +1523,12 @@ pub fn peephole(func: &mut Function) -> bool {
             changed = true;
         }
     }
+
+    changed
+}
+
+fn peephole_li(func: &mut Function) -> bool {
+    let mut changed = false;
 
     let mut constant_propagation_for_li = |reg_type| {
         for block in func.blocks_mut().iter_mut() {
@@ -1467,153 +1674,24 @@ pub fn peephole(func: &mut Function) -> bool {
         }
     };
     constant_propagation_for_li(Type::Int);
-    constant_propagation_for_li(Type::Float);
+    // constant_propagation_for_li(Type::Float);
 
-    changed = changed || peephole_remove_unused_def(func);
+    changed
+}
+
+pub fn peephole(func: &mut Function) -> bool {
+    let mut changed = false;
+
+    changed = changed || peephole_mv_x_x(func);
     changed = changed || peephole_ld(func);
 
-    // remove unused def
-    // let mut remove_unused_def = |reg_type| {
-    //     let analysis = LivenessAnalysis::of(func, reg_type);
-    //     for (block_id, liveness) in analysis.block_liveness_map.iter() {
-    //         let block = func.block_mut(*block_id);
-    //         let mut remove_indices = vec![];
-    //         let liveness = liveness.borrow();
-    //         for (inst_idx, inst) in block.instrs().iter().enumerate() {
-    //             let out = liveness.get_inst_out(inst_idx as i32);
-    //             let (d, _, _) = inst.get_operands(reg_type);
+    changed = changed || peephole_li(func);
 
-    //             // no def
-    //             if d == 0 {
-    //                 continue;
-    //             }
+    changed = changed || peephole_jump(func);
 
-    //             // store instruction is special
-    //             if inst.as_any().downcast_ref::<StoreInstr>().is_some() {
-    //                 continue;
-    //             }
-
-    //             // maybe define a return value or args, it's difficult to analyze whether it's used
-    //             // todo: optimize this
-    //             if (A0..=A7).contains(&d)
-    //                 || RegConvention::<i32>::REGISTER_USAGE[d as usize] == RegisterUsage::Special
-    //             {
-    //                 continue;
-    //             }
-
-    //             if d != 0 && !out.contains(&d) {
-    //                 // println!("remove {}", inst.gen_asm());
-    //                 remove_indices.push(inst_idx);
-    //             }
-    //         }
-
-    //         for idx in remove_indices.iter().rev() {
-    //             block.instrs_mut().remove(*idx);
-    //             changed = true;
-    //         }
-    //     }
-    // };
-    // remove_unused_def(Type::Int);
-    // remove_unused_def(Type::Float);
-    // // remove mov
-    // let analysis = LivenessAnalysis::of(func);
-    // let mut push_map = vec![];
-    // func.blocks_mut().iter_mut().for_each(|block| {
-    //     let mut remove_movs = vec![];
-    //     let liveness = analysis
-    //         .block_liveness_map
-    //         .get(&block.id())
-    //         .unwrap()
-    //         .borrow();
-    //     for inst_idx in 0..block.instrs().len() {
-    //         if let Some(reg_inst) = block.instrs()[inst_idx].as_any().downcast_ref::<RegInstr>() {
-    //             if matches!(reg_inst.ty(), RegType::Mv) {
-    //                 // y = x
-    //                 let (y, x, _) = reg_inst.get_operands();
-    //                 let mut removable = true;
-    //                 let mut need_push = true;
-    //                 for i in (inst_idx + 1)..block.instrs().len() {
-    //                     let inst = &block.instrs()[i];
-
-    //                     // mov for return
-    //                     if inst.as_any().downcast_ref::<ReturnInstr>().is_some() && y == A0 {
-    //                         removable = false;
-    //                         need_push = false;
-    //                         break;
-    //                     } else if let Some(call) = inst.as_any().downcast_ref::<CallInstr>() {
-    //                         // mov for args
-    //                         if y >= A0 && y <= A7 && ((y - A0) as usize) < *call.int_arg_cnt() {
-    //                             removable = false;
-    //                             need_push = false;
-    //                             break;
-    //                         }
-    //                     }
-
-    //                     let d = inst.get_operands().0;
-    //                     if d == x {
-    //                         if liveness.get_inst_out(i as i32).contains(&y) {
-    //                             removable = false;
-    //                         }
-    //                         need_push = false;
-    //                         break;
-    //                     } else if d == y {
-    //                         need_push = false;
-    //                         break;
-    //                     }
-    //                 }
-
-    //                 if removable {
-    //                     // record removing the mov
-    //                     remove_movs.push(inst_idx);
-    //                     // push the mov to next block
-    //                     if need_push {
-    //                         // replacement maybe continue in succ block, so we need to push the mov to succ block
-    //                         for block_id in block.out_edges().iter() {
-    //                             let inst = Box::new(RegInstr::new_move(
-    //                                 reg_inst.rd().clone(),
-    //                                 reg_inst.rs().clone(),
-    //                             ));
-    //                             // println!("{}->{}: {}", block.id(), block_id, inst.gen_asm());
-    //                             push_map.push((*block_id, inst));
-    //                         }
-    //                     }
-    //                     // replace the use of y with x
-    //                     for i in (inst_idx + 1)..block.instrs().len() {
-    //                         let inst = &mut block.instrs_mut()[i];
-    //                         let def_cnt = inst.defs().len();
-    //                         if inst.regs_mut().len() > 0 {
-    //                             for reg in inst.regs_mut()[def_cnt..].iter_mut() {
-    //                                 if *reg.id() == y {
-    //                                     reg.set_id(x);
-    //                                     changed = true;
-    //                                 }
-    //                             }
-    //                         }
-
-    //                         let d = inst.get_operands().0;
-    //                         if d == y || d == x {
-    //                             break;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     // remove the mov
-    //     for inst_idx in remove_movs.iter().rev() {
-    //         // println!("REMOVE MOV: {}", block.instrs()[*inst_idx].gen_asm());
-    //         block.instrs_mut().remove(*inst_idx);
-    //         changed = true;
-    //     }
-    // });
-
-    // // push the mov to next block
-    // for (block_id, inst) in push_map {
-    //     let block = func.block_mut(block_id);
-    //     block.instrs_mut().insert(0, inst);
-    //     changed = true;
-    // }
+    changed = changed || peephole_mv(func);
+    changed = changed || peephole_mv_x_x(func);
+    changed = changed || peephole_remove_unused_def(func);
 
     changed
 }

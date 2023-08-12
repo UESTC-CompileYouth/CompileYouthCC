@@ -38,7 +38,7 @@ pub struct Block {
     #[getset(get = "pub", get_mut = "pub")]
     instrs: Vec<Box<dyn InstrTrait>>,
     #[new(default)]
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     in_edges: Vec<BlockId>,
     #[new(default)]
     #[getset(get = "pub", get_mut = "pub")]
