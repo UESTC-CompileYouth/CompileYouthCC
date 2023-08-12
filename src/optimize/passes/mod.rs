@@ -7,4 +7,5 @@ pub mod gvn;
 pub mod liveness;
 pub mod loop_tree;
 pub mod mem2reg;
+pub mod misc;
 pub mod ssa;
