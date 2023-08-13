@@ -20,7 +20,7 @@ impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Void => write!(f, "void"),
-            Type::Int => write!(f, "int"),
+            Type::Int => write!(f, "i32"),
             Type::Float => write!(f, "float"),
         }
     }

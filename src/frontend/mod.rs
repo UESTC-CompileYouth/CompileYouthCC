@@ -10,4 +10,5 @@ pub mod antlr_dep;
 pub mod ast_visitor;
 pub mod error_listener;
 pub mod llvm;
+pub mod misc;
 pub mod symbol_table;

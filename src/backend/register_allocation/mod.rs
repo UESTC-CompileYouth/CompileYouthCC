@@ -1,20 +1,14 @@
 pub mod liveness;
-use crate::common::r#type::Type;
-
-use std::cmp::max;
-use std::fmt::{Debug, Formatter};
-
-use std::collections::{HashMap, HashSet};
-use std::fs::remove_dir;
-
-use itertools::Itertools;
-
 use self::liveness::LivenessAnalysis;
-
 use super::arch_info::{RegConvention, RegisterUsage, A0, A7, RA, SP};
 use super::function::Function;
 use super::instr::*;
 use super::register::Reg;
+use crate::common::r#type::Type;
+use itertools::Itertools;
+use std::cmp::max;
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Formatter};
 
 const MAX_USABLE_REG_CNT: usize = 27;
 // pub const REGS: [i32; 27] = [

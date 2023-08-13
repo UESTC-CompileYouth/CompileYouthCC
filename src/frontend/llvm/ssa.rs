@@ -1,7 +1,7 @@
 use crate::common::constant::ADDRESS_SIZE;
 use crate::common::{immediate::Immediate, r#type::Type};
 use enum_as_inner::EnumAsInner;
-use getset::{Getters, Setters};
+use getset::{Getters, MutGetters, Setters};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
@@ -65,6 +65,20 @@ impl Hash for SSARightValue {
 }
 
 impl SSARightValue {
+    pub fn id_mut_opt(&mut self) -> Option<&mut i32> {
+        match &mut self.inner {
+            SSARightValueInner::Immediate(_) => None,
+            SSARightValueInner::Normal(id, _) => Some(id),
+            SSARightValueInner::Address(id, _, _, addr_type, _) => {
+                if *addr_type == AddrType::Local {
+                    Some(id)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
     /// for const value
     pub fn new_imme(imme: Immediate) -> Self {
         Self {
@@ -201,7 +215,7 @@ impl Display for SSARightValue {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Default, Getters, Setters)]
+#[derive(Debug, PartialEq, Clone, Default, Getters, MutGetters, Setters)]
 pub struct SSALeftValue {
     #[getset(get = "pub")]
     name: String,
@@ -213,7 +227,7 @@ pub struct SSALeftValue {
     is_global: bool,
     #[getset(get = "pub")]
     shape: Vec<i32>,
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub", get_mut = "pub", set = "pub")]
     id: i32,
     #[getset(get = "pub", set = "pub")]
     ty: Type,

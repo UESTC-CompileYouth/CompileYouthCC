@@ -1,6 +1,7 @@
 use super::{
     antlr_dep::sysyparser::*,
     antlr_dep::sysyvisitor::SysYVisitorCompat,
+    misc::JumpList,
     return_content::{AstReturnContent, ValueMode},
     symbol_table::*,
 };
@@ -68,17 +69,17 @@ pub struct SysYAstVisitor<'a> {
     #[new(default)]
     ret_value_opt: Option<SSALeftValue>,
     #[new(default)]
-    ret_bb_opt: Option<i32>,
+    ret_bb_opt: Option<JumpList>,
     #[new(value = "false")]
     has_return: bool,
     #[new(value = "0")]
     depth: i32,
+    // #[new(default)]
+    // true_bb_stack: Vec<i32>,
+    // #[new(default)]
+    // false_bb_stack: Vec<i32>,
     #[new(default)]
-    true_bb_stack: Vec<i32>,
-    #[new(default)]
-    false_bb_stack: Vec<i32>,
-    #[new(default)]
-    break_target_bb: Vec<i32>,
+    break_target_bb: Vec<JumpList>,
     #[new(default)]
     continue_target_bb: Vec<i32>,
 }
@@ -607,6 +608,71 @@ impl SysYAstVisitor<'_> {
         self.cur_function().add_inst2bb(convert_ir);
         new_rvalue
     }
+
+    fn to_jump_list(&mut self, return_content: AstReturnContent) -> JumpList {
+        assert!(return_content.as_jump_list().is_some() || return_content.as_exp().is_some());
+        if let Some(jump_list) = return_content.as_jump_list() {
+            return jump_list.clone();
+        } else if let Ok(exp) = return_content.into_exp() {
+            assert!(exp.as_ssa_value().is_some());
+            let cond_ssa = exp.into_ssa_value().unwrap();
+            let cur_bb_id = self.cur_bb.unwrap();
+            let branch_ir =
+                Instruction::new(Box::new(Branch::new(-1, None, Some(cond_ssa))), cur_bb_id);
+            let instr_id = self.cur_function().add_inst2bb(branch_ir);
+            let mut jump_list = JumpList::new();
+            jump_list.true_instr_list_mut().push(instr_id);
+            jump_list.false_instr_list_mut().push(instr_id);
+            return jump_list;
+        } else {
+            unreachable!();
+        }
+    }
+
+    fn back_patch(&mut self, jump_list: &JumpList, target_bb_id: i32, is_true: bool) {
+        if is_true {
+            for instr_id in jump_list.true_instr_list() {
+                let instr = self
+                    .cur_function()
+                    .instructions_mut()
+                    .get_mut(instr_id)
+                    .unwrap();
+                let branch_instr = instr
+                    .instr_mut()
+                    .as_any_mut()
+                    .downcast_mut::<Branch>()
+                    .unwrap();
+                branch_instr.set_true_label(target_bb_id);
+                // connect branch_bb and target_bb
+                let branch_bb_id = instr.bb_id();
+                let branch_bb = self.cur_function().bb_mut(branch_bb_id).unwrap();
+                branch_bb.add_succ_bb(target_bb_id);
+                let target_bb = self.cur_function().bb_mut(target_bb_id).unwrap();
+                target_bb.add_prev_bb(branch_bb_id);
+            }
+        } else {
+            for instr_id in jump_list.false_instr_list() {
+                let instr = self
+                    .cur_function()
+                    .instructions_mut()
+                    .get_mut(instr_id)
+                    .unwrap();
+                let branch_instr = instr
+                    .instr_mut()
+                    .as_any_mut()
+                    .downcast_mut::<Branch>()
+                    .unwrap();
+                branch_instr.set_false_label(target_bb_id);
+
+                // connect branch_bb and target_bb
+                let branch_bb_id = instr.bb_id();
+                let branch_bb = self.cur_function().bb_mut(branch_bb_id).unwrap();
+                branch_bb.add_succ_bb(target_bb_id);
+                let target_bb = self.cur_function().bb_mut(target_bb_id).unwrap();
+                target_bb.add_prev_bb(branch_bb_id);
+            }
+        }
+    }
 }
 
 impl<'input> ParseTreeVisitorCompat<'input> for SysYAstVisitor<'_> {
@@ -1113,36 +1179,35 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         ctx.block().unwrap().accept(self);
         self.depth -= 1;
 
-        if let Some(ret_bb) = self.ret_bb_opt.clone() {
+        if let Some(ret_jump_list) = self.ret_bb_opt.clone() {
+            // todo: allocate ret bb, set cur_bb to ret_bb
+            let ret_bb_id = self
+                .cur_function()
+                .alloc_bb_with_alias("return".to_string());
             if func_type != Type::Void {
                 let ret_rvalue =
                     SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), func_type.clone());
-
+                let ret_lvalue = self.ret_value_opt.as_ref().unwrap();
                 let load = Instruction::new(
-                    Box::new(Load::new(
-                        self.ret_value_opt.clone().unwrap().to_address(),
-                        ret_rvalue.clone(),
-                    )),
-                    ret_bb,
+                    Box::new(Load::new(ret_lvalue.to_address(), ret_rvalue.clone())),
+                    ret_bb_id,
                 );
                 self.cur_function().add_inst2bb(load);
                 let real_ret_value = self.convert_type(ret_rvalue, func_type);
-                let ret = Instruction::new(Box::new(Ret::new(Some(real_ret_value))), ret_bb);
-                self.module
-                    .functions_mut()
-                    .get_mut(&func_name)
-                    .unwrap()
-                    .add_inst2bb(ret);
-            } else {
-                let ret = Instruction::new(Box::new(Ret::new(None)), ret_bb);
+                let ret = Instruction::new(Box::new(Ret::new(Some(real_ret_value))), ret_bb_id);
                 self.cur_function().add_inst2bb(ret);
+            } else {
+                let ret = Instruction::new(Box::new(Ret::new(None)), ret_bb_id);
+                self.cur_function().add_inst2bb(ret);
+                //? may have problem, why not do this for both void and non-void
                 let cur_bb_id = self.cur_bb.unwrap();
                 let cur_bb = self.cur_function().bb(cur_bb_id).unwrap();
                 if !cur_bb.have_exit() {
-                    let br = Instruction::new(Box::new(Branch::new_label(ret_bb)), cur_bb_id);
+                    let br = Instruction::new(Box::new(Branch::new_label(ret_bb_id)), cur_bb_id);
                     self.cur_function().add_inst2bb(br);
                 }
             }
+            self.back_patch(&ret_jump_list, ret_bb_id, true);
         } else {
             if !self.has_return {
                 log::trace!("add ret");
@@ -1315,40 +1380,32 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     fn visit_ifStmt1(&mut self, ctx: &IfStmt1Context<'input>) -> Self::Return {
         log::trace!("visit_ifStmt1");
         ctx.cond().unwrap().accept(self);
-        self.cur_bb = self.true_bb_stack.pop();
-        self.module
-            .functions_mut()
-            .get_mut(&self.cur_func_name)
-            .unwrap()
-            .bb_mut(self.cur_bb.unwrap())
-            .unwrap()
-            .set_alias("if.then".to_string());
+        let jump_list = self.return_content().into_jump_list().unwrap();
+        let true_entry_bb_id = self
+            .cur_function()
+            .alloc_bb_with_alias("if.then".to_string());
+        self.cur_bb = Some(true_entry_bb_id);
         self.depth += 1;
         ctx.stmt().unwrap().accept(self);
         self.depth -= 1;
-        let cur_func = self
-            .module
-            .functions_mut()
-            .get_mut(&self.cur_func_name)
-            .unwrap();
-        let bb = cur_func.bb_mut(self.cur_bb.unwrap()).unwrap();
-        let false_branch_bb = self.false_bb_stack.pop();
-        if !bb.have_exit() {
-            let br_ir = Instruction::new(
-                Box::new(Branch::new_label(false_branch_bb.unwrap())),
-                self.cur_bb.unwrap(),
-            );
+        let true_last_bb_id = self.cur_bb.unwrap();
+        let cur_func = self.cur_function();
+        let after_if_bb_id = cur_func.alloc_bb_with_alias("after.if".to_string());
+        let is_true_last_bb_have_exit = *cur_func.bb_mut(true_last_bb_id).unwrap().have_exit(); // true last
+        if !is_true_last_bb_have_exit {
+            let br_ir =
+                Instruction::new(Box::new(Branch::new_label(after_if_bb_id)), true_last_bb_id);
             cur_func.add_inst2bb(br_ir);
-            let false_bb = cur_func.bb_mut(false_branch_bb.unwrap()).unwrap();
-            false_bb.add_prev_bb(self.cur_bb.unwrap());
-            let cur_bb = cur_func.bb_mut(self.cur_bb.unwrap()).unwrap();
-            cur_bb.add_succ_bb(false_branch_bb.unwrap());
+            let true_last_bb = cur_func.bb_mut(true_last_bb_id).unwrap();
+            true_last_bb.add_succ_bb(after_if_bb_id);
+            let if_after_bb = cur_func.bb_mut(after_if_bb_id).unwrap();
+            if_after_bb.add_prev_bb(true_last_bb_id);
         } else {
             // may have return in true branch
         }
-        self.cur_bb = false_branch_bb;
-        let bb = cur_func.bb_mut(self.cur_bb.unwrap()).unwrap();
-        bb.set_alias("if.after".to_string());
+        self.back_patch(&jump_list, true_entry_bb_id, true);
+        self.back_patch(&jump_list, after_if_bb_id, false);
+        self.cur_bb = Some(after_if_bb_id);
         log::trace!("leave_ifStmt1");
         Self::Return::default()
     }
@@ -1362,88 +1419,75 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     fn visit_ifStmt2(&mut self, ctx: &IfStmt2Context<'input>) -> Self::Return {
         log::trace!("visit_ifStmt2");
         ctx.cond().unwrap().accept(self);
-
-        self.cur_bb = Some(*self.true_bb_stack.last().unwrap());
-        self.module
-            .functions_mut()
-            .get_mut(&self.cur_func_name)
-            .unwrap()
-            .bb_mut(self.cur_bb.unwrap())
-            .unwrap()
-            .set_alias("if.then".to_string());
+        let jump_list = self.return_content().into_jump_list().unwrap();
+        let true_branch_entry_bb = self
+            .cur_function()
+            .alloc_bb_with_alias("if.then".to_string());
+        self.cur_bb = Some(true_branch_entry_bb);
         self.depth += 1;
         ctx.stmt(0).unwrap().accept(self);
         self.depth -= 1;
-        let true_branch_last_bb = self.cur_bb;
-        let false_branch_bb = Some(*self.false_bb_stack.last().unwrap());
-        self.cur_bb = false_branch_bb;
-        self.module
-            .functions_mut()
-            .get_mut(&self.cur_func_name)
-            .unwrap()
-            .bb_mut(self.cur_bb.unwrap())
-            .unwrap()
-            .set_alias("if.else".to_string());
+        let true_branch_last_bb = self.cur_bb.unwrap();
+        let false_branch_entry_bb = self
+            .cur_function()
+            .alloc_bb_with_alias("if.else".to_string());
+        self.cur_bb = Some(false_branch_entry_bb);
         self.depth += 1;
         ctx.stmt(1).unwrap().accept(self);
         self.depth -= 1;
-        let false_branch_last_bb = self.cur_bb;
-        self.true_bb_stack.pop();
-        self.false_bb_stack.pop();
-
-        self.cur_bb = Some(
-            self.cur_function()
-                .alloc_bb_with_alias("after if".to_string()),
-        );
+        let false_branch_last_bb = self.cur_bb.unwrap();
+        let after_if_bb_id = self
+            .cur_function()
+            .alloc_bb_with_alias("after.if".to_string());
+        self.cur_bb = Some(after_if_bb_id);
         if !self
             .cur_function()
-            .bb_mut(true_branch_last_bb.unwrap())
+            .bb_mut(true_branch_last_bb)
             .unwrap()
             .have_exit()
         {
             let br_ir = Instruction::new(
-                Box::new(Branch::new_label(self.cur_bb.unwrap())),
-                true_branch_last_bb.unwrap(),
+                Box::new(Branch::new_label(after_if_bb_id)),
+                true_branch_last_bb,
             );
-            let cur_bb_id = self.cur_bb.unwrap();
             let cur_func = self.cur_function();
             cur_func.add_inst2bb(br_ir);
             cur_func
-                .bb_mut(cur_bb_id)
+                .bb_mut(after_if_bb_id)
                 .unwrap()
-                .add_prev_bb(true_branch_last_bb.unwrap());
+                .add_prev_bb(true_branch_last_bb);
             cur_func
-                .bb_mut(true_branch_last_bb.unwrap())
+                .bb_mut(true_branch_last_bb)
                 .unwrap()
-                .add_succ_bb(cur_bb_id);
+                .add_succ_bb(after_if_bb_id);
         } else {
             // may have return in true branch
         }
-
         if !self
             .cur_function()
-            .bb_mut(false_branch_last_bb.unwrap())
+            .bb_mut(false_branch_last_bb)
             .unwrap()
             .have_exit()
         {
             let br_ir = Instruction::new(
-                Box::new(Branch::new_label(self.cur_bb.unwrap())),
-                false_branch_last_bb.unwrap(),
+                Box::new(Branch::new_label(after_if_bb_id)),
+                false_branch_last_bb,
             );
-            let cur_bb_id = self.cur_bb.unwrap();
             let cur_func = self.cur_function();
             cur_func.add_inst2bb(br_ir);
             cur_func
-                .bb_mut(cur_bb_id)
+                .bb_mut(after_if_bb_id)
                 .unwrap()
-                .add_prev_bb(false_branch_last_bb.unwrap());
+                .add_prev_bb(false_branch_last_bb);
             cur_func
-                .bb_mut(false_branch_last_bb.unwrap())
+                .bb_mut(false_branch_last_bb)
                 .unwrap()
-                .add_succ_bb(cur_bb_id);
+                .add_succ_bb(after_if_bb_id);
         } else {
             // may have return in true branch
         }
+        self.back_patch(&jump_list, true_branch_entry_bb, true);
+        self.back_patch(&jump_list, false_branch_entry_bb, false);
         log::trace!("leave_ifStmt2");
         Self::Return::default()
     }
@@ -1475,17 +1519,17 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .unwrap()
             .add_succ_bb(cond_bb);
         self.cur_bb = Some(cond_bb);
+        // keep above
         ctx.cond().unwrap().accept(self);
+        let jump_list = self.return_content().into_jump_list().unwrap();
         let cur_func = self
             .module
             .functions_mut()
             .get_mut(&self.cur_func_name)
             .unwrap();
-        self.break_target_bb
-            .push(*self.false_bb_stack.last().unwrap());
-        self.cur_bb = Some(*self.true_bb_stack.last().unwrap());
-        let cur_block = cur_func.bb_mut(self.cur_bb.unwrap()).unwrap();
-        cur_block.set_alias("while.true".to_string());
+        let body_entry_bb_id = cur_func.alloc_bb_with_alias("while.body".to_string());
+        self.break_target_bb.push(JumpList::new());
+        self.cur_bb = Some(body_entry_bb_id);
         self.depth += 1;
         ctx.stmt().unwrap().accept(self);
         self.depth -= 1;
@@ -1511,14 +1555,13 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         } else {
             // while last true basic block may return early
         }
-
-        self.cur_bb = Some(*self.false_bb_stack.last().unwrap());
-        let cur_block = cur_func.bb_mut(self.cur_bb.unwrap()).unwrap();
-        cur_block.set_alias("while.after".to_string());
-        self.true_bb_stack.pop();
-        self.false_bb_stack.pop();
+        let out_bb_id = cur_func.alloc_bb_with_alias("while.after".to_string());
+        self.cur_bb = Some(out_bb_id);
         self.continue_target_bb.pop();
-        self.break_target_bb.pop();
+        let break_jump_list = self.break_target_bb.pop().unwrap();
+        self.back_patch(&break_jump_list, out_bb_id, true);
+        self.back_patch(&jump_list, body_entry_bb_id, true);
+        self.back_patch(&jump_list, out_bb_id, false);
         log::trace!("leave_whileStmt");
         Self::Return::default()
     }
@@ -1533,20 +1576,15 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         log::trace!("visit_breakStmt");
         let res = self.visit_children(ctx);
         if self.break_target_bb.len() == 0 {
-            return SemanticError::InvalidBreak.into();
+            panic!("break not in loop");
+            // return SemanticError::InvalidBreak.into();
         }
         let cur_bb_id = self.cur_bb.unwrap();
-        let break_target_bb_id = *self.break_target_bb.last().unwrap();
-        let br_ir = Instruction::new(Box::new(Branch::new_label(break_target_bb_id)), cur_bb_id);
-        let cur_func = self.cur_function();
-        cur_func.add_inst2bb(br_ir);
-        let break_target_bb = cur_func.bb_mut(break_target_bb_id).unwrap();
-        break_target_bb.add_prev_bb(cur_bb_id);
-        cur_func
-            .bb_mut(cur_bb_id)
-            .unwrap()
-            .add_succ_bb(break_target_bb_id);
-        self.cur_bb = Some(cur_func.alloc_bb());
+        let br_ir = Instruction::new(Box::new(Branch::new_label(-1)), cur_bb_id);
+        let br_instr_id = self.cur_function().add_inst2bb(br_ir);
+        let break_jump_list = self.break_target_bb.last_mut().unwrap();
+        break_jump_list.true_instr_list_mut().push(br_instr_id);
+        self.cur_bb = Some(self.cur_function().alloc_bb()); // unreachable
         log::trace!("leave_breakStmt");
         res
     }
@@ -1595,19 +1633,19 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             if self.cur_function().ret_type() == &Type::Void {
                 panic!("return statement must be in a function");
             } else {
+                ctx.exp().unwrap().accept(self);
+                let return_content = self.return_content();
+                let rvalue = match return_content.into_exp().unwrap() {
+                    AstExp::SSAValue(v) => v,
+                    AstExp::StaticValue(immediate) => SSARightValue::new_imme(immediate),
+                };
+                let func_type = *self.cur_function().ret_type();
+                let real_ret_value = self.convert_type(rvalue, func_type);
                 if self.depth == 0 {
                     panic!("return statement must be in a function");
                 } else if self.depth == 1 {
-                    ctx.exp().unwrap().accept(self);
-                    let return_content = self.return_content();
-                    let rvalue = match return_content.into_exp().unwrap() {
-                        AstExp::SSAValue(v) => v,
-                        AstExp::StaticValue(immediate) => SSARightValue::new_imme(immediate),
-                    };
                     if self.ret_bb_opt.is_none() {
                         // single-return, just return in current bb
-                        let func_type = *self.cur_function().ret_type();
-                        let real_ret_value = self.convert_type(rvalue, func_type);
                         let ret = Instruction::new(
                             Box::new(Ret::new(Some(real_ret_value))),
                             self.cur_bb.unwrap(),
@@ -1615,70 +1653,39 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                         self.cur_function().add_inst2bb(ret);
                     } else {
                         // multi-return, need a unified return bb
-                        let rvalue = self
-                            .convert_type(rvalue, self.ret_value_opt.as_ref().unwrap().get_type());
+                        let ret_lvalue = self.ret_value_opt.as_ref().unwrap();
+                        let cur_bb_id = self.cur_bb.unwrap();
                         let store = Instruction::new(
-                            Box::new(Store::new(
-                                self.ret_value_opt.clone().unwrap().to_address(),
-                                rvalue,
-                            )),
-                            self.cur_bb.unwrap(),
+                            Box::new(Store::new(ret_lvalue.to_address(), real_ret_value)),
+                            cur_bb_id,
                         );
                         self.cur_function().add_inst2bb(store);
-                        let branch = Instruction::new(
-                            Box::new(Branch::new_label(self.ret_bb_opt.unwrap())),
-                            self.cur_bb.unwrap(),
-                        );
-                        self.cur_function().add_inst2bb(branch);
-                        let cur_bb = self.cur_bb.unwrap();
-                        let ret_bb_id = self.ret_bb_opt.unwrap();
-                        self.cur_function()
-                            .bb_mut(ret_bb_id)
+                        let branch = Instruction::new(Box::new(Branch::new_label(-1)), cur_bb_id);
+                        let branch_instr_id = self.cur_function().add_inst2bb(branch);
+                        self.ret_bb_opt
+                            .as_mut()
                             .unwrap()
-                            .add_prev_bb(cur_bb);
-                        self.cur_function()
-                            .bb_mut(cur_bb)
-                            .unwrap()
-                            .add_succ_bb(ret_bb_id);
+                            .true_instr_list_mut()
+                            .push(branch_instr_id);
                     }
                 } else if self.depth >= 2 {
                     if self.ret_bb_opt.is_none() {
-                        let ret_bb = self
-                            .cur_function()
-                            .alloc_bb_with_alias("return".to_string());
-                        self.ret_bb_opt = Some(ret_bb);
+                        self.ret_bb_opt = Some(JumpList::new());
                     }
-                    ctx.exp().unwrap().accept(self);
-                    let return_content = self.return_content();
-                    let rvalue = match return_content.into_exp().unwrap() {
-                        AstExp::SSAValue(v) => v,
-                        AstExp::StaticValue(immediate) => SSARightValue::new_imme(immediate),
-                    };
-                    let rvalue =
-                        self.convert_type(rvalue, self.ret_value_opt.as_ref().unwrap().get_type());
-                    let store_ir = Instruction::new(
-                        Box::new(Store::new(
-                            self.ret_value_opt.clone().unwrap().to_address(),
-                            rvalue,
-                        )),
-                        self.cur_bb.unwrap(),
+                    let ret_lvalue = self.ret_value_opt.as_ref().unwrap();
+                    let cur_bb_id = self.cur_bb.unwrap();
+                    let store = Instruction::new(
+                        Box::new(Store::new(ret_lvalue.to_address(), real_ret_value)),
+                        cur_bb_id,
                     );
-                    self.cur_function().add_inst2bb(store_ir);
-                    let branch = Instruction::new(
-                        Box::new(Branch::new_label(self.ret_bb_opt.unwrap())),
-                        self.cur_bb.unwrap(),
-                    );
-                    self.cur_function().add_inst2bb(branch);
-                    let cur_bb = self.cur_bb.unwrap();
-                    let ret_bb_id = self.ret_bb_opt.unwrap();
-                    self.cur_function()
-                        .bb_mut(ret_bb_id)
+                    self.cur_function().add_inst2bb(store);
+                    let branch = Instruction::new(Box::new(Branch::new_label(-1)), cur_bb_id);
+                    let branch_instr_id = self.cur_function().add_inst2bb(branch);
+                    self.ret_bb_opt
+                        .as_mut()
                         .unwrap()
-                        .add_prev_bb(cur_bb);
-                    self.cur_function()
-                        .bb_mut(cur_bb)
-                        .unwrap()
-                        .add_succ_bb(ret_bb_id);
+                        .true_instr_list_mut()
+                        .push(branch_instr_id);
                 }
             }
         } else {
@@ -1692,44 +1699,27 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                         self.cur_function().add_inst2bb(ret);
                     } else {
                         // multi-return, need a unified return bb
-                        let branch = Instruction::new(
-                            Box::new(Branch::new_label(self.ret_bb_opt.unwrap())),
-                            self.cur_bb.unwrap(),
-                        );
-                        self.cur_function().add_inst2bb(branch);
-                        let cur_bb = self.cur_bb.unwrap();
-                        let ret_bb_id = self.ret_bb_opt.unwrap();
-                        self.cur_function()
-                            .bb_mut(ret_bb_id)
+                        let cur_bb_id = self.cur_bb.unwrap();
+                        let branch = Instruction::new(Box::new(Branch::new_label(-1)), cur_bb_id);
+                        let branch_instr_id = self.cur_function().add_inst2bb(branch);
+                        self.ret_bb_opt
+                            .as_mut()
                             .unwrap()
-                            .add_prev_bb(cur_bb);
-                        self.cur_function()
-                            .bb_mut(cur_bb)
-                            .unwrap()
-                            .add_succ_bb(ret_bb_id);
+                            .true_instr_list_mut()
+                            .push(branch_instr_id);
                     }
                 } else if self.depth >= 2 {
                     if self.ret_bb_opt.is_none() {
-                        let ret_bb = self
-                            .cur_function()
-                            .alloc_bb_with_alias("return".to_string());
-                        self.ret_bb_opt = Some(ret_bb.clone());
+                        self.ret_bb_opt = Some(JumpList::new());
                     }
-                    let branch_ir = Instruction::new(
-                        Box::new(Branch::new_label(self.ret_bb_opt.unwrap())),
-                        self.cur_bb.unwrap(),
-                    );
-                    let cur_bb = self.cur_bb.unwrap();
-                    let ret_bb_id = self.ret_bb_opt.unwrap();
-                    self.cur_function().add_inst2bb(branch_ir);
-                    self.cur_function()
-                        .bb_mut(ret_bb_id)
+                    let cur_bb_id = self.cur_bb.unwrap();
+                    let branch = Instruction::new(Box::new(Branch::new_label(-1)), cur_bb_id);
+                    let branch_instr_id = self.cur_function().add_inst2bb(branch);
+                    self.ret_bb_opt
+                        .as_mut()
                         .unwrap()
-                        .add_prev_bb(cur_bb);
-                    self.cur_function()
-                        .bb_mut(cur_bb)
-                        .unwrap()
-                        .add_succ_bb(ret_bb_id);
+                        .true_instr_list_mut()
+                        .push(branch_instr_id);
                 }
             } else {
                 panic!("return value not found in a non-void function");
@@ -1758,54 +1748,10 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     #[allow(non_snake_case)]
     fn visit_cond(&mut self, ctx: &CondContext<'input>) -> Self::Return {
         log::trace!("visit_cond start");
-        let true_branch_bb = self
-            .cur_function()
-            .alloc_bb_with_alias("cond.true".to_string());
-        self.true_bb_stack.push(true_branch_bb);
-        let false_branch_bb = self
-            .cur_function()
-            .alloc_bb_with_alias("cond.false".to_string());
-        self.false_bb_stack.push(false_branch_bb);
-        let res = self.visit_children(ctx);
-        if res.is_not_empty() {
-            let &true_branch_bb = self.true_bb_stack.last().unwrap();
-            let &false_branch_bb = self.false_bb_stack.last().unwrap();
-            let cur_bb = self.cur_bb.unwrap();
-            let cur_func = self.cur_function();
-            let branch = Instruction::new(
-                Box::new(Branch::new(
-                    true_branch_bb,
-                    Some(false_branch_bb),
-                    match res
-                        .0
-                        .as_ref()
-                        .expect("semantic error")
-                        .clone()
-                        .into_exp()
-                        .unwrap()
-                    {
-                        AstExp::SSAValue(v) => Some(v),
-                        AstExp::StaticValue(immediate) => Some(SSARightValue::new_imme(immediate)),
-                    },
-                )),
-                cur_bb,
-            );
-            cur_func.add_inst2bb(branch);
-            cur_func.bb_mut(true_branch_bb).unwrap().add_prev_bb(cur_bb);
-            cur_func.bb_mut(cur_bb).unwrap().add_succ_bb(true_branch_bb);
-            cur_func
-                .bb_mut(false_branch_bb)
-                .unwrap()
-                .add_prev_bb(cur_bb);
-            cur_func
-                .bb_mut(cur_bb)
-                .unwrap()
-                .add_succ_bb(false_branch_bb);
-        } else {
-            panic!("should have a condition expression")
-        }
+        ctx.lOrExp().unwrap().accept(self);
+        let res = self.to_jump_list(self.return_content());
         log::trace!("visit_cond end");
-        res
+        return AstReturnContent::JumpList(res).into();
     }
 
     /**
@@ -2624,40 +2570,11 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     #[allow(non_snake_case)]
     fn visit_lAnd2(&mut self, ctx: &LAnd2Context<'input>) -> Self::Return {
         log::trace!("visit_lAnd2: {}", ctx.get_text());
-        let new_cond_bb = self
-            .cur_function()
-            .alloc_bb_with_alias("&& cond".to_string());
-        self.true_bb_stack.push(new_cond_bb);
         ctx.lAndExp().unwrap().accept(self);
-        let ret = self.return_content();
-        let lhs = match ret.into_exp().unwrap() {
-            AstExp::SSAValue(v) => v,
-            AstExp::StaticValue(immediate) => SSARightValue::new_imme(immediate),
-        };
-        let true_branch_bb = self.true_bb_stack.pop().unwrap();
-        let &false_branch_bb = self.false_bb_stack.last().unwrap();
-        let cur_bb = self.cur_bb.unwrap();
-        let cur_func = self.cur_function();
-        let branch_ir = Instruction::new(
-            Box::new(Branch {
-                cond: Some(lhs),
-                label1: true_branch_bb,
-                label2: Some(false_branch_bb),
-            }),
-            cur_bb,
-        );
-        cur_func.add_inst2bb(branch_ir);
-        cur_func.bb_mut(true_branch_bb).unwrap().add_prev_bb(cur_bb);
-        cur_func.bb_mut(cur_bb).unwrap().add_succ_bb(true_branch_bb);
-        cur_func
-            .bb_mut(false_branch_bb)
-            .unwrap()
-            .add_prev_bb(cur_bb);
-        cur_func
-            .bb_mut(cur_bb)
-            .unwrap()
-            .add_succ_bb(false_branch_bb);
-        self.cur_bb = Some(true_branch_bb);
+        let mut lhs_jump_list = self.to_jump_list(self.return_content());
+        let land_rhs_bb = self.cur_function().alloc_bb();
+        self.cur_bb = Some(land_rhs_bb);
+        self.back_patch(&lhs_jump_list, land_rhs_bb, true);
         ctx.eqExp().unwrap().accept(self);
         let ret = self.return_content();
         let res = match ret.into_exp().unwrap() {
@@ -2667,7 +2584,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let cur_bb = self.cur_bb.unwrap();
         let cur_func = self.cur_function();
         let last_instr_id = cur_func.layout().block_node(cur_bb).last_inst();
-        if last_instr_id.is_none()
+        let cond_ssa = if last_instr_id.is_none()
             || !cur_func
                 .instructions()
                 .get(&last_instr_id.unwrap())
@@ -2697,12 +2614,15 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 )
             };
             cur_func.add_inst2bb(cmp_ir);
-            log::trace!("leave_lAnd2_0");
-            return AstReturnContent::Exp(AstExp::SSAValue(ret_ssa)).into();
+            ret_ssa
         } else {
-            log::trace!("leave lAnd2_1");
-            return AstReturnContent::Exp(AstExp::SSAValue(res)).into();
-        }
+            res
+        };
+        let cond_ssa_wrap = AstReturnContent::Exp(AstExp::SSAValue(cond_ssa));
+        let mut rhs_jump_list = self.to_jump_list(cond_ssa_wrap);
+        rhs_jump_list.append_false_list(&mut lhs_jump_list);
+        log::trace!("leave lAnd2");
+        AstReturnContent::JumpList(rhs_jump_list).into()
     }
 
     /**
@@ -2722,7 +2642,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let cur_bb = self.cur_bb.unwrap();
         let cur_func = self.cur_function();
         let last_instr_id = cur_func.layout().block_node(cur_bb).last_inst();
-        if last_instr_id.is_none()
+        let cond_ssa = if last_instr_id.is_none()
             || !cur_func
                 .instructions()
                 .get(&last_instr_id.unwrap())
@@ -2752,12 +2672,14 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 )
             };
             cur_func.add_inst2bb(cmp_ir);
-            log::trace!("leave_lAnd1_0");
-            return AstReturnContent::Exp(AstExp::SSAValue(ret_ssa)).into();
+            ret_ssa
         } else {
-            log::trace!("leave_lAnd1_1");
-            return AstReturnContent::Exp(AstExp::SSAValue(res)).into();
-        }
+            res
+        };
+        let cond_ssa_wrap = AstReturnContent::Exp(AstExp::SSAValue(cond_ssa));
+        let res = self.to_jump_list(cond_ssa_wrap);
+        log::trace!("leave_lAnd1");
+        return AstReturnContent::JumpList(res).into();
     }
 
     /**
@@ -2769,9 +2691,9 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     fn visit_lOr1(&mut self, ctx: &LOr1Context<'input>) -> Self::Return {
         log::trace!("visit_lOr1: {}", ctx.get_text());
         ctx.lAndExp().unwrap().accept(self);
-        let ret = self.return_content();
+        let ret = self.to_jump_list(self.return_content());
         log::trace!("leave_lOr1");
-        ret.into()
+        return AstReturnContent::JumpList(ret).into();
     }
 
     /**
@@ -2782,44 +2704,18 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
     #[allow(non_snake_case)]
     fn visit_lOr2(&mut self, ctx: &LOr2Context<'input>) -> Self::Return {
         log::trace!("lOr2: {}", ctx.get_text());
-        let new_cond_bb = self
-            .cur_function()
-            .alloc_bb_with_alias("|| cond".to_string());
-        self.false_bb_stack.push(new_cond_bb);
         ctx.lOrExp().unwrap().accept(self);
-        let ret = self.return_content();
-        let lhs = match ret.into_exp().unwrap() {
-            AstExp::SSAValue(v) => v,
-            AstExp::StaticValue(immediate) => SSARightValue::new_imme(immediate),
-        };
-        let &true_branch_bb = self.true_bb_stack.last().unwrap();
-        let false_branch_bb = self.false_bb_stack.pop().unwrap();
-        let cur_bb = self.cur_bb.unwrap();
-        let branch_ir = Instruction::new(
-            Box::new(Branch {
-                cond: Some(lhs),
-                label1: true_branch_bb,
-                label2: Some(false_branch_bb),
-            }),
-            cur_bb,
-        );
-        let cur_func = self.cur_function();
-        cur_func.add_inst2bb(branch_ir);
-        cur_func.bb_mut(true_branch_bb).unwrap().add_prev_bb(cur_bb);
-        cur_func.bb_mut(cur_bb).unwrap().add_succ_bb(true_branch_bb);
-        cur_func
-            .bb_mut(false_branch_bb)
-            .unwrap()
-            .add_prev_bb(cur_bb);
-        cur_func
-            .bb_mut(cur_bb)
-            .unwrap()
-            .add_succ_bb(false_branch_bb);
-        self.cur_bb = Some(false_branch_bb);
+        let mut lhs_jump_list = self.to_jump_list(self.return_content());
+        let lor_rhs_bb = self
+            .cur_function()
+            .alloc_bb_with_alias("|| rhs".to_string());
+        self.cur_bb = Some(lor_rhs_bb);
+        self.back_patch(&lhs_jump_list, lor_rhs_bb, false);
         ctx.lAndExp().unwrap().accept(self);
-        let ret = self.return_content();
+        let mut rhs_jump_list = self.to_jump_list(self.return_content());
+        rhs_jump_list.append_true_list(&mut lhs_jump_list);
         log::trace!("leave_lOr2");
-        ret.into()
+        AstReturnContent::JumpList(rhs_jump_list).into()
     }
 
     /**
