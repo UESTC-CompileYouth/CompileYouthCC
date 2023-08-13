@@ -58,6 +58,9 @@ pub trait Instr: Any + Debug {
 
         (kill, gen1, gen2)
     }
+
+    // label id + reg id
+    fn ids_mut(&mut self) -> Vec<&mut i32>;
 }
 
 pub trait RegWriteInstr: Instr + Debug {
@@ -214,6 +217,10 @@ impl Instr for GlobalDecl {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        todo!()
+    }
 }
 
 #[derive(PartialEq, Clone, new, MutGetters, Getters)]
@@ -249,6 +256,14 @@ impl Instr for Alloca {
 
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        if let Some(id) = self.addr.id_mut_opt() {
+            return vec![id];
+        } else {
+            return vec![];
+        }
     }
 }
 
@@ -327,6 +342,17 @@ impl Instr for Load {
     fn get_operands(&self) -> (i32, i32, i32) {
         (*self.d1.id(), 0, 0)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.addr.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Load {
@@ -396,6 +422,17 @@ impl Instr for Store {
     fn get_operands(&self) -> (i32, i32, i32) {
         (0, *self.s1.id(), 0)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.addr.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Store {
@@ -436,7 +473,10 @@ impl Debug for Mov {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(self.d1.get_type() == Type::Int);
         assert!(self.s1.get_type() == Type::Int);
-        writeln!(f, "{} = mov i32 {}", self.d1, self.s1)
+        #[cfg(not(feature = "strict_llvm_15_output"))]
+        return writeln!(f, "{} = mov i32 {}", self.d1, self.s1);
+        #[cfg(feature = "strict_llvm_15_output")]
+        return writeln!(f, "{} = add i32 0, {}", self.d1, self.s1);
     }
 }
 
@@ -467,6 +507,17 @@ impl Instr for Mov {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -537,6 +588,17 @@ impl Instr for FMov {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -611,6 +673,20 @@ impl Instr for Add {
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Add {
@@ -682,6 +758,20 @@ impl Instr for FAdd {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -755,6 +845,20 @@ impl Instr for Sub {
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Sub {
@@ -826,6 +930,20 @@ impl Instr for FSub {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -900,6 +1018,20 @@ impl Instr for Mul {
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Mul {
@@ -971,6 +1103,20 @@ impl Instr for FMul {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1044,6 +1190,19 @@ impl Instr for Shl {
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
     }
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Shl {
@@ -1116,6 +1275,20 @@ impl Instr for LShr {
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for LShr {
@@ -1187,6 +1360,20 @@ impl Instr for AShr {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1261,6 +1448,20 @@ impl Instr for Div {
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Div {
@@ -1332,6 +1533,20 @@ impl Instr for FDiv {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1405,6 +1620,20 @@ impl Instr for Mod {
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Mod {
@@ -1474,6 +1703,17 @@ impl Instr for Neg {
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Neg {
@@ -1542,6 +1782,17 @@ impl Instr for Not {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1673,6 +1924,20 @@ impl Instr for Icmp {
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Icmp {
@@ -1742,6 +2007,20 @@ impl Instr for Fcmp {
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Fcmp {
@@ -1792,7 +2071,9 @@ impl Debug for Call {
             if i != 0 {
                 code += ", ";
             }
-            code += format!("{} {}", arg.get_type(), arg).as_str();
+            let ptr_num = arg.addr_shape().unwrap_or(vec![]).len();
+            let ptr_str = String::from("*").repeat(ptr_num);
+            code += format!("{}{} {}", arg.get_type().to_string(), ptr_str, arg).as_str();
         }
         code += ")";
         writeln!(f, "{}", code)
@@ -1822,6 +2103,21 @@ impl Instr for Call {
 
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(ret) = &mut self.ret {
+            if let Some(id) = ret.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        for arg in self.args.iter_mut() {
+            if let Some(id) = arg.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        ids
     }
 }
 
@@ -1875,6 +2171,16 @@ impl Instr for Ret {
 
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(value) = &mut self.value {
+            if let Some(id) = value.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        ids
     }
 }
 
@@ -2013,7 +2319,8 @@ impl Debug for Gep {
         assert!(self.s1.is_addr());
         assert!(self.d1.is_addr());
         assert!(self.s1.get_type() == self.d1.get_type());
-        writeln!(
+        #[cfg(not(feature = "strict_llvm_15_output"))]
+        return writeln!(
             f,
             "{} = getelementptr {}, {}* {}, i32 {}",
             self.d1,
@@ -2021,7 +2328,17 @@ impl Debug for Gep {
             address_type_string(&self.s1),
             self.s1,
             self.index
-        )
+        );
+        #[cfg(feature = "strict_llvm_15_output")]
+        return writeln!(
+            f,
+            "{} = getelementptr {}, {}* {}, i32 0, i32 {}",
+            self.d1,
+            address_type_string(&self.s1),
+            address_type_string(&self.s1),
+            self.s1,
+            self.index
+        );
     }
 }
 
@@ -2048,6 +2365,20 @@ impl Instr for Gep {
 
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.index.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -2095,8 +2426,12 @@ impl Debug for Phi {
         }
         let mut code = String::new();
         code += format!("{} = phi {}", self.d1, self.d1().get_type()).as_str();
-        for (reg, bid) in &self.uses {
-            code += format!(" [ {}, %{} ],", reg, bid).as_str();
+        let uses_len = self.uses.len();
+        for (idx, (reg, bid)) in self.uses.iter().enumerate() {
+            code += format!(" [ {}, %{} ]", reg, bid).as_str();
+            if idx != uses_len - 1 {
+                code += ",";
+            }
         }
         writeln!(f, "{}", code)
     }
@@ -2125,6 +2460,20 @@ impl Instr for Phi {
 
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        for (reg, bb_id) in &mut self.uses {
+            if let Some(id) = reg.id_mut_opt() {
+                ids.push(id);
+            }
+            ids.push(bb_id);
+        }
+        ids
     }
 }
 
@@ -2161,6 +2510,12 @@ impl Branch {
             cond: None,
         }
     }
+    pub fn set_true_label(&mut self, label: i32) {
+        self.label1 = label;
+    }
+    pub fn set_false_label(&mut self, label: i32) {
+        self.label2 = Some(label);
+    }
 }
 
 impl Instr for Branch {
@@ -2178,6 +2533,20 @@ impl Instr for Branch {
 
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(cond) = &mut self.cond {
+            if let Some(id) = cond.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        ids.push(&mut self.label1);
+        if let Some(label2) = &mut self.label2 {
+            ids.push(label2);
+        }
+        ids
     }
 }
 
@@ -2262,6 +2631,17 @@ impl Instr for Sitofp {
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Sitofp {
@@ -2330,6 +2710,17 @@ impl Instr for Fptosi {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 

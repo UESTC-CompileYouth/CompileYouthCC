@@ -17,8 +17,8 @@ if (($# >= 1)); then
 			output_path=$source_dir
 		fi
 		for syfile in $source_dir/*.sy; do
-			echo "$syfile"
 			syfile_basename=$(basename $syfile)
+			echo "$syfile > $output_path/${syfile_basename%%.sy}.ll"
 			./target/release/sysy-optimize $syfile -o $output_path/${syfile_basename%%.sy}.ll --log-level $log_level
 		done
 	else
@@ -27,6 +27,7 @@ if (($# >= 1)); then
 		if [ -z "$output_path" ]; then
 			output_path=$(dirname $syfile)
 		fi
+		echo "$syfile > $output_path/${syfile_basename%%.sy}.ll"
 		./target/release/sysy-optimize $syfile -o $output_path/${syfile_basename%%.sy}.ll --log-level $log_level
 	fi
 else

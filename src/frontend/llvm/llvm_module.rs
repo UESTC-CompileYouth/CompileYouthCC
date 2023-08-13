@@ -81,6 +81,13 @@ impl LLVMModule {
             func.before_backend();
         });
     }
+
+    #[cfg(feature = "strict_llvm_15_output")]
+    pub fn reg_id_remapping(&mut self) {
+        self.for_each_user_func_mut(|func| {
+            func.reg_id_remapping();
+        });
+    }
 }
 
 impl Display for LLVMModule {

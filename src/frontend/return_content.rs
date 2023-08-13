@@ -1,3 +1,4 @@
+use super::misc::JumpList;
 use crate::common::{immediate::Immediate, r#type::Type};
 use crate::frontend::llvm::ssa::*;
 use defaults::Defaults;
@@ -29,4 +30,5 @@ pub enum AstReturnContent {
     FuncRparams(Vec<SSARightValue>),
     FuncFParams(Vec<(String, SSALeftValue)>),
     FuncFParam((String, SSALeftValue)),
+    JumpList(JumpList),
 }
