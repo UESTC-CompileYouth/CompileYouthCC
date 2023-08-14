@@ -360,14 +360,14 @@ pub fn merge_bb(f: &mut Function) {
             if flag {
                 continue;
             }
-            
+
             for u in prev.get(&bb_id).unwrap() {
                 log::info!("merge {} to {}", bb_id, u);
                 let u_last_instr = f.layout().block_node(*u).last_inst().unwrap();
                 // log::info!("u_id:{},u_last_instr_id:{},u_last_instr:{:?}", u, u_last_instr, f.instructions().get(&u_last_instr).unwrap());
                 f.remove_inst(u_last_instr);
                 for inst_in_bb_id in f.layout().clone().inst_iter(bb_id) {
-                    f.move_inst2tail(inst_in_bb_id, bb_id,*u);
+                    f.move_inst2tail(inst_in_bb_id, bb_id, *u);
                 }
                 del.insert(bb_id);
             }
@@ -386,7 +386,7 @@ pub fn merge_bb(f: &mut Function) {
             // log::info!("bb_first_inst:{:?}", f.layout().block_node(*bb_id).first_inst());
             f.remove_bb(*bb_id);
         }
-       
+
         if del.is_empty() {
             break;
         }

@@ -166,12 +166,11 @@ impl Layout {
         self.instructions.remove(&id);
     }
 
-    pub fn move_inst2tail(&mut self, inst_id: i32,src_id:i32, dst_id: i32) {
+    pub fn move_inst2tail(&mut self, inst_id: i32, src_id: i32, dst_id: i32) {
         let inst_node = self.instructions.get_mut(&inst_id).unwrap();
         inst_node.block = Some(dst_id);
         self.basic_blocks.get_mut(&src_id).unwrap().first_inst = inst_node.next;
         if inst_node.next.is_some() {
-            
         } else {
             self.basic_blocks.get_mut(&src_id).unwrap().last_inst = None;
         }
