@@ -371,9 +371,14 @@ pub fn merge_bb(f: &mut Function) {
         for bb_id in del.iter() {
             let bb = f.basic_blocks().get(bb_id).unwrap().clone();
             let prev_bb = f.basic_blocks_mut().get_mut(&bb.prev_bb()[0]).unwrap();
-            prev_bb.add_succ_bb(bb.succ_bb()[0]);
-            let succ_bb = f.basic_blocks_mut().get_mut(&bb.succ_bb()[0]).unwrap();
-            succ_bb.add_prev_bb(bb.prev_bb()[0]);
+            let succ_bbs = bb.succ_bb();
+            for succ_bb_id in succ_bbs {
+                prev_bb.add_succ_bb(*succ_bb_id);
+            }
+            for succ_bb_id in succ_bbs {
+                let succ_bb = f.basic_blocks_mut().get_mut(&succ_bb_id).unwrap();
+                succ_bb.add_prev_bb(bb.prev_bb()[0]);
+            }
             f.remove_bb(*bb_id);
         }
 
