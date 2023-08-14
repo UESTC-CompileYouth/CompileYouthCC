@@ -298,7 +298,7 @@ pub fn stat_inst(f: &mut Function) {
 }
 
 pub fn merge_bb(f: &mut Function) {
-    stat_inst(f);
+    // stat_inst(f);
     loop {
         let prev: HashMap<i32, Vec<i32>> = f
             .basic_blocks()
@@ -307,12 +307,10 @@ pub fn merge_bb(f: &mut Function) {
             .collect();
         let mut del: HashSet<i32> = HashSet::new();
         for bb_id in f.layout().clone().block_iter() {
-            // log::info!("bb_id:{}", bb_id);
             if bb_id == f.entry_bb_id()
                 || del.contains(&bb_id)
                 || f.layout().inst_iter(bb_id).count() != 1
             {
-                // log::info!("break1:bb_id:{},del.contains(&bb_id):{},inst_cnt:{}", bb_id, del.contains(&bb_id), f.layout().inst_iter(bb_id).count());
                 continue;
             }
             if prev.get(&bb_id).unwrap().len() != 1 {
@@ -334,7 +332,7 @@ pub fn merge_bb(f: &mut Function) {
             for u in prev.get(&bb_id).unwrap() {
                 if del.contains(u) || u == &bb_id {
                     flag = true;
-                    // log::info!("break2:bb_id:{},del.contains(u):{},u == &bb_id:{}",bb_id, del.contains(u), u == &bb_id);
+
                     break;
                 }
                 assert!(f.layout().block_node(*u).last_inst().is_some());
@@ -348,12 +346,12 @@ pub fn merge_bb(f: &mut Function) {
                 {
                     if br_instr.label2.is_some() {
                         flag = true;
-                        // log::info!("break3:bb_id:{},br_instr.label2.is_some():{}",bb_id,br_instr.label2.is_some());
+
                         break;
                     }
                 } else {
                     flag = true;
-                    // log::info!("break4:bb_id:{}", bb_id);
+
                     break;
                 }
             }
@@ -362,9 +360,7 @@ pub fn merge_bb(f: &mut Function) {
             }
 
             for u in prev.get(&bb_id).unwrap() {
-                log::info!("merge {} to {}", bb_id, u);
                 let u_last_instr = f.layout().block_node(*u).last_inst().unwrap();
-                // log::info!("u_id:{},u_last_instr_id:{},u_last_instr:{:?}", u, u_last_instr, f.instructions().get(&u_last_instr).unwrap());
                 f.remove_inst(u_last_instr);
                 for inst_in_bb_id in f.layout().clone().inst_iter(bb_id) {
                     f.move_inst2tail(inst_in_bb_id, bb_id, *u);
@@ -372,18 +368,12 @@ pub fn merge_bb(f: &mut Function) {
                 del.insert(bb_id);
             }
         }
-        // if let Some((key, _)) = f
-        //     .basic_blocks()
-        //     .iter()
-        //     .find(|(bb_id, _)| del.contains(bb_id))
-        // {
-        //     log::info!("remove bb:{}", key);
-        //     f.remove_bb(*key);
-        // }
-        // log::info!("del:{:?}", del);
         for bb_id in del.iter() {
-            // log::info!("remove bb:{}", bb_id);
-            // log::info!("bb_first_inst:{:?}", f.layout().block_node(*bb_id).first_inst());
+            let bb = f.basic_blocks().get(bb_id).unwrap().clone();
+            let prev_bb = f.basic_blocks_mut().get_mut(&bb.prev_bb()[0]).unwrap();
+            prev_bb.add_succ_bb(bb.succ_bb()[0]);
+            let succ_bb = f.basic_blocks_mut().get_mut(&bb.succ_bb()[0]).unwrap();
+            succ_bb.add_prev_bb(bb.prev_bb()[0]);
             f.remove_bb(*bb_id);
         }
 
@@ -391,7 +381,7 @@ pub fn merge_bb(f: &mut Function) {
             break;
         }
     }
-    stat_inst(f);
+    // stat_inst(f);
 }
 
 pub fn merge_BB(module: &mut LLVMModule) {
