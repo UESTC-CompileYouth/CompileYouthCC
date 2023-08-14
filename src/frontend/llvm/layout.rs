@@ -165,6 +165,29 @@ impl Layout {
         }
         self.instructions.remove(&id);
     }
+
+    pub fn move_inst2tail(&mut self, inst_id: i32,src_id:i32, dst_id: i32) {
+        let inst_node = self.instructions.get_mut(&inst_id).unwrap();
+        inst_node.block = Some(dst_id);
+        self.basic_blocks.get_mut(&src_id).unwrap().first_inst = inst_node.next;
+        if inst_node.next.is_some() {
+            
+        } else {
+            self.basic_blocks.get_mut(&src_id).unwrap().last_inst = None;
+        }
+        if let Some(last_inst) = self.basic_blocks.get_mut(&dst_id).unwrap().last_inst {
+            inst_node.prev = Some(last_inst);
+            inst_node.next = None;
+            self.instructions.get_mut(&last_inst).unwrap().next = Some(inst_id);
+            self.basic_blocks.get_mut(&dst_id).unwrap().last_inst = Some(inst_id);
+        } else {
+            inst_node.prev = None;
+            inst_node.next = None;
+            self.basic_blocks.get_mut(&dst_id).unwrap().first_inst = Some(inst_id);
+            self.basic_blocks.get_mut(&dst_id).unwrap().last_inst = Some(inst_id);
+        }
+    }
+
     pub fn remove_bb(&mut self, id: i32) {
         assert!(self.entry_block.unwrap() != id);
         let prev = self.basic_blocks[&id].prev;
@@ -185,11 +208,12 @@ impl Layout {
             }
         }
 
-        let mut cur = self.basic_blocks[&id].first_inst;
-        while let Some(inst) = cur {
-            self.instructions.get_mut(&inst).unwrap().block = None;
-            cur = self.instructions[&inst].next;
-        }
+        // 下面已经从instructions中删除了，不需要管它的block了
+        // let mut cur = self.basic_blocks[&id].first_inst;
+        // while let Some(inst) = cur {
+        //     self.instructions.get_mut(&inst).unwrap().block = None;
+        //     cur = self.instructions[&inst].next;
+        // }
         for inst in self.inst_iter(id).collect::<Vec<_>>() {
             self.instructions.remove(&inst);
         }
@@ -241,6 +265,10 @@ impl BasicBlockNode {
     pub fn last_inst(&self) -> Option<i32> {
         self.last_inst
     }
+
+    pub fn first_inst(&self) -> Option<i32> {
+        self.first_inst
+    }
 }
 
 impl<'layout> Iterator for BasicBlockIter<'layout> {
@@ -249,6 +277,14 @@ impl<'layout> Iterator for BasicBlockIter<'layout> {
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.cur?;
         self.cur = self.layout.basic_blocks[&cur].next;
+        Some(cur)
+    }
+}
+
+impl<'layout> DoubleEndedIterator for BasicBlockIter<'layout> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let cur = self.cur?;
+        self.cur = self.layout.basic_blocks[&cur].prev;
         Some(cur)
     }
 }

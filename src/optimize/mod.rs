@@ -1,6 +1,7 @@
 pub mod passes;
 
 use crate::frontend::llvm::llvm_module::LLVMModule;
+use crate::optimize::passes::bb_ops::{merge_BB, merge_bb};
 use passes::bb_ops::remove_phi;
 use passes::check_ir::check_module;
 use passes::dce::{remove_unused_def, remove_useless_bb};
@@ -52,6 +53,7 @@ pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
             log::trace!("Misc Done!")
         }
         remove_phi(llvm_module);
+        merge_BB(llvm_module);
         log::trace!("Optimizing Done!")
     }
     llvm_module.before_backend();
