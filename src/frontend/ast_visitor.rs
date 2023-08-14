@@ -1141,6 +1141,12 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 if !cur_bb.have_exit() {
                     let br = Instruction::new(Box::new(Branch::new_label(ret_bb)), cur_bb_id);
                     self.cur_function().add_inst2bb(br);
+                    let ret_BB = self.cur_function().bb_mut(ret_bb).unwrap();
+                    ret_BB.add_prev_bb(cur_bb_id);
+                    self.cur_function()
+                        .bb_mut(cur_bb_id)
+                        .unwrap()
+                        .add_succ_bb(ret_bb);
                 }
             }
         } else {
