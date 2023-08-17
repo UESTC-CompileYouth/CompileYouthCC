@@ -1,11 +1,15 @@
 use crate::common::r#type::Type;
-use crate::frontend::llvm::instr::FMov;
+use crate::frontend::llvm::instr::{FMov, Ret};
 use crate::frontend::llvm::{
     function::Function,
     instr::{Branch, Instruction, Mov, Phi},
     {llvm_module::LLVMModule, ssa::SSARightValue},
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+use super::loop_tree::{
+    construct_reachable_bbs_for_function, construct_returnable_bbs_for_function,
+};
 
 #[derive(Debug, Clone)]
 pub struct Movs {
@@ -201,6 +205,199 @@ pub fn remove_phi_in_function(f: &mut Function) {
             new_bb_id,
         ));
     }
+}
+
+fn remove_if<T, F>(ls: &mut Vec<T>, f: F)
+where
+    F: Fn(&T) -> bool,
+{
+    let mut it = ls.len();
+    while it != 0 {
+        it -= 1;
+        if f(&ls[it]) {
+            ls.remove(it);
+        }
+    }
+}
+
+fn remove_if_vec<T, F>(ls: &mut Vec<T>, f: F)
+where
+    F: Fn(&T) -> bool,
+{
+    let new_end = ls.iter().filter(|x| !f(x)).count();
+    ls.retain(|x| !f(x));
+    ls.truncate(new_end);
+}
+
+pub fn remove_unused_bb(f: &mut Function) {
+    let reachable = construct_reachable_bbs_for_function(f);
+    let returnable = construct_returnable_bbs_for_function(f, &reachable);
+    let used = |bb_id: i32| returnable.contains(&bb_id);
+    let mut is_float = false;
+    for bb_id in f.layout().clone().block_iter() {
+        for inst_id in f.layout().clone().inst_iter(bb_id) {
+            if let Some(phi_instr) = f
+                .instructions_mut()
+                .get_mut(&inst_id)
+                .unwrap()
+                .instr_mut()
+                .as_any_mut()
+                .downcast_mut::<Phi>()
+            {
+                // phi_instr.uses_mut().retain(|x| used(x.1));
+                remove_if_vec(phi_instr.uses_mut(), |x| !used(x.1));
+            }
+        }
+        let last_instr_id = f.layout().clone().inst_iter(bb_id).last().unwrap();
+        let last_instr = f.instructions().get(&last_instr_id).unwrap();
+        if let Some(ret_instr) = last_instr.instr().as_any().downcast_ref::<Ret>() {
+            if let Some(value) = ret_instr.value() {
+                if value.get_type() == Type::Float {
+                    is_float = true;
+                }
+            }
+        } else if let Some(br_instr) = last_instr.instr().as_any().downcast_ref::<Branch>() {
+            let mut target: Option<i32> = None;
+            if br_instr.label2.is_some() && !used(br_instr.label2.unwrap()) {
+                target = Some(br_instr.label1);
+            } else if br_instr.label2.is_some() && !used(br_instr.label1) {
+                target = br_instr.label2;
+            }
+            if target.is_some() {
+                let new_br_instr =
+                    Instruction::new(Box::new(Branch::new_label(target.unwrap())), bb_id);
+                f.instructions_mut().insert(last_instr_id, new_br_instr);
+            }
+        }
+    }
+    if let Some((key, _)) = f.basic_blocks().iter().find(|(bb_id, _)| !used(**bb_id)) {
+        f.remove_bb(*key);
+    }
+}
+
+pub fn remove_unused_BB(module: &mut LLVMModule) {
+    module.functions_mut().iter_mut().for_each(|(_, f)| {
+        if f.name() == "_init" {
+            return;
+        }
+        if *f.is_lib_func() {
+            return;
+        }
+        remove_unused_bb(f);
+    });
+}
+
+pub fn stat_inst(f: &mut Function) {
+    log::info!(
+        "bb_cnt :{}, instr_cnt: {}, f_name: {}",
+        f.basic_blocks().len(),
+        f.instructions().len(),
+        f.name()
+    );
+}
+
+pub fn merge_bb(f: &mut Function) {
+    // stat_inst(f);
+    loop {
+        let prev: HashMap<i32, Vec<i32>> = f
+            .basic_blocks()
+            .iter()
+            .map(|(bb_id, bb)| (*bb_id, bb.prev_bb().clone()))
+            .collect();
+        let mut del: HashSet<i32> = HashSet::new();
+        for bb_id in f.layout().clone().block_iter() {
+            if bb_id == f.entry_bb_id()
+                || del.contains(&bb_id)
+                || f.layout().inst_iter(bb_id).count() > 3
+            {
+                continue;
+            }
+            if prev.get(&bb_id).unwrap().len() != 1 {
+                continue;
+            }
+            if let Some(last_instr) = f.layout().block_node(bb_id).last_inst() {
+                if let Some(ret_instr) = f
+                    .instructions()
+                    .get(&last_instr)
+                    .unwrap()
+                    .instr()
+                    .as_any()
+                    .downcast_ref::<Ret>()
+                {
+                    continue;
+                }
+            }
+            let mut flag = false;
+            for u in prev.get(&bb_id).unwrap() {
+                if del.contains(u) || u == &bb_id {
+                    flag = true;
+
+                    break;
+                }
+                assert!(f.layout().block_node(*u).last_inst().is_some());
+                if let Some(br_instr) = f
+                    .instructions()
+                    .get(&f.layout().block_node(*u).last_inst().unwrap())
+                    .unwrap()
+                    .instr()
+                    .as_any()
+                    .downcast_ref::<Branch>()
+                {
+                    if br_instr.label2.is_some() {
+                        flag = true;
+
+                        break;
+                    }
+                } else {
+                    flag = true;
+
+                    break;
+                }
+            }
+            if flag {
+                continue;
+            }
+
+            for u in prev.get(&bb_id).unwrap() {
+                let u_last_instr = f.layout().block_node(*u).last_inst().unwrap();
+                f.remove_inst(u_last_instr);
+                for inst_in_bb_id in f.layout().clone().inst_iter(bb_id) {
+                    f.move_inst2tail(inst_in_bb_id, bb_id, *u);
+                }
+                del.insert(bb_id);
+            }
+        }
+        for bb_id in del.iter() {
+            let bb = f.basic_blocks().get(bb_id).unwrap().clone();
+            let prev_bb = f.basic_blocks_mut().get_mut(&bb.prev_bb()[0]).unwrap();
+            let succ_bbs = bb.succ_bb();
+            for succ_bb_id in succ_bbs {
+                prev_bb.add_succ_bb(*succ_bb_id);
+            }
+            for succ_bb_id in succ_bbs {
+                let succ_bb = f.basic_blocks_mut().get_mut(&succ_bb_id).unwrap();
+                succ_bb.add_prev_bb(bb.prev_bb()[0]);
+            }
+            f.remove_bb(*bb_id);
+        }
+
+        if del.is_empty() {
+            break;
+        }
+    }
+    // stat_inst(f);
+}
+
+pub fn merge_BB(module: &mut LLVMModule) {
+    module.functions_mut().iter_mut().for_each(|(_, f)| {
+        if f.name() == "_init" {
+            return;
+        }
+        if *f.is_lib_func() {
+            return;
+        }
+        merge_bb(f);
+    });
 }
 
 #[test]

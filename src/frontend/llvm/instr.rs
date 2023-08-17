@@ -170,6 +170,10 @@ impl Instruction {
     pub fn is_alloca(&self) -> bool {
         self.instr.as_any().downcast_ref::<Alloca>().is_some()
     }
+
+    pub fn set_bb_id(&mut self, bb_id: i32) {
+        self.bb_id = bb_id;
+    }
 }
 
 #[derive(PartialEq, Clone, new, Getters, MutGetters)]

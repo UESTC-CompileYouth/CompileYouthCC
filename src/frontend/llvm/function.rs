@@ -276,6 +276,12 @@ impl Function {
         self.instructions.remove(&inst_id);
     }
 
+    pub fn move_inst2tail(&mut self, inst_id: i32, src_id: i32, dst_id: i32) {
+        let inst = self.instructions_mut().get_mut(&inst_id).unwrap();
+        inst.set_bb_id(dst_id);
+        self.layout.move_inst2tail(inst_id, src_id, dst_id);
+    }
+
     /* passes */
     // todo: check arg memobj if remove, can't remove arg memobj
     fn remove_used_memobj(&mut self) {

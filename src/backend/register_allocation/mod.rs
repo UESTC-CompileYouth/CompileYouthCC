@@ -1681,7 +1681,7 @@ pub fn peephole(func: &mut Function) -> bool {
 
     changed = changed || peephole_li(func);
 
-    changed = changed || peephole_jump(func);
+    // changed = changed || peephole_jump(func);
 
     changed = changed || peephole_mv(func);
     changed = changed || peephole_mv_x_x(func);
