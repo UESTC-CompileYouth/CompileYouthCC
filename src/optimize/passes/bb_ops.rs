@@ -1,5 +1,4 @@
 use crate::common::r#type::Type;
-use crate::frontend::antlr_dep::sysylexer::Continue;
 use crate::frontend::llvm::instr::{FMov, Ret};
 use crate::frontend::llvm::{
     function::Function,
@@ -400,29 +399,6 @@ pub fn merge_BB(module: &mut LLVMModule) {
         merge_bb(f);
     });
 }
-
-// pub fn remove_trivial_bb(f: &mut Function) {
-//     let prev:HashMap<i32, Vec<i32>> = f.basic_blocks().iter().map(|(bb_id, bb)| {
-//         (*bb_id, bb.prev_bb().clone())
-//     }).collect();
-//     for bb_id in f.layout().block_iter().rev() {
-//         if prev.get(&bb_id).unwrap().len() != 1 {
-//             continue;
-//         }
-//         let bb0_id = prev.get(&bb_id).unwrap()[0];
-//         let last_instr = f.instructions().get(&f.layout().block_node(bb0_id).last_inst().unwrap()).unwrap();
-//         if let Some(br_instr) = last_instr.instr().as_any().downcast_ref::<Branch>() {
-//             if br_instr.label2.is_some() {
-//                 continue;
-//             }
-//             assert!(bb0_id != bb_id);
-
-//         } else {
-//             continue;
-//         }
-//     }
-
-// }
 
 #[test]
 fn main() {
