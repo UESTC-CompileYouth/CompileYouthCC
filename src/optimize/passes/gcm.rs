@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 use super::super::passes::{dom::DominatorTreeBuilder, loop_tree::LoopTree};
 use crate::frontend::llvm::{
     function::Function,

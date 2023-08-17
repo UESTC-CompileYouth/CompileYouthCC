@@ -59,7 +59,6 @@ fn parse_passes(cmdline_options: &CompilerOptions) -> Vec<String> {
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
-
     {
         let env = env_logger::Env::new();
         let mut builder = env_logger::Builder::new();

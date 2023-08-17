@@ -124,7 +124,7 @@ impl Function {
         bb_id
     }
 
-    pub fn add_inst2bb(&mut self, instr: Instruction) {
+    pub fn add_inst2bb(&mut self, instr: Instruction) -> i32 {
         let inst_id = self.alloc_inst_id();
         let bb_id = instr.bb_id();
         if *self.bb_mut(bb_id).unwrap().have_exit() {
@@ -133,7 +133,7 @@ impl Function {
                 bb_id,
                 instr
             );
-            return;
+            return -1;
         }
         if instr.is_branch() || instr.is_ret() {
             // if *self.bb_mut(bb_id).unwrap().have_exit() {
@@ -149,6 +149,7 @@ impl Function {
         } else {
             self.layout.append_inst(inst_id, bb_id);
         }
+        inst_id
     }
 
     pub fn add_insts2bb(&mut self, instrs: Vec<Instruction>) {
@@ -312,6 +313,60 @@ impl Function {
         self.remove_used_memobj();
         self.compute_data_offset();
     }
+
+    // #[cfg(feature = "strict_llvm_15_output")]
+    // dfs to find all reachable basic block
+    pub fn reg_id_remapping(&mut self) {
+        assert!(!self.is_lib_func);
+        let mut reg_id_map = HashMap::new();
+        let mut reg_id = 0;
+
+        let mut get_mapped_id = |id| -> i32 {
+            if reg_id_map.contains_key(&id) {
+                *reg_id_map.get(&id).unwrap()
+            } else {
+                reg_id_map.insert(id, reg_id);
+                reg_id += 1;
+                reg_id - 1
+            }
+        };
+
+        // arg reg id remapping
+        for arg in self.arg_list.as_normal_mut().unwrap() {
+            *arg.id_mut() = get_mapped_id(*arg.id());
+        }
+
+        // local reg id and basic block label remapping
+        let mut all_bb_ids = self
+            .basic_blocks()
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        all_bb_ids.sort();
+        for &bb_id in all_bb_ids.iter() {
+            let self_addr = self as *const Function as usize;
+            let self_recover = unsafe { &mut *(self_addr as *mut Function) };
+            let bb = self_recover.bb_mut(bb_id).unwrap();
+            bb.set_label(get_mapped_id(bb_id));
+
+            for inst_id in self.layout().inst_iter(bb_id) {
+                let inst = self_recover.instructions_mut().get_mut(&inst_id).unwrap();
+                for id in inst.instr_mut().ids_mut() {
+                    *id = get_mapped_id(*id);
+                }
+            }
+        }
+
+        // prev basic block id remapping
+        // for &bb_id in all_bb_ids.iter() {
+        //     let self_addr = self as *const Function as usize;
+        //     let self_recover = unsafe { &mut *(self_addr as *mut Function) };
+        //     let bb = self_recover.bb_mut(bb_id).unwrap();
+        //     for prev_bb_id in bb.prev_bb_mut() {
+        //         *prev_bb_id = get_mapped_id(*prev_bb_id);
+        //     }
+        // }
+    }
 }
 
 impl Display for Function {
@@ -347,7 +402,10 @@ impl Display for Function {
         // visit basic blocks
         for bb_id in self.layout.block_iter() {
             let bb = self.basic_blocks.get(&bb_id).unwrap();
-            write!(f, "{} ({}):", bb_id, bb.alias())?;
+            #[cfg(not(feature = "strict_llvm_15_output"))]
+            write!(f, "{} ({}):", *bb.label(), bb.alias())?;
+            #[cfg(feature = "strict_llvm_15_output")]
+            write!(f, "{}:", *bb.label())?;
             if bb.prev_bb().len() != 0 {
                 write!(f, "                                         ; preds = ")?;
                 for prev_bb_id in bb.prev_bb() {
