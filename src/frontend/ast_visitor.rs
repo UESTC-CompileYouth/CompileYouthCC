@@ -798,7 +798,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .map(|i| SSARightValue::new_imme(*i))
             .collect();
         let left_id = self.new_id();
-        let mut entry = VariableEntry::new_const_array(
+        let mut entry = VariableEntry::new_const(
             left_id,
             self.cur_type.clone(),
             ident_name.clone(),

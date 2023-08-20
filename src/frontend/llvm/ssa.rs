@@ -223,7 +223,7 @@ pub struct SSALeftValue {
     is_arg: bool, // logical arg or arg on stack
     #[getset(get = "pub")]
     is_const: bool,
-    #[getset(get = "pub")]
+    #[getset(get = "pub", set = "pub")]
     is_global: bool,
     #[getset(get = "pub")]
     shape: Vec<i32>,
@@ -344,7 +344,7 @@ impl SSALeftValue {
         }
     }
 
-    pub fn new_const_array(
+    pub fn new_const(
         id: i32,
         ty: Type,
         name: String,
@@ -367,7 +367,7 @@ impl SSALeftValue {
     }
 
     pub fn is_promotable(&self) -> bool {
-        !self.is_global && self.shape.is_empty() && self.size() == 4 // && !self.is_arg
+        !self.is_global && self.shape.is_empty() && self.is_single_value()
     }
 
     pub fn set_global(&mut self) {
@@ -448,6 +448,10 @@ impl SSALeftValue {
 
     pub fn is_array_arg(&self) -> bool {
         self.is_arg && self.shape.len() > 0
+    }
+
+    pub fn is_single_value(&self) -> bool {
+        self.size() == 4
     }
 }
 

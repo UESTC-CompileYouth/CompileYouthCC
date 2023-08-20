@@ -2,7 +2,7 @@ use super::ssa::*;
 use crate::common::immediate::Immediate;
 use crate::common::r#type::Type;
 use derive_new::new;
-use getset::{CopyGetters, Getters, MutGetters};
+use getset::{CopyGetters, Getters, MutGetters, Setters};
 use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use strum_macros::EnumString;
@@ -297,9 +297,9 @@ impl RegUseInstr for Alloca {
     }
 }
 
-#[derive(PartialEq, Clone, new, Getters, MutGetters)]
+#[derive(PartialEq, Clone, new, Getters, MutGetters, Setters)]
 pub struct Load {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub", set = "pub")]
     addr: SSARightValue,
     #[getset(get = "pub", get_mut = "pub")]
     pub d1: SSARightValue,
@@ -390,7 +390,7 @@ impl RegUseInstr for Load {
 
 #[derive(PartialEq, Clone, new, Getters, MutGetters)]
 pub struct Store {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     addr: SSARightValue,
     #[getset(get = "pub", get_mut = "pub")]
     pub s1: SSARightValue,
