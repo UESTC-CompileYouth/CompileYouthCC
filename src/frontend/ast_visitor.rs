@@ -1201,10 +1201,15 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 self.cur_function().add_inst2bb(ret);
                 //? may have problem, why not do this for both void and non-void
                 let cur_bb_id = self.cur_bb.unwrap();
-                let cur_bb = self.cur_function().bb(cur_bb_id).unwrap();
-                if !cur_bb.have_exit() {
+                if !self.cur_function().is_bb_have_exit(cur_bb_id) {
                     let br = Instruction::new(Box::new(Branch::new_label(ret_bb_id)), cur_bb_id);
                     self.cur_function().add_inst2bb(br);
+                    let ret_BB = self.cur_function().bb_mut(ret_bb_id).unwrap();
+                    ret_BB.add_prev_bb(cur_bb_id);
+                    self.cur_function()
+                        .bb_mut(cur_bb_id)
+                        .unwrap()
+                        .add_succ_bb(ret_bb_id);
                 }
             }
             self.back_patch(&ret_jump_list, ret_bb_id, true);
@@ -1391,7 +1396,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         let true_last_bb_id = self.cur_bb.unwrap();
         let cur_func = self.cur_function();
         let after_if_bb_id = cur_func.alloc_bb_with_alias("after.if".to_string());
-        let is_true_last_bb_have_exit = *cur_func.bb_mut(true_last_bb_id).unwrap().have_exit(); // true last
+        let is_true_last_bb_have_exit = cur_func.is_bb_have_exit(true_last_bb_id); // true last
         if !is_true_last_bb_have_exit {
             let br_ir =
                 Instruction::new(Box::new(Branch::new_label(after_if_bb_id)), true_last_bb_id);
@@ -1440,12 +1445,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .cur_function()
             .alloc_bb_with_alias("after.if".to_string());
         self.cur_bb = Some(after_if_bb_id);
-        if !self
-            .cur_function()
-            .bb_mut(true_branch_last_bb)
-            .unwrap()
-            .have_exit()
-        {
+        if !self.cur_function().is_bb_have_exit(true_branch_last_bb) {
             let br_ir = Instruction::new(
                 Box::new(Branch::new_label(after_if_bb_id)),
                 true_branch_last_bb,
@@ -1463,12 +1463,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
         } else {
             // may have return in true branch
         }
-        if !self
-            .cur_function()
-            .bb_mut(false_branch_last_bb)
-            .unwrap()
-            .have_exit()
-        {
+        if !self.cur_function().is_bb_have_exit(false_branch_last_bb) {
             let br_ir = Instruction::new(
                 Box::new(Branch::new_label(after_if_bb_id)),
                 false_branch_last_bb,
@@ -1538,7 +1533,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             .functions_mut()
             .get_mut(&self.cur_func_name)
             .unwrap();
-        if !cur_func.bb_mut(self.cur_bb.unwrap()).unwrap().have_exit() {
+        if !cur_func.is_bb_have_exit(self.cur_bb.unwrap()) {
             let br_ir = Instruction::new(
                 Box::new(Branch::new_label(*self.continue_target_bb.last().unwrap())),
                 self.cur_bb.unwrap(),

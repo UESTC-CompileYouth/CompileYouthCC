@@ -46,9 +46,9 @@ impl Hash for SSARightValueInner {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Setters, Getters)]
+#[derive(Debug, PartialEq, Clone, Setters, Getters, MutGetters)]
 pub struct SSARightValue {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     inner: SSARightValueInner,
     // context
     #[getset(set = "pub")]
@@ -187,7 +187,7 @@ impl SSARightValue {
 
     pub fn id(&self) -> &i32 {
         match &self.inner {
-            SSARightValueInner::Immediate(_) => panic!("id: immediate"),
+            SSARightValueInner::Immediate(_) => panic!("IMMEDIATE!!"),
             SSARightValueInner::Normal(id, _) => id,
             SSARightValueInner::Address(id, _, _, _, _) => id,
         }

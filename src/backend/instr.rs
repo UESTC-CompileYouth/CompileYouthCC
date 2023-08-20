@@ -36,6 +36,10 @@ pub(crate) enum ImmeValueType {
     Symbol(String),
 }
 
+fn offset_out_of_range(offset: i32) -> bool {
+    !(-2048..=2047).contains(&offset)
+}
+
 fn imme_string(imme: &ImmeValueType, trunc: &Option<TruncType>) -> String {
     match imme {
         ImmeValueType::Direct(i) => format!("{}", i),
@@ -449,6 +453,9 @@ pub(crate) struct RegImmeInstr {
     #[getset(get = "pub")]
     ty: RegImmeType,
     trunc: Option<TruncType>,
+    #[getset(get = "pub")]
+    #[new(default)]
+    so: Option<Rc<RefCell<StackObject>>>,
 }
 
 impl InstrTrait for RegImmeInstr {
@@ -462,65 +469,83 @@ impl InstrTrait for RegImmeInstr {
         assert!(*self.rd.ty() == Type::Int);
         assert!(*self.rs1.ty() == Type::Int);
 
-        let mut imme_strings = vec![];
-        let mut imme_flag = false;
-        let step = 2036;
-        match self.offset {
-            ImmeValueType::Direct(i) => {
-                // assert!(i <= 2047 && i >= -2048, "offset {} out of range", i);
-                let mut offset = i;
-                imme_flag = true;
-                while offset > 2047 {
-                    imme_strings.push(format!("{}", step));
-                    offset -= step;
-                }
-                while offset < -2048 {
-                    imme_strings.push(format!("{}", -step));
-                    offset += step;
-                }
-                if offset != 0 || imme_strings.is_empty() {
-                    imme_strings.push(format!("{}", offset));
-                }
-            }
-            _ => {}
-        }
-
-        if !imme_flag {
-            let imme_string = imme_string(&self.offset, &self.trunc);
-            imme_strings.push(imme_string);
-        }
-
         let mut asm = String::new();
 
-        for imme_string in imme_strings {
+        if let Some(so) = &self.so {
+            let so = so.borrow();
+            return format!("addi {}, {}, {}", self.rd, self.rs1, so.position(),);
+        }
+
+        let mut use_ra = false;
+        let added = if let ImmeValueType::Direct(i) = self.offset {
+            // assert!(i <= 2047 && i >= -2048, "offset {} out of range", i);
+            if offset_out_of_range(i) {
+                asm.push_str(&format!("li ra, {}\n", i));
+                use_ra = true;
+                "ra".to_string()
+            } else {
+                format!("{}", i)
+            }
+        } else {
+            panic!("IMPOSSIBLE");
+        };
+
+        if !use_ra {
             match self.ty {
                 RegImmeType::Addi => {
-                    asm.push_str(&format!("addi {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("addi {}, {}, {}", self.rd, self.rs1, added));
                 }
                 RegImmeType::Addiw => {
-                    asm.push_str(&format!("addiw {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("addiw {}, {}, {}", self.rd, self.rs1, added));
                 }
                 RegImmeType::Slli => {
-                    asm.push_str(&format!("slli {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("slli {}, {}, {}", self.rd, self.rs1, added));
                 }
                 RegImmeType::Slliw => {
-                    asm.push_str(&format!("slliw {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("slliw {}, {}, {}", self.rd, self.rs1, added));
                 }
                 RegImmeType::Srli => {
-                    asm.push_str(&format!("srli {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("srli {}, {}, {}", self.rd, self.rs1, added));
                 }
                 RegImmeType::Srliw => {
-                    asm.push_str(&format!("srliw {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("srliw {}, {}, {}", self.rd, self.rs1, added));
                 }
                 RegImmeType::Srai => {
-                    asm.push_str(&format!("srai {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("srai {}, {}, {}", self.rd, self.rs1, added));
                 }
                 RegImmeType::Sraiw => {
-                    asm.push_str(&format!("sraiw {}, {}, {}", self.rd, self.rs1, imme_string));
+                    asm.push_str(&format!("sraiw {}, {}, {}", self.rd, self.rs1, added));
                 }
             }
-            asm.push_str("\n");
+        } else {
+            match self.ty {
+                RegImmeType::Addi => {
+                    asm.push_str(&format!("add {}, {}, {}", self.rd, self.rs1, added));
+                }
+                RegImmeType::Addiw => {
+                    asm.push_str(&format!("addw {}, {}, {}", self.rd, self.rs1, added));
+                }
+                RegImmeType::Slli => {
+                    asm.push_str(&format!("sll {}, {}, {}", self.rd, self.rs1, added));
+                }
+                RegImmeType::Slliw => {
+                    asm.push_str(&format!("sllw {}, {}, {}", self.rd, self.rs1, added));
+                }
+                RegImmeType::Srli => {
+                    asm.push_str(&format!("srl {}, {}, {}", self.rd, self.rs1, added));
+                }
+                RegImmeType::Srliw => {
+                    asm.push_str(&format!("srlw {}, {}, {}", self.rd, self.rs1, added));
+                }
+                RegImmeType::Srai => {
+                    asm.push_str(&format!("sra {}, {}, {}", self.rd, self.rs1, added));
+                }
+                RegImmeType::Sraiw => {
+                    asm.push_str(&format!("sraw {}, {}, {}", self.rd, self.rs1, added));
+                }
+            }
         }
+        asm.push('\n');
         asm
     }
 
@@ -572,18 +597,20 @@ impl InstrTrait for LoadInstr {
         // assert!(self.offset >= -2048 && self.offset <= 2047);
         let mut asm = String::new();
 
-        let mut steps = vec![];
-        let step = 2032;
         let mut offset = self.offset;
-        while offset < -2048 {
-            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, -step));
-            offset += step;
-            steps.push(step);
-        }
-        while offset > 2047 {
-            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
-            offset -= step;
-            steps.push(-step);
+
+        let tmp_offset = offset;
+
+        if offset_out_of_range(tmp_offset) {
+            let addi = RegImmeInstr::new(
+                self.rs1,
+                self.rs1,
+                ImmeValueType::Direct(tmp_offset),
+                RegImmeType::Addi,
+                None,
+            );
+            asm.push_str(&addi.gen_asm());
+            offset = 0;
         }
 
         match self.ty {
@@ -602,9 +629,17 @@ impl InstrTrait for LoadInstr {
         }
         asm.push('\n');
 
-        for step in steps {
-            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
+        if offset_out_of_range(tmp_offset) {
+            let addi = RegImmeInstr::new(
+                self.rs1,
+                self.rs1,
+                ImmeValueType::Direct(-tmp_offset),
+                RegImmeType::Addi,
+                None,
+            );
+            asm.push_str(&addi.gen_asm());
         }
+
         asm
     }
 
@@ -657,60 +692,59 @@ impl InstrTrait for StoreInstr {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rs2.ty() == Type::Int);
         let mut asm = String::new();
-        match &self.offset {
-            ImmeValueType::Symbol(_) => {
-                match self.ty {
-                    StoreType::Sb => {
-                        asm.push_str(&format!(
-                            "sb {}, {}({})",
-                            self.rs2,
-                            imme_string(&self.offset, &self.trunc),
-                            self.rs1
-                        ));
-                    }
-                    StoreType::Sh => {
-                        asm.push_str(&format!(
-                            "sh {}, {}({})",
-                            self.rs2,
-                            imme_string(&self.offset, &self.trunc),
-                            self.rs1
-                        ));
-                    }
-                    StoreType::Sw => {
-                        asm.push_str(&format!(
-                            "sw {}, {}({})",
-                            self.rs2,
-                            imme_string(&self.offset, &self.trunc),
-                            self.rs1
-                        ));
-                    }
-                    StoreType::Sd => {
-                        asm.push_str(&format!(
-                            "sd {}, {}({})",
-                            self.rs2,
-                            imme_string(&self.offset, &self.trunc),
-                            self.rs1
-                        ));
-                    }
+        if let ImmeValueType::Symbol(_) = self.offset {
+            match self.ty {
+                StoreType::Sb => {
+                    asm.push_str(&format!(
+                        "sb {}, {}({})",
+                        self.rs2,
+                        imme_string(&self.offset, &self.trunc),
+                        self.rs1
+                    ));
                 }
-                asm.push_str("\n");
-                return asm;
+                StoreType::Sh => {
+                    asm.push_str(&format!(
+                        "sh {}, {}({})",
+                        self.rs2,
+                        imme_string(&self.offset, &self.trunc),
+                        self.rs1
+                    ));
+                }
+                StoreType::Sw => {
+                    asm.push_str(&format!(
+                        "sw {}, {}({})",
+                        self.rs2,
+                        imme_string(&self.offset, &self.trunc),
+                        self.rs1
+                    ));
+                }
+                StoreType::Sd => {
+                    asm.push_str(&format!(
+                        "sd {}, {}({})",
+                        self.rs2,
+                        imme_string(&self.offset, &self.trunc),
+                        self.rs1
+                    ));
+                }
             }
-            _ => {}
+            asm.push('\n');
+            return asm;
         }
 
-        let mut steps = vec![];
-        let step = 2032;
         let mut offset = self.offset.clone().into_direct().unwrap();
-        while offset < -2048 {
-            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, -step));
-            offset += step;
-            steps.push(step);
-        }
-        while offset > 2047 {
-            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
-            offset -= step;
-            steps.push(-step);
+
+        let tmp_offset = offset;
+        if offset_out_of_range(tmp_offset) {
+            let addi = RegImmeInstr::new(
+                self.rs1,
+                self.rs1,
+                ImmeValueType::Direct(offset),
+                RegImmeType::Addi,
+                None,
+            );
+            asm.push_str(&addi.gen_asm());
+
+            offset = 0;
         }
 
         match self.ty {
@@ -727,11 +761,19 @@ impl InstrTrait for StoreInstr {
                 asm.push_str(&format!("sd {}, {}({})", self.rs2, offset, self.rs1));
             }
         }
-        asm.push_str("\n");
+        asm.push('\n');
 
-        for step in steps {
-            asm.push_str(&format!("addi {}, {}, {}\n", self.rs1, self.rs1, step));
+        if offset_out_of_range(tmp_offset) {
+            let addi = RegImmeInstr::new(
+                self.rs1,
+                self.rs1,
+                ImmeValueType::Direct(-tmp_offset),
+                RegImmeType::Addi,
+                None,
+            );
+            asm.push_str(&addi.gen_asm());
         }
+
         asm
     }
 
@@ -1012,19 +1054,19 @@ impl InstrTrait for LoadStackInstr {
         } else {
             *self.stack_object.borrow().position()
         };
-        let step = 2032;
         let mut asm = String::new();
-        let mut offsets = vec![];
 
-        while offset > 2047 {
-            asm.push_str(&format!("addi sp, sp, {}\n", step));
-            offset -= step;
-            offsets.push(-step);
-        }
-        while offset < -2048 {
-            asm.push_str(&format!("addi sp, sp, {}\n", -step));
-            offset += step;
-            offsets.push(step);
+        let tmp_offset = offset;
+        if offset_out_of_range(tmp_offset) {
+            let addi = RegImmeInstr::new(
+                Reg::new_int(SP),
+                Reg::new_int(SP),
+                ImmeValueType::Direct(tmp_offset),
+                RegImmeType::Addi,
+                None,
+            );
+            asm.push_str(&addi.gen_asm());
+            offset = 0;
         }
 
         if size == 4 {
@@ -1042,8 +1084,16 @@ impl InstrTrait for LoadStackInstr {
         } else {
             unreachable!("size of stack object is not 4 or 8");
         }
-        for offset in offsets {
-            asm.push_str(&format!("addi sp, sp, {}\n", offset));
+
+        if offset_out_of_range(tmp_offset) {
+            let addi = RegImmeInstr::new(
+                Reg::new_int(SP),
+                Reg::new_int(SP),
+                ImmeValueType::Direct(-tmp_offset),
+                RegImmeType::Addi,
+                None,
+            );
+            asm.push_str(&addi.gen_asm());
         }
         asm
     }
@@ -1152,39 +1202,17 @@ impl InstrTrait for LoadStackAddrInstr {
     }
     fn gen_asm(&self) -> String {
         // unreachable!("load stack addr instr must be replaced by real instr");
-        let mut offset = *self.stack_object.borrow().position();
+        let offset = *self.stack_object.borrow().position();
 
-        let mut offsets = vec![];
-        let step = 2036;
+        let addi = RegImmeInstr::new(
+            self.rd,
+            Reg::new_int(SP),
+            ImmeValueType::Direct(offset),
+            RegImmeType::Addi,
+            None,
+        );
 
-        while offset > 2047 {
-            offsets.push(format!("{}", step));
-            offset -= step;
-        }
-        while offset < -2048 {
-            offsets.push(format!("{}", -step));
-            offset += step;
-        }
-        if offset != 0 || offsets.is_empty() {
-            offsets.push(format!("{}", offset));
-        }
-
-        let mut asm = String::new();
-        let mut first_flag = true;
-        for offset in offsets {
-            if first_flag {
-                asm.push_str(&format!("addi {}, sp, {}\n", self.rd.gen_asm(), offset));
-                first_flag = false;
-            } else {
-                asm.push_str(&format!(
-                    "addi {}, {}, {}\n",
-                    self.rd.gen_asm(),
-                    self.rd.gen_asm(),
-                    offset
-                ));
-            }
-        }
-        asm
+        addi.gen_asm()
 
         // format!("LSA {} {}", self.rd.gen_asm(), self.offset)
     }
@@ -1213,24 +1241,17 @@ impl InstrTrait for ChangeSPInstr {
         self
     }
     fn gen_asm(&self) -> String {
-        let mut offset = self.change;
-        let mut asm = String::new();
+        let offset = self.change;
 
-        while offset > 2047 {
-            asm.push_str(&format!("addi sp, sp, {}\n", 2047));
-            offset -= 2047;
-        }
+        let addi = RegImmeInstr::new(
+            Reg::new_int(SP),
+            Reg::new_int(SP),
+            ImmeValueType::Direct(offset),
+            RegImmeType::Addi,
+            None,
+        );
 
-        while offset < -2048 {
-            asm.push_str(&format!("addi sp, sp, {}\n", -2048));
-            offset += 2048;
-        }
-
-        if offset != 0 {
-            asm.push_str(&format!("addi sp, sp, {}\n", offset));
-        }
-
-        asm
+        addi.gen_asm()
     }
     fn uses(&self) -> Vec<Reg> {
         vec![]
@@ -1339,27 +1360,34 @@ impl InstrTrait for FLoadInstr {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rd.ty() == Type::Float);
 
-        if let ImmeValueType::Direct(i) = self.offset {
+        if let ImmeValueType::Direct(mut offset) = self.offset {
             let mut s = String::new();
-            let mut offsets = vec![];
 
-            let mut offset = i;
-            let step = 2032;
-            while offset > 2047 {
-                s.push_str(&format!("addi sp, sp, {}\n", step));
-                offset -= step;
-                offsets.push(-step);
-            }
-            while offset < -2048 {
-                s.push_str(&format!("addi sp, sp, {}\n", -step));
-                offset += step;
-                offsets.push(step);
+            let tmp_offset = offset;
+
+            if offset_out_of_range(tmp_offset) {
+                let addi = RegImmeInstr::new(
+                    self.rs1,
+                    self.rs1,
+                    ImmeValueType::Direct(tmp_offset),
+                    RegImmeType::Addi,
+                    None,
+                );
+                s.push_str(&addi.gen_asm());
+                offset = 0;
             }
 
             s.push_str(&format!("flw {}, {}({})\n", self.rd, offset, self.rs1));
 
-            for ele in offsets {
-                s.push_str(&format!("addi sp, sp, {}\n", ele));
+            if offset_out_of_range(tmp_offset) {
+                let addi = RegImmeInstr::new(
+                    self.rs1,
+                    self.rs1,
+                    ImmeValueType::Direct(-tmp_offset),
+                    RegImmeType::Addi,
+                    None,
+                );
+                s.push_str(&addi.gen_asm());
             }
 
             s
@@ -1403,27 +1431,34 @@ impl InstrTrait for FStoreInstr {
         assert!(*self.rs1.ty() == Type::Int);
         assert!(*self.rs2.ty() == Type::Float);
 
-        if let ImmeValueType::Direct(i) = self.offset {
+        if let ImmeValueType::Direct(mut offset) = self.offset {
             let mut s = String::new();
-            let mut offsets = vec![];
 
-            let mut offset = i;
-            let step = 2032;
-            while offset > 2047 {
-                s.push_str(&format!("addi sp, sp, {}\n", step));
-                offset -= step;
-                offsets.push(-step);
-            }
-            while offset < -2048 {
-                s.push_str(&format!("addi sp, sp, {}\n", -step));
-                offset += step;
-                offsets.push(step);
+            let tmp_offset = offset;
+
+            if offset_out_of_range(tmp_offset) {
+                let addi = RegImmeInstr::new(
+                    self.rs1,
+                    self.rs1,
+                    ImmeValueType::Direct(tmp_offset),
+                    RegImmeType::Addi,
+                    None,
+                );
+                s.push_str(&addi.gen_asm());
+                offset = 0;
             }
 
             s.push_str(&format!("fsw {}, {}({})\n", self.rs2, offset, self.rs1));
 
-            for ele in offsets {
-                s.push_str(&format!("addi sp, sp, {}\n", ele));
+            if offset_out_of_range(tmp_offset) {
+                let addi = RegImmeInstr::new(
+                    self.rs1,
+                    self.rs1,
+                    ImmeValueType::Direct(-tmp_offset),
+                    RegImmeType::Addi,
+                    None,
+                );
+                s.push_str(&addi.gen_asm());
             }
 
             s

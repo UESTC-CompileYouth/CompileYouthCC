@@ -253,16 +253,22 @@ pub fn ssa_construction(func: &mut Function, checking_regs: &HashSet<SSARightVal
     // println!("reg_with_defs: {:?}", reg_with_defs);
 
     // insert phi
-    for reg_with_def in reg_with_defs {
+    for (checking_reg, defs) in reg_with_defs {
+        // println!(
+        //     "!!! phi_insertion for checking_reg: {}, def_bbs: {:?}, !!!",
+        //     checking_reg, defs
+        // );
         // phase 1: phi insertion
         phi_insertion(
-            reg_with_def.0,
+            checking_reg,
             func_addr,
-            &reg_with_def.1,
+            &defs,
             dominator_frontier_map,
             &mut phis,
         );
     }
+
+    // println!("OOOOOOOOOOOOOO {}", func);
 
     // record the definition of each register
     variable_renaming(func_addr, checking_regs, &mut phis, &dom_tree_builder);

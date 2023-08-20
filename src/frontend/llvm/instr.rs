@@ -9,6 +9,7 @@ use strum_macros::EnumString;
 
 pub trait Instr: Any + Debug {
     fn as_any(&self) -> &dyn Any;
+    fn clone_box(&self) -> Box<dyn Instr>;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn try_as_reg_write_instr(&self) -> Option<&dyn RegWriteInstr> {
         None
@@ -214,6 +215,9 @@ impl Debug for GlobalDecl {
 }
 
 impl Instr for GlobalDecl {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -246,6 +250,9 @@ impl Debug for Alloca {
 }
 
 impl Instr for Alloca {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -319,6 +326,9 @@ impl Debug for Load {
 }
 
 impl Instr for Load {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -407,6 +417,9 @@ impl Debug for Store {
 }
 
 impl Instr for Store {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -475,7 +488,12 @@ impl Mov {
 
 impl Debug for Mov {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        assert!(self.d1.get_type() == Type::Int);
+        assert!(
+            self.d1.get_type() == Type::Int,
+            "{} = mov i32 {}?",
+            self.d1,
+            self.s1
+        );
         assert!(self.s1.get_type() == Type::Int);
         #[cfg(not(feature = "strict_llvm_15_output"))]
         return writeln!(f, "{} = mov i32 {}", self.d1, self.s1);
@@ -485,6 +503,9 @@ impl Debug for Mov {
 }
 
 impl Instr for Mov {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -566,6 +587,9 @@ impl Debug for FMov {
 }
 
 impl Instr for FMov {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -650,6 +674,9 @@ impl Debug for Add {
 }
 
 impl Instr for Add {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -736,6 +763,9 @@ impl Debug for FAdd {
 }
 
 impl Instr for FAdd {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -822,6 +852,9 @@ impl Debug for Sub {
 }
 
 impl Instr for Sub {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -908,6 +941,9 @@ impl Debug for FSub {
 }
 
 impl Instr for FSub {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -995,6 +1031,9 @@ impl Debug for Mul {
 }
 
 impl Instr for Mul {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1081,6 +1120,9 @@ impl Debug for FMul {
 }
 
 impl Instr for FMul {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1167,6 +1209,9 @@ impl Debug for Shl {
 }
 
 impl Instr for Shl {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1252,6 +1297,9 @@ impl Debug for LShr {
 }
 
 impl Instr for LShr {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1338,6 +1386,9 @@ impl Debug for AShr {
 }
 
 impl Instr for AShr {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1425,6 +1476,9 @@ impl Debug for Div {
 }
 
 impl Instr for Div {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1511,6 +1565,9 @@ impl Debug for FDiv {
 }
 
 impl Instr for FDiv {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1597,6 +1654,9 @@ impl Debug for Mod {
 }
 
 impl Instr for Mod {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1680,6 +1740,9 @@ impl Debug for Neg {
 }
 
 impl Instr for Neg {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1760,6 +1823,9 @@ impl Debug for Not {
 }
 
 impl Instr for Not {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1905,6 +1971,9 @@ impl Debug for Icmp {
 }
 
 impl Instr for Icmp {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1988,6 +2057,9 @@ impl Debug for Fcmp {
 }
 
 impl Instr for Fcmp {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2085,6 +2157,9 @@ impl Debug for Call {
 }
 
 impl Instr for Call {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2161,6 +2236,9 @@ impl Debug for Ret {
 }
 
 impl Instr for Ret {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2347,6 +2425,9 @@ impl Debug for Gep {
 }
 
 impl Instr for Gep {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2442,6 +2523,9 @@ impl Debug for Phi {
 }
 
 impl Instr for Phi {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2523,6 +2607,9 @@ impl Branch {
 }
 
 impl Instr for Branch {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2608,6 +2695,9 @@ impl Debug for Sitofp {
 }
 
 impl Instr for Sitofp {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2688,6 +2778,9 @@ impl Debug for Fptosi {
 }
 
 impl Instr for Fptosi {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }

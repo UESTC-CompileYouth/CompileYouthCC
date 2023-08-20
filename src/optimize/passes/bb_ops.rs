@@ -207,7 +207,7 @@ pub fn remove_phi_in_function(f: &mut Function) {
     }
 }
 
-fn remove_if<T, F>(ls: &mut Vec<T>, f: F)
+fn _remove_if<T, F>(ls: &mut Vec<T>, f: F)
 where
     F: Fn(&T) -> bool,
 {
@@ -229,11 +229,11 @@ where
     ls.truncate(new_end);
 }
 
-pub fn remove_unused_bb(f: &mut Function) {
+fn remove_unused_bb_func(f: &mut Function) {
     let reachable = construct_reachable_bbs_for_function(f);
     let returnable = construct_returnable_bbs_for_function(f, &reachable);
     let used = |bb_id: i32| returnable.contains(&bb_id);
-    let mut is_float = false;
+    let mut _is_float = false;
     for bb_id in f.layout().clone().block_iter() {
         for inst_id in f.layout().clone().inst_iter(bb_id) {
             if let Some(phi_instr) = f
@@ -253,7 +253,7 @@ pub fn remove_unused_bb(f: &mut Function) {
         if let Some(ret_instr) = last_instr.instr().as_any().downcast_ref::<Ret>() {
             if let Some(value) = ret_instr.value() {
                 if value.get_type() == Type::Float {
-                    is_float = true;
+                    _is_float = true;
                 }
             }
         } else if let Some(br_instr) = last_instr.instr().as_any().downcast_ref::<Branch>() {
@@ -275,16 +275,9 @@ pub fn remove_unused_bb(f: &mut Function) {
     }
 }
 
+#[allow(non_snake_case)]
 pub fn remove_unused_BB(module: &mut LLVMModule) {
-    module.functions_mut().iter_mut().for_each(|(_, f)| {
-        if f.name() == "_init" {
-            return;
-        }
-        if *f.is_lib_func() {
-            return;
-        }
-        remove_unused_bb(f);
-    });
+    module.for_each_user_func_mut(remove_unused_bb_func);
 }
 
 pub fn stat_inst(f: &mut Function) {
@@ -296,7 +289,7 @@ pub fn stat_inst(f: &mut Function) {
     );
 }
 
-pub fn merge_bb(f: &mut Function) {
+pub fn merge_bb_func(f: &mut Function) {
     // stat_inst(f);
     loop {
         let prev: HashMap<i32, Vec<i32>> = f
@@ -316,7 +309,7 @@ pub fn merge_bb(f: &mut Function) {
                 continue;
             }
             if let Some(last_instr) = f.layout().block_node(bb_id).last_inst() {
-                if let Some(ret_instr) = f
+                if let Some(_) = f
                     .instructions()
                     .get(&last_instr)
                     .unwrap()
@@ -388,16 +381,8 @@ pub fn merge_bb(f: &mut Function) {
     // stat_inst(f);
 }
 
-pub fn merge_BB(module: &mut LLVMModule) {
-    module.functions_mut().iter_mut().for_each(|(_, f)| {
-        if f.name() == "_init" {
-            return;
-        }
-        if *f.is_lib_func() {
-            return;
-        }
-        merge_bb(f);
-    });
+pub fn merge_bb(module: &mut LLVMModule) {
+    module.for_each_user_func_mut(merge_bb_func);
 }
 
 #[test]
