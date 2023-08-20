@@ -1199,18 +1199,17 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             } else {
                 let ret = Instruction::new(Box::new(Ret::new(None)), ret_bb_id);
                 self.cur_function().add_inst2bb(ret);
-                //? may have problem, why not do this for both void and non-void
-                let cur_bb_id = self.cur_bb.unwrap();
-                if !self.cur_function().is_bb_have_exit(cur_bb_id) {
-                    let br = Instruction::new(Box::new(Branch::new_label(ret_bb_id)), cur_bb_id);
-                    self.cur_function().add_inst2bb(br);
-                    let ret_BB = self.cur_function().bb_mut(ret_bb_id).unwrap();
-                    ret_BB.add_prev_bb(cur_bb_id);
-                    self.cur_function()
-                        .bb_mut(cur_bb_id)
-                        .unwrap()
-                        .add_succ_bb(ret_bb_id);
-                }
+            }
+            let cur_bb_id = self.cur_bb.unwrap();
+            if !self.cur_function().is_bb_have_exit(cur_bb_id) {
+                let br = Instruction::new(Box::new(Branch::new_label(ret_bb_id)), cur_bb_id);
+                self.cur_function().add_inst2bb(br);
+                let ret_BB = self.cur_function().bb_mut(ret_bb_id).unwrap();
+                ret_BB.add_prev_bb(cur_bb_id);
+                self.cur_function()
+                    .bb_mut(cur_bb_id)
+                    .unwrap()
+                    .add_succ_bb(ret_bb_id);
             }
             self.back_patch(&ret_jump_list, ret_bb_id, true);
         } else {

@@ -152,44 +152,6 @@ fn remove_unreachable_bb(module: &mut LLVMModule) {
     module.for_each_user_func_mut(|f| remove_unreachable_bb_function(f));
 }
 
-fn remove_max_flow_unused_bb(module: &mut LLVMModule) {
-    module.for_each_user_func_mut(|f| {
-        if f.name() == "max_flow" {
-            let mut need_delete_bb_id = None;
-            for (bb_id, _) in f.layout().basic_blocks().iter() {
-                // empty bb
-                if f.layout().inst_iter(*bb_id).next() == None {
-                    need_delete_bb_id = Some(*bb_id);
-                }
-            }
-            if let Some(bb_id) = need_delete_bb_id {
-                let prev_bbs = f.bb(bb_id).unwrap().prev_bb().clone();
-                for prev_bb_id in prev_bbs {
-                    let prev_bb_last_instr_id = f
-                        .layout()
-                        .inst_iter(prev_bb_id)
-                        .last()
-                        .expect("prev bb is empty");
-                    let prev_bb_last_instr = f
-                        .instructions_mut()
-                        .get_mut(&prev_bb_last_instr_id)
-                        .unwrap();
-                    if let Some(branch) = prev_bb_last_instr
-                        .instr_mut()
-                        .as_any_mut()
-                        .downcast_mut::<Branch>()
-                    {
-                        branch.label2 = None;
-                        branch.cond = None;
-                    }
-                }
-                f.remove_bb(bb_id);
-            }
-        }
-    });
-}
-
 pub fn remove_useless_bb(module: &mut LLVMModule) {
     remove_unreachable_bb(module);
-    remove_max_flow_unused_bb(module);
 }
