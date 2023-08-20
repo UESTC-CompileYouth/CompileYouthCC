@@ -1796,6 +1796,44 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 .expect("variable not found")
                 .clone();
 
+            // lvalue is single const value
+            if *lvalue.is_const() && lvalue.is_single_value() {
+                log::trace!("leaveLVal_1");
+                return AstReturnContent::Exp(AstExp::SSAValue(SSARightValue::new_imme(
+                    lvalue.init_value().as_ref().unwrap()[0],
+                )))
+                .into();
+            }
+            // lvalue is const array and index are all const
+            let mut is_indices_all_imme = true;
+            for index in indexs.iter() {
+                if !index.is_immediate() {
+                    is_indices_all_imme = false;
+                    break;
+                }
+            }
+            if *lvalue.is_const() && is_indices_all_imme {
+                let mut offset = 0;
+                let shapes = lvalue.get_shape();
+                println!("shapes: {:?}", shapes);
+                for dimen in 0..shapes.len() {
+                    let step = shapes[dimen + 1..].iter().product::<i32>() as usize;
+                    assert!(step > 0);
+                    let index = *indexs[dimen]
+                        .inner()
+                        .as_immediate()
+                        .unwrap()
+                        .as_int()
+                        .unwrap() as usize;
+                    offset += step * index;
+                    println!("offset: {}", offset);
+                }
+                return AstReturnContent::Exp(AstExp::SSAValue(SSARightValue::new_imme(
+                    lvalue.init_value().as_ref().unwrap()[offset],
+                )))
+                .into();
+            }
+
             if *lvalue.is_omit_first_dim() {
                 // arg is a pointer, make a fake lvalue(lvalue is in another function stack frame)
                 let new_lvalue = SSALeftValue::new_addr(
@@ -1830,7 +1868,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                 cur_func.add_inst2bb(gepir);
                 lvalue = new_lvalue;
             }
-            log::trace!("leaveLVal_1");
+            log::trace!("leaveLVal_2");
             return AstReturnContent::Exp(AstExp::SSAValue(lvalue.to_address())).into();
             // return lvalue address
         }
@@ -1872,37 +1910,43 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             // res
             ctx.lVal().unwrap().accept(self);
             let return_content = self.return_content();
-            let addr = return_content.into_exp().unwrap().into_ssa_value().unwrap();
+            let lval = return_content.into_exp().unwrap().into_ssa_value().unwrap();
             // println!("addr: {:?}", addr);
-            if addr.is_array_addr() {
-                if addr.is_global() {
+            if lval.is_immediate() {
+                // const lvalue return immediate
+                log::trace!("visit_primaryExp2_2 end");
+                return AstReturnContent::Exp(AstExp::SSAValue(lval)).into();
+            }
+
+            if lval.is_array_addr() {
+                if lval.is_global() {
                     let reg = SSARightValue::new_addr(
                         self.cur_function().alloc_ssa_id(),
-                        addr.get_type(),
-                        addr.addr_shape().unwrap(),
+                        lval.get_type(),
+                        lval.addr_shape().unwrap(),
                     );
                     let gep_global_array = Instruction::new(
                         Box::new(Gep::new(
-                            addr,
+                            lval,
                             reg.clone(),
                             SSARightValue::new_imme(Immediate::Int(0)),
                         )),
                         self.cur_bb.unwrap(),
                     );
                     self.cur_function().add_inst2bb(gep_global_array);
-                    log::trace!("visit_primaryExp2_2 end");
+                    log::trace!("visit_primaryExp2_3 end");
                     return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
                 } else {
-                    log::trace!("visit_primaryExp2_3 end");
-                    return AstReturnContent::Exp(AstExp::SSAValue(addr)).into();
+                    log::trace!("visit_primaryExp2_4 end");
+                    return AstReturnContent::Exp(AstExp::SSAValue(lval)).into();
                 }
             } else {
                 let reg =
-                    SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), addr.get_type());
+                    SSARightValue::new_reg(self.cur_function().alloc_ssa_id(), lval.get_type());
                 let load_value =
-                    Instruction::new(Box::new(Load::new(addr, reg.clone())), self.cur_bb.unwrap());
+                    Instruction::new(Box::new(Load::new(lval, reg.clone())), self.cur_bb.unwrap());
                 self.cur_function().add_inst2bb(load_value);
-                log::trace!("visit_primaryExp2_4 end");
+                log::trace!("visit_primaryExp2_5 end");
                 return AstReturnContent::Exp(AstExp::SSAValue(reg)).into();
             }
         }
