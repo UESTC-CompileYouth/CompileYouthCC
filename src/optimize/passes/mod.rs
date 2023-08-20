@@ -3,6 +3,7 @@ pub mod check_ir;
 pub mod dce;
 pub mod dom;
 pub mod gcm;
+pub mod global2local;
 pub mod gvn;
 pub mod inline_func;
 pub mod liveness;

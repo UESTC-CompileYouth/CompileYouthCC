@@ -66,7 +66,7 @@ fn check_ir(f: &Function) {
                 }
             }
         }
-        assert!(f.layout().inst_iter(bb_id).next() != None);
+        assert!(f.layout().inst_iter(bb_id).next() != None); // empty block
         let last_instr_id = f
             .layout()
             .basic_blocks()

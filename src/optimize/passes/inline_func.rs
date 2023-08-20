@@ -89,7 +89,7 @@ pub fn inline_func(llvm_module: &mut LLVMModule) {
     // println!("{}", llvm_module);
 }
 
-fn remove_unused_func(llvm_module: &mut LLVMModule) {
+pub fn remove_unused_func(llvm_module: &mut LLVMModule) {
     let mut func_names = vec![];
     let mut adj_list = HashMap::<String, HashSet<String>>::new();
 
