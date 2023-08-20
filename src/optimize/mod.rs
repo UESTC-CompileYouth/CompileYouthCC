@@ -1,7 +1,7 @@
 pub mod passes;
-
 use crate::frontend::llvm::llvm_module::LLVMModule;
 use crate::optimize::passes::bb_ops::merge_bb;
+use crate::optimize::passes::inline_func::remove_unused_func;
 use passes::bb_ops::remove_phi;
 use passes::check_ir::check_module;
 use passes::dce::{remove_unused_def, remove_useless_bb};
@@ -32,6 +32,7 @@ pub fn gcm(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
 pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
     if enable_passes.contains(&"opt".to_string()) {
         log::trace!("Optimizing...");
+        remove_unused_func(llvm_module);
         remove_useless_bb(llvm_module);
 
         if enable_passes.contains(&"mem2reg".to_string()) {
@@ -56,26 +57,26 @@ pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
             // }
             inline_func(llvm_module);
             log::trace!("Function Inline Done!");
-            #[cfg(debug_assertions)]
-            {
-                println!("======= After Function Inline Start =======");
-                println!("{}", llvm_module);
-                println!("======= After Function Inline End =======");
-            }
+            // #[cfg(debug_assertions)]
+            // {
+            //     println!("======= After Function Inline Start =======");
+            //     println!("{}", llvm_module);
+            //     println!("======= After Function Inline End =======");
+            // }
             gvn(llvm_module, enable_passes);
-            #[cfg(debug_assertions)]
-            {
-                println!("======= After Function Inline + GVN Start =======");
-                let main_func = llvm_module.function(&"main".to_string());
-                println!("======= MAIN MEMSCOPE START =========");
-                println!("{:?}", main_func.mem_scope().objects());
-                println!("======= MAIN MEMSCOPE END =========");
-                println!("======= MAIN ARG START =========");
-                println!("{:?}", main_func.arg_list());
-                println!("======= MAIN ARG END =========");
-                println!("{}", llvm_module);
-                println!("======= After Function Inline + GVN End =======");
-            }
+            // #[cfg(debug_assertions)]
+            // {
+            //     println!("======= After Function Inline + GVN Start =======");
+            //     let main_func = llvm_module.function(&"main".to_string());
+            //     println!("======= MAIN MEMSCOPE START =========");
+            //     println!("{:?}", main_func.mem_scope().objects());
+            //     println!("======= MAIN MEMSCOPE END =========");
+            //     println!("======= MAIN ARG START =========");
+            //     println!("{:?}", main_func.arg_list());
+            //     println!("======= MAIN ARG END =========");
+            //     println!("{}", llvm_module);
+            //     println!("======= After Function Inline + GVN End =======");
+            // }
             gcm(llvm_module, enable_passes);
             gvn(llvm_module, enable_passes);
         }
@@ -88,12 +89,12 @@ pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
             log::trace!("Misc Done!")
         }
         remove_phi(llvm_module);
-        #[cfg(debug_assertions)]
-        {
-            println!("======= After Remove Phi Start =======");
-            println!("{}", llvm_module);
-            println!("======= After Remove Phi End =======");
-        }
+        // #[cfg(debug_assertions)]
+        // {
+        //     println!("======= After Remove Phi Start =======");
+        //     println!("{}", llvm_module);
+        //     println!("======= After Remove Phi End =======");
+        // }
         merge_bb(llvm_module);
         log::trace!("Optimizing Done!")
     }
