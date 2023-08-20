@@ -124,10 +124,20 @@ impl Function {
         bb_id
     }
 
+    pub fn is_bb_have_exit(&self, bb_id: i32) -> bool {
+        let bb_last_instr_opt = self.layout().block_node(bb_id).last_inst;
+        if let Some(bb_last_instr) = bb_last_instr_opt {
+            self.instructions.get(&bb_last_instr).unwrap().is_branch()
+                || self.instructions.get(&bb_last_instr).unwrap().is_ret()
+        } else {
+            false
+        }
+    }
+
     pub fn add_inst2bb(&mut self, instr: Instruction) -> i32 {
         let inst_id = self.alloc_inst_id();
         let bb_id = instr.bb_id();
-        if *self.bb_mut(bb_id).unwrap().have_exit() {
+        if self.is_bb_have_exit(bb_id) {
             log::warn!(
                 "basic block {} already have exit, omit instruction: {:?}",
                 bb_id,
@@ -136,11 +146,9 @@ impl Function {
             return -1;
         }
         if instr.is_branch() || instr.is_ret() {
-            // if *self.bb_mut(bb_id).unwrap().have_exit() {
-            //     panic!("basic block {} already have exit", bb_id);
-            // } else {
-            self.bb_mut(bb_id).unwrap().set_have_exit(true);
-            //}
+            if self.is_bb_have_exit(bb_id) {
+                panic!("!!!basic block {} already have exit!!!", bb_id);
+            }
         }
         self.instructions.insert(inst_id, instr);
         let bb_node = self.layout.block_node(bb_id);
@@ -187,6 +195,11 @@ impl Function {
     pub fn new_reg(&mut self, ty: Type) -> SSARightValue {
         let id = self.alloc_ssa_id();
         SSARightValue::new_reg(id, ty)
+    }
+
+    pub fn new_addr(&mut self, ty: Type, shape: Vec<i32>) -> SSARightValue {
+        let id = self.alloc_ssa_id();
+        SSARightValue::new_addr(id, ty, shape)
     }
 
     pub fn for_each_bb<F>(&self, f: F)
@@ -274,6 +287,22 @@ impl Function {
         // 删除指令
         self.layout.remove_inst(inst_id);
         self.instructions.remove(&inst_id);
+    }
+
+    pub fn pop_inst(&mut self, inst_id: i32) -> Instruction {
+        // 删除指令
+        self.layout.remove_inst(inst_id);
+        self.instructions.remove(&inst_id).unwrap()
+    }
+
+    fn add_mem_obj(&mut self, mem_obj: SSALeftValue) {
+        self.mem_scope.new_mem_object(mem_obj);
+    }
+
+    pub fn add_mem_objs(&mut self, mem_objs: Vec<SSALeftValue>) {
+        for mem_obj in mem_objs {
+            self.add_mem_obj(mem_obj);
+        }
     }
 
     pub fn move_inst2tail(&mut self, inst_id: i32, src_id: i32, dst_id: i32) {

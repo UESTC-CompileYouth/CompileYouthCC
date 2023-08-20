@@ -156,7 +156,6 @@ struct GVNContext<'a> {
     nodes: Vec<i32>,
     scalar_reg_by_value: HashMap<Immediate, i32>,
     scalar_value_by_reg: HashMap<i32, Immediate>,
-    mov_regs: HashMap<i32, i32>,
     unary_values: HashMap<(UnaryOp, i32), i32>,
     binary_values: HashMap<(BinaryOp, i32, i32), i32>,
     cmp_values: HashMap<(CmpType, i32, i32), i32>,
@@ -195,7 +194,6 @@ impl<'a> GVNContext<'a> {
             nodes,
             scalar_reg_by_value: HashMap::new(),
             scalar_value_by_reg: HashMap::new(),
-            mov_regs: HashMap::new(),
             unary_values: HashMap::new(),
             binary_values: HashMap::new(),
             cmp_values: HashMap::new(),
@@ -586,6 +584,7 @@ impl<'a> GVNContext<'a> {
                 {
                     value2 = Some(self.scalar_value_by_reg[gep_instr.index().id()]);
                 }
+
                 if value2.is_some() && value2.unwrap() == Immediate::Int(0) {
                     // assert!(gep_instr.s1().id() != &0);
                     // self.replace_same_value(*gep_instr.d1().id(), *gep_instr.s1().id());

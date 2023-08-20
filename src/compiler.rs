@@ -40,8 +40,8 @@ fn parse_passes(cmdline_options: &CompilerOptions) -> Vec<String> {
         "gvn".to_string(),
         "gcm".to_string(),
         "func_inline".to_string(),
-        "misc".to_string(),
         "peephole".to_string(),
+        // "misc".to_string(),
         "asm".to_string(),
     ];
     for pass in cmdline_options.enable_passes.iter() {

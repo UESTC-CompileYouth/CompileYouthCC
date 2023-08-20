@@ -19,20 +19,17 @@ use std::{
     rc::Rc,
 };
 
-#[derive(Default)]
+#[derive(Default, new)]
 pub struct StackFrame {
+    #[new(default)]
     top: u32,
+    #[new(default)]
     stk: Vec<Rc<RefCell<StackObject>>>,
+    #[new(default)]
+    _prologue_so: Option<Rc<RefCell<StackObject>>>,
 }
 
 impl StackFrame {
-    pub fn new() -> Self {
-        StackFrame {
-            top: 0,
-            stk: vec![],
-        }
-    }
-
     pub fn push_stack_object(&mut self, so: Rc<RefCell<StackObject>>) {
         so.borrow_mut().set_position(self.top as i32);
         self.top += so.borrow().size();

@@ -28,6 +28,7 @@ fn remove_unused_def_func(func: &mut Function) {
     let def_vec = construct_def_vec(func);
     let mut used_instrs = HashSet::new();
     let mut queue = VecDeque::new();
+    let mut arg_not_delete = Vec::new();
     for node in func.layout().block_iter() {
         for instr_id in func.layout().inst_iter(node) {
             let instr = func.instructions().get(&instr_id).unwrap();
@@ -60,16 +61,39 @@ fn remove_unused_def_func(func: &mut Function) {
                 // not argument
                 if def_instr_id != 0 {
                     queue.push_back(def_instr_id);
+                } else {
+                    if !arg_not_delete.contains(&reg_id) {
+                        arg_not_delete.push(reg_id);
+                    }
                 }
             }
         }
     }
     let mut need_delete_instrs = Vec::new();
-    for (i, _) in func.instructions() {
+    let mut need_delete_mem_obj = vec![];
+    let func_addr = func as *const Function as usize;
+    for (i, instr) in func.instructions() {
         if !used_instrs.contains(i) {
             need_delete_instrs.push(*i);
+            if let Some(alloc_instr) = instr.instr().as_any().downcast_ref::<Alloca>() {
+                let addr = alloc_instr.addr();
+                let func = unsafe { &mut *(func_addr as *mut Function) }; // 无奈的选择
+                let mem_obj = func.mem_scope().objects().get(addr.id()).unwrap();
+                need_delete_mem_obj.push(*mem_obj.id());
+            }
         }
     }
+
+    for arg in func.arg_list().as_normal().unwrap().iter() {
+        if !arg_not_delete.contains(&(*arg.id() as usize)) {
+            need_delete_mem_obj.push(*arg.id());
+        }
+    }
+
+    for mem_obj_id in need_delete_mem_obj {
+        func.mem_scope_mut().objects_mut().remove(&mem_obj_id);
+    }
+
     for instr_id in need_delete_instrs {
         func.remove_inst(instr_id);
     }
