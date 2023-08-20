@@ -30,10 +30,16 @@ pub fn inline_func(llvm_module: &mut LLVMModule) {
         .map(|x| x.0)
         .collect::<HashSet<_>>();
 
-    for (func_name, func) in llvm_module.functions.iter() {
+    let mut recursive_call = HashSet::new();
+
+    for (caller_func_name, func) in llvm_module.functions.iter() {
         for (_id, inst) in func.instructions().iter() {
             if let Some(call) = inst.instr().as_any().downcast_ref::<Call>() {
                 let callee_func_name = &call.func_name;
+
+                if caller_func_name == callee_func_name && func.instructions().len() < 30 {
+                    recursive_call.insert(caller_func_name.clone());
+                }
 
                 if lib_func_names.contains(callee_func_name)
                     || EXTERNAL_FUNC_NAME.contains(&callee_func_name.as_str())
@@ -41,13 +47,16 @@ pub fn inline_func(llvm_module: &mut LLVMModule) {
                     continue;
                 }
 
-                func_map.entry(func_name.clone()).or_default().call_count += 1;
+                func_map
+                    .entry(caller_func_name.clone())
+                    .or_default()
+                    .call_count += 1;
 
                 func_map
                     .entry(callee_func_name.clone())
                     .or_default()
                     .caller_func
-                    .insert(func_name.clone());
+                    .insert(caller_func_name.clone());
             }
         }
     }
@@ -74,13 +83,18 @@ pub fn inline_func(llvm_module: &mut LLVMModule) {
 
         callers.iter().for_each(|caller_func_name| {
             if let Some(caller_node) = func_map.get_mut(caller_func_name) {
-                let inlined_cnt = inline_all_call(llvm_module, caller_func_name, &callee_func_name);
+                let inlined_cnt =
+                    inline_all_call(llvm_module, caller_func_name, &callee_func_name, u32::MAX);
                 caller_node.call_count -= inlined_cnt as usize;
                 if caller_node.call_count == 0 {
                     stk.push(caller_func_name.clone());
                 }
             }
         });
+    }
+
+    for func in recursive_call.iter() {
+        inline_all_call(llvm_module, func, func, 3);
     }
 
     remove_unused_func(llvm_module);
@@ -143,12 +157,16 @@ fn inline_all_call(
     llvm_module: &mut LLVMModule,
     caller_func_name: &String,
     callee_func_name: &String,
+    max_inline_cnt: u32,
 ) -> u32 {
     let mut inlined_cnt = 0;
 
     // println!("{} call {}", caller_func_name, callee_func_name);
 
     loop {
+        if inlined_cnt >= max_inline_cnt {
+            break;
+        }
         let mut call_id = -1;
         let mut bb_id_of_call = -1;
         let mut return_store_dest = None;
@@ -197,10 +215,13 @@ fn inline_all_call(
 
         // collect pre-call and post-call data
         // println!("{} {}", bb_id_of_call, call_id);
+
+        let mut caller_inst_ids = HashSet::new();
         {
             let caller_func = llvm_module.function(caller_func_name);
             for inst_id in caller_func.layout().inst_iter(bb_id_of_call) {
                 let inst = caller_func.instructions().get(&inst_id).unwrap();
+                caller_inst_ids.insert(inst_id);
 
                 // println!("INST {:?}", inst);
 
@@ -278,6 +299,47 @@ fn inline_all_call(
             }
         }
 
+        let entry_bb_id;
+        let mut bb_id_map = vec![];
+        // rewrite branch and store args
+        {
+            let callee_func = llvm_module
+                .functions_mut()
+                .get_mut(callee_func_name)
+                .unwrap();
+
+            for (_inst_id, inst) in callee_func.instructions_mut().iter_mut() {
+                if let Some(branch) = inst.instr_mut().as_any_mut().downcast_mut::<Branch>() {
+                    if let Some(x) = bb_map.get(&branch.label1) {
+                        branch.label1 = *x;
+                    }
+                    if let Some(label2) = branch.label2 {
+                        if let Some(x) = bb_map.get(&label2) {
+                            branch.label2 = Some(*x);
+                        }
+                    }
+                }
+            }
+        }
+
+        {
+            let callee_func = llvm_module.function(callee_func_name);
+            entry_bb_id = callee_func.entry_bb_id();
+
+            for &bb_id in callee_bbs.iter() {
+                let mut inst_vec = vec![];
+                for inst_id in callee_func.layout().inst_iter(bb_id) {
+                    let inst = callee_func.instructions().get(&inst_id).unwrap();
+
+                    let copied = inst.instr().clone_box();
+                    let inst = Instruction::new(copied, -1);
+                    // caller_func.add_inst2bb(inst);
+                    inst_vec.push(inst);
+                }
+                bb_id_map.push((bb_id, inst_vec));
+            }
+        }
+
         // move after-call insts to new bb
         {
             let caller_func = llvm_module
@@ -286,37 +348,17 @@ fn inline_all_call(
                 .unwrap();
 
             bb_id_continue = caller_func.alloc_bb();
+        }
 
-            let mut insts_to_move_to_new_bb = vec![];
-
-            let mut iter = caller_func.layout().inst_iter(bb_id_of_call);
-
-            for inst_id in iter.by_ref() {
-                if inst_id == call_id {
-                    break;
-                }
-            }
-
-            for inst_id in iter {
-                insts_to_move_to_new_bb.push(inst_id);
-            }
-
-            for inst_id in insts_to_move_to_new_bb {
-                if bb_id_of_call == caller_entry_bb_id
-                    && caller_func
-                        .instructions()
-                        .get(&inst_id)
-                        .unwrap()
-                        .is_alloca()
-                {
-                    continue;
-                }
-                let mut inst = caller_func.pop_inst(inst_id);
-                *inst.bb_id_mut() = bb_id_continue;
-                caller_func.add_inst2bb(inst);
-            }
-
-            caller_func.remove_inst(call_id);
+        {
+            llvm_module
+                .functions_mut()
+                .get_mut(caller_func_name)
+                .unwrap()
+                .basic_blocks_mut()
+                .get_mut(&bb_id_continue)
+                .unwrap()
+                .set_alias("CONTINUE".to_string());
         }
 
         // get callee bbs and regs
@@ -597,50 +639,13 @@ fn inline_all_call(
             }
         }
 
-        // rewrite branch and store args
+        let mut args_mov_insts = vec![];
+        // collect callee's instructions and args-mov insts
         {
             let callee_func = llvm_module
                 .functions_mut()
                 .get_mut(callee_func_name)
                 .unwrap();
-
-            for (_inst_id, inst) in callee_func.instructions_mut().iter_mut() {
-                if let Some(branch) = inst.instr_mut().as_any_mut().downcast_mut::<Branch>() {
-                    if let Some(x) = bb_map.get(&branch.label1) {
-                        branch.label1 = *x;
-                    }
-                    if let Some(label2) = branch.label2 {
-                        if let Some(x) = bb_map.get(&label2) {
-                            branch.label2 = Some(*x);
-                        }
-                    }
-                }
-            }
-        }
-
-        let entry_bb_id;
-        let mut bb_id_map = vec![];
-        let mut args_mov_insts = vec![];
-        // collect callee's instructions and args-mov insts
-        {
-            let callee_func = llvm_module.function(callee_func_name);
-            entry_bb_id = callee_func.entry_bb_id();
-
-            let bbs = callee_func.basic_blocks().clone();
-
-            for (&bb_id, _bb) in bbs.iter() {
-                let mut inst_vec = vec![];
-                for inst_id in callee_func.layout().inst_iter(bb_id) {
-                    let inst = callee_func.instructions().get(&inst_id).unwrap();
-
-                    let copied = inst.instr().clone_box();
-                    let inst = Instruction::new(copied, -1);
-                    // caller_func.add_inst2bb(inst);
-                    inst_vec.push(inst);
-                }
-                bb_id_map.push((bb_id, inst_vec));
-            }
-
             // mov args
             if callee_func.arg_list().is_normal() {
                 let arg_list = callee_func.arg_list().as_normal().unwrap();
@@ -680,7 +685,7 @@ fn inline_all_call(
             let caller_func = llvm_module
                 .functions_mut()
                 .get_mut(caller_func_name)
-                .unwrap();
+                .unwrap_or_else(|| panic!("{}", caller_func_name));
             let caller_entry = caller_func.entry_bb_id();
 
             for inst in args_mov_insts {
@@ -836,6 +841,43 @@ fn inline_all_call(
                     }
                 }
             }
+        }
+
+        {
+            let caller_func = llvm_module
+                .functions_mut()
+                .get_mut(caller_func_name)
+                .unwrap();
+            let mut insts_to_move_to_new_bb = vec![];
+
+            let mut iter = caller_func.layout().inst_iter(bb_id_of_call);
+
+            for inst_id in iter.by_ref() {
+                if inst_id == call_id {
+                    break;
+                }
+            }
+
+            for inst_id in iter {
+                insts_to_move_to_new_bb.push(inst_id);
+            }
+
+            for inst_id in insts_to_move_to_new_bb {
+                if bb_id_of_call == caller_entry_bb_id
+                    && caller_func
+                        .instructions()
+                        .get(&inst_id)
+                        .unwrap()
+                        .is_alloca()
+                {
+                    continue;
+                }
+                let mut inst = caller_func.pop_inst(inst_id);
+                *inst.bb_id_mut() = bb_id_continue;
+                caller_func.add_inst2bb(inst);
+            }
+
+            caller_func.remove_inst(call_id);
         }
 
         // jump to the entry bb of callee

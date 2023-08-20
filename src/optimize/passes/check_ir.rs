@@ -43,7 +43,7 @@ fn check_ir(f: &Function) {
                         log::debug!("{}", bb0);
                     }
                     log::debug!("bb:{}", bb_id);
-                    panic!("phi instruction {} is not valid", instr_id);
+                    panic!("phi instruction {} is not valid: {:?}", instr_id, instr);
                 }
             } else if let Some(br_instr) = instr.instr().as_any().downcast_ref::<Branch>() {
                 if br_instr.label2.is_some() {
