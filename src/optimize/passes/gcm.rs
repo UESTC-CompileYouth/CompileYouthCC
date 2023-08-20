@@ -312,15 +312,15 @@ impl GCMContext {
                         .intersection(&predecessors)
                         .into_iter()
                         .map(|id| (*id))
-                        .collect::<Vec<BlockId>>();
-                    let mut find_set = Vec::<BlockId>::new();
+                        .collect::<HashSet<BlockId>>();
+                    let mut find_set = HashSet::<BlockId>::new();
                     for predecessor in predecessors {
                         if pre_bbs.contains(&predecessor) {
-                            find_set.push(predecessor);
+                            find_set.insert(predecessor);
                         }
                     }
                     assert!(find_set == intersect_set);
-                    res = find_set;
+                    res = find_set.into_iter().collect::<Vec<BlockId>>();
                 }
 
                 for res_blk in res {
