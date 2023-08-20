@@ -1,6 +1,7 @@
 pub mod passes;
 use crate::frontend::llvm::llvm_module::LLVMModule;
 use crate::optimize::passes::bb_ops::merge_bb;
+use crate::optimize::passes::global2local::global2local;
 use crate::optimize::passes::inline_func::remove_unused_func;
 use passes::bb_ops::remove_phi;
 use passes::check_ir::check_module;
@@ -48,15 +49,34 @@ pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
         gvn(llvm_module, enable_passes);
 
         if enable_passes.contains(&"func_inline".to_string()) {
-            // log::trace!("Function Inline...");
             // #[cfg(debug_assertions)]
             // {
             //     println!("======= Before Function Inline Start =======");
             //     println!("{}", llvm_module);
             //     println!("======= Before Function Inline End =======");
             // }
+            log::trace!("Function Inline...");
             inline_func(llvm_module);
             log::trace!("Function Inline Done!");
+            if enable_passes.contains(&"g2l".to_string()) {
+                log::trace!("Global2Local...");
+                global2local(llvm_module);
+                log::trace!("Global2Local Done!");
+                // #[cfg(debug_assertions)]
+                // {
+                //     println!("======= After Global 2 Local Start =======");
+                //     println!("{}", llvm_module);
+                //     println!("======= After Global 2 Local End =======");
+                // }
+                gvn(llvm_module, enable_passes);
+                if enable_passes.contains(&"mem2reg".to_string()) {
+                    log::trace!("Mem2Reg...");
+                    mem2reg(llvm_module);
+                    remove_unused_def(llvm_module);
+                    check_module(llvm_module);
+                    log::trace!("Mem2Reg Done!")
+                }
+            }
             // #[cfg(debug_assertions)]
             // {
             //     println!("======= After Function Inline Start =======");
