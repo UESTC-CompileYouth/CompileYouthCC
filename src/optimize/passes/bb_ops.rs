@@ -1,3 +1,4 @@
+use crate::common::immediate::Immediate;
 use crate::common::r#type::Type;
 use crate::frontend::llvm::instr::{FMov, Ret};
 use crate::frontend::llvm::{
@@ -385,6 +386,89 @@ pub fn merge_bb(module: &mut LLVMModule) {
     module.for_each_user_func_mut(merge_bb_func);
 }
 
+use super::gcm::{instr_id_mut_casting, instruction_casting, instruction_mut_casting, GCMContext};
+type InstrId = i32;
+type RegId = i32;
+pub fn remove_unreachable_branch_function(
+    arg_instr_id: InstrId,
+    f: &mut Function,
+    branch_condition: bool,
+) {
+    let fa_bb = f.instructions().get(&arg_instr_id).unwrap().bb_id().clone();
+    let (delete_bb, retain_bb) = {
+        let branch_instr = f.instructions_mut().get_mut(&arg_instr_id).unwrap();
+        let branch = instruction_casting::<Branch>(branch_instr).unwrap();
+        if branch_condition {
+            (branch.label2.unwrap(), branch.label1)
+        } else {
+            (branch.label1, branch.label2.unwrap())
+        }
+    };
+    {
+        let fa_basic_blk = f.basic_blocks_mut().get_mut(&fa_bb).unwrap();
+        fa_basic_blk.succ_bb_mut().retain(|id| *id != delete_bb);
+    }
+    {
+        let delete_basic_blk = f.basic_blocks_mut().get_mut(&delete_bb).unwrap();
+        delete_basic_blk.prev_bb_mut().retain(|id| *id != fa_bb);
+        for cur_instr_id in f.layout().inst_iter(delete_bb).collect::<Vec<_>>() {
+            if let Some(phi) =
+                instruction_mut_casting::<Phi>(f.instructions_mut().get_mut(&cur_instr_id).unwrap())
+            {
+                phi.uses_mut().retain(|(_, blkid)| *blkid != fa_bb);
+            }
+        }
+    }
+    {
+        let branch_instr = f.instructions_mut().get_mut(&arg_instr_id).unwrap();
+        let branch = instruction_mut_casting::<Branch>(branch_instr).unwrap();
+        branch.label1 = retain_bb;
+        branch.label2.take();
+        branch.cond.take();
+    }
+}
+
+pub fn simplify_branch_module(module: &mut LLVMModule) {
+    module.for_each_user_func_mut(|f| simplify_branch_function(f));
+}
+
+fn simplify_branch_function(f: &mut Function) {
+    let defs: HashMap<RegId, InstrId> = {
+        let mut gcm_ctx = GCMContext::new();
+        gcm_ctx.construct_def_use(f);
+        gcm_ctx.defs().clone()
+    };
+
+    for cur_blk_id in f.layout().block_iter().collect::<Vec<_>>() {
+        let cur_last_instr = f
+            .layout()
+            .basic_blocks()
+            .get(&cur_blk_id)
+            .unwrap()
+            .last_inst
+            .unwrap();
+        if let Some(cur_branch) = instr_id_mut_casting::<Branch>(cur_last_instr, f) {
+            if let Some(branch_cond_reg) = cur_branch.cond.clone() {
+                // two child branch
+                let cond_def_instr = defs.get(branch_cond_reg.id()).unwrap();
+                if let Some(const_mov) = instr_id_mut_casting::<Mov>(*cond_def_instr, f) {
+                    assert!(const_mov.s1().is_immediate());
+                    if let Immediate::Int(cond_value) = const_mov.s1().get_value().unwrap() {
+                        if cond_value != 0 {
+                            remove_unreachable_branch_function(cur_last_instr, f, true);
+                        } else {
+                            remove_unreachable_branch_function(cur_last_instr, f, false);
+                        }
+                    }
+                }
+            } else {
+                assert!(cur_branch.label2.is_none());
+            }
+        } else {
+            assert!(f.instructions().get(&cur_last_instr).unwrap().is_ret());
+        }
+    }
+}
 #[test]
 fn main() {
     use super::mem2reg::mem2reg;

@@ -4,7 +4,7 @@
 use super::super::passes::{dom::DominatorTreeBuilder, loop_tree::LoopTree};
 use crate::frontend::llvm::{
     function::Function,
-    instr::{Call, Instruction, Phi, RegUseInstr},
+    instr::{Branch, Call, Instr, Instruction, Phi, RegUseInstr},
     layout::{BasicBlockNode, InstructionNode},
     llvm_module::LLVMModule,
 };
@@ -25,6 +25,38 @@ fn is_pinned_instruction(instr: &Instruction) -> bool {
         || instr.is_alloca()
 }
 
+#[inline]
+pub fn instruction_casting<T>(instr: &Instruction) -> Option<&T>
+where
+    T: Instr,
+{
+    instr.instr().as_any().downcast_ref::<T>()
+}
+
+#[inline]
+pub fn instruction_mut_casting<T>(instr: &mut Instruction) -> Option<&mut T>
+where
+    T: Instr,
+{
+    instr.instr_mut().as_any_mut().downcast_mut::<T>()
+}
+
+#[inline]
+pub fn instr_id_casting<T>(arg_instr_id: InstrId, f: &Function) -> Option<&T>
+where
+    T: Instr,
+{
+    instruction_casting::<T>(f.instructions().get(&arg_instr_id).unwrap())
+}
+
+#[inline]
+pub fn instr_id_mut_casting<T>(arg_instr_id: InstrId, f: &mut Function) -> Option<&mut T>
+where
+    T: Instr,
+{
+    instruction_mut_casting::<T>(f.instructions_mut().get_mut(&arg_instr_id).unwrap())
+}
+
 fn lca_blkid(
     mut blk1: i32,
     mut blk2: i32,
@@ -42,6 +74,75 @@ fn lca_blkid(
         }
     }
     blk1
+}
+
+pub fn module_operations_before_gcm(module: &mut LLVMModule) {
+    module.for_each_user_func_mut(|f| {
+        function_operations_before_gcm(f);
+    });
+}
+
+pub fn function_operations_before_gcm(f: &mut Function) {
+    let mut edges: Vec<(BlockId, BlockId)> = Vec::new();
+    for blk_id in f.layout().block_iter() {
+        for succ in f.bb(blk_id).unwrap().succ_bb() {
+            edges.push((blk_id, succ.clone()));
+        }
+    }
+
+    for (from_vertex, to_vertex) in edges {
+        let insert_bb_id = f.alloc_bb();
+        {
+            // insert_bb operations
+            let insert_bb = f.basic_blocks_mut().get_mut(&insert_bb_id).unwrap();
+            insert_bb.add_prev_bb(from_vertex);
+            insert_bb.add_succ_bb(to_vertex);
+            let jmp_instr = Branch::new(to_vertex, None, None);
+            let jmp_instruction = Instruction::new(Box::new(jmp_instr), insert_bb_id);
+            f.add_inst2bb(jmp_instruction);
+        }
+        {
+            // from vertex replace successor
+            let from_vertex_bb = f.basic_blocks_mut().get_mut(&from_vertex).unwrap();
+            from_vertex_bb.replace_succ_bb(to_vertex, insert_bb_id);
+            {
+                // replace branch instruction( last)
+                let last_instr_id = f
+                    .layout()
+                    .basic_blocks()
+                    .get(&from_vertex)
+                    .unwrap()
+                    .last_inst()
+                    .unwrap();
+                let from_branch = instr_id_mut_casting::<Branch>(last_instr_id, f).unwrap();
+                if from_branch.label1 == to_vertex {
+                    from_branch.label1 = insert_bb_id;
+                }
+                if from_branch.label2.is_some() && from_branch.label2.unwrap() == to_vertex {
+                    from_branch.label2 = Some(insert_bb_id);
+                }
+            }
+        }
+        {
+            // to vertex replace successor
+            let to_vertex_bb = f.basic_blocks_mut().get_mut(&to_vertex).unwrap();
+            to_vertex_bb.replace_prev_bb(from_vertex, insert_bb_id);
+            {
+                // rewrite instructions that depends on from_vertex
+                // in this case that is the phi instructions
+                for cur_instr_id in f.layout().inst_iter(to_vertex).collect::<Vec<_>>() {
+                    if let Some(cur_phi_instruction) = instr_id_mut_casting::<Phi>(cur_instr_id, f)
+                    {
+                        for (_, blkid) in cur_phi_instruction.uses_mut() {
+                            if blkid.clone() == from_vertex {
+                                *blkid = insert_bb_id;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn gcm_for_module(module: &mut LLVMModule) {
@@ -105,7 +206,7 @@ fn extract_use(reg_use_instr: &dyn RegUseInstr) -> Vec<RegId> {
 }
 
 impl GCMContext {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             defs: HashMap::new(),
             uses: HashMap::new(),
@@ -251,6 +352,7 @@ impl GCMContext {
     ) -> BlockId {
         #[inline]
         fn phi_casting(instr: &Instruction) -> Option<&Phi> {
+            assert!(instr.instr().as_any().downcast_ref::<Phi>() == instruction_casting(instr));
             instr.instr().as_any().downcast_ref::<Phi>()
         }
 
@@ -362,7 +464,7 @@ impl GCMContext {
         }
     }
 
-    fn construct_def_use(&mut self, f: &Function) {
+    pub fn construct_def_use(&mut self, f: &Function) {
         // construct normal def/use
         for bb_id in f.layout().block_iter() {
             for inst_id in f.layout().inst_iter(bb_id) {
@@ -587,6 +689,9 @@ mod test {
         error_listener::SysYErrorListener, llvm::llvm_module::LLVMModule,
     };
     use crate::optimize::passes::bb_ops::remove_phi;
+    use crate::optimize::passes::loop_tree::{
+        construct_reachable_bbs_for_function, construct_returnable_bbs_for_function,
+    };
     use crate::optimize::passes::{
         check_ir::check_module,
         dce::{remove_unused_def, remove_useless_bb},
@@ -604,7 +709,7 @@ mod test {
         let path_buf = "test/functional/";
         let test_infile_name = format!("{file_name_noext}.sy");
         let test_outfile_name = format!("{file_name_noext}.ll");
-        let output_path = format!("./ci_output/{}", test_outfile_name);
+        let output_path = format!("./output/optimize/{}", test_outfile_name);
         let mut output_file = File::create(output_path).expect("cannot open output file");
 
         let cur_log_level = "Debug";
@@ -651,6 +756,11 @@ mod test {
         writeln!(output_file, "after gcm: {}", llvm_module).expect("cannot write to output file");
         check_module(&llvm_module);
         remove_phi(&mut llvm_module);
+        llvm_module.for_each_user_func(|f| {
+            println!("{}", f);
+            let reachable = construct_reachable_bbs_for_function(f);
+            let returnable = construct_returnable_bbs_for_function(f, &reachable);
+        });
         // check_module(&llvm_module);
         //check_module(&llvm_module);
         llvm_module.before_backend();

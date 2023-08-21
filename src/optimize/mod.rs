@@ -1,6 +1,6 @@
 pub mod passes;
 use crate::frontend::llvm::llvm_module::LLVMModule;
-use crate::optimize::passes::bb_ops::merge_bb;
+use crate::optimize::passes::bb_ops::{merge_bb, simplify_branch_module};
 use crate::optimize::passes::global2local::global2local;
 use crate::optimize::passes::inline_func::remove_unused_func;
 use passes::bb_ops::remove_phi;
@@ -23,10 +23,34 @@ pub fn gvn(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
 
 pub fn gcm(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
     if enable_passes.contains(&"gcm".to_string()) {
+        //log::trace!("Before GCM...");
+        //module_operations_before_gcm(llvm_module);
         log::trace!("GCM...");
         gcm_for_module(llvm_module);
         check_module(llvm_module);
         log::trace!("GCM Done!")
+    }
+}
+
+pub fn simplify_branch(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
+    if enable_passes.contains(&"sb".to_string()) {
+        log::trace!("simplify_branch...");
+        #[cfg(debug_assertions)]
+        {
+            println!("{}", llvm_module);
+        }
+        simplify_branch_module(llvm_module);
+        #[cfg(debug_assertions)]
+        {
+            println!("{}", llvm_module);
+        }
+        remove_useless_bb(llvm_module);
+        #[cfg(debug_assertions)]
+        {
+            println!("{}", llvm_module);
+        }
+        check_module(llvm_module);
+        log::trace!("simplify_branch Done!");
     }
 }
 
@@ -46,6 +70,7 @@ pub fn optimize_ir(llvm_module: &mut LLVMModule, enable_passes: &Vec<String>) {
 
         gvn(llvm_module, enable_passes);
         gcm(llvm_module, enable_passes);
+        simplify_branch(llvm_module, enable_passes);
         gvn(llvm_module, enable_passes);
 
         if enable_passes.contains(&"func_inline".to_string()) {

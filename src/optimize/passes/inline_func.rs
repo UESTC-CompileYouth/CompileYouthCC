@@ -94,7 +94,7 @@ pub fn inline_func(llvm_module: &mut LLVMModule) {
     }
 
     for func in recursive_call.iter() {
-        inline_all_call(llvm_module, func, func, 3);
+        inline_all_call(llvm_module, func, func, 1);
     }
 
     remove_unused_func(llvm_module);

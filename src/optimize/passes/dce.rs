@@ -124,11 +124,19 @@ fn remove_unreachable_bb_function(f: &mut Function) {
         .collect::<VecDeque<i32>>();
     while !unreachable_bbs.is_empty() {
         let current_bb = unreachable_bbs.pop_front().unwrap();
-        if f.bb(current_bb).unwrap().prev_bb().len() == 0 {
-            f.remove_bb(current_bb);
-        } else {
-            unreachable_bbs.push_back(current_bb);
+        {
+            // todo:: merge phi modification into remove_bb
+            for succ_blk in f.basic_blocks().get(&current_bb).unwrap().succ_bb().clone() {
+                for succ_instr_id in f.layout().inst_iter(succ_blk).collect::<Vec<_>>() {
+                    if let Some(remove_phi) =
+                        super::gcm::instr_id_mut_casting::<Phi>(succ_instr_id, f)
+                    {
+                        remove_phi.uses_mut().retain(|(_, id)| *id != current_bb);
+                    }
+                }
+            }
         }
+        f.remove_bb(current_bb);
     }
 }
 
