@@ -188,16 +188,38 @@ impl BlockLiveness {
 
         let mut in_ = HashSet::new();
         let mut out;
+        // for succ in bb.out_edges().iter() {
+        //     let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
+        //     let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow();
+        //     if succ_bb_block_liveness.is_err() {
+        //         continue;
+        //     }
+        //     let succ_bb_block_liveness = succ_bb_block_liveness.unwrap();
+
+        //     let succ_in = &succ_bb_block_liveness.psuedo_in;
+        //     // 所有后继块合并成一个虚拟块，计算该块的in
+        //     in_ = in_.union(succ_in).cloned().collect();
+        // }
+        // for succ in bb.out_edges().iter() {
+        //     let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
+        //     let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
+
+        //     let succ_in = &succ_bb_block_liveness.psuedo_in;
+        //     // 所有后继块合并成一个虚拟块，计算该块的in
+        //     in_ = in_.union(succ_in).cloned().collect();
+        // }
 
         for succ in bb.out_edges().iter() {
-            let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
-            let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
-
-            let succ_in = &succ_bb_block_liveness.psuedo_in;
             // 所有后继块合并成一个虚拟块，计算该块的in
-            in_ = in_.union(succ_in).cloned().collect();
+            if succ == bb.id() {
+                in_ = in_.union(&self.psuedo_in).cloned().collect();
+            } else {
+                let succ_bb_block_liveness = block_liveness.get(succ).unwrap();
+                let succ_bb_block_liveness = succ_bb_block_liveness.try_borrow().unwrap();
+                let succ_in = &succ_bb_block_liveness.psuedo_in;
+                in_ = in_.union(succ_in).cloned().collect();
+            };
         }
-
         // 更新每条指令的in和out
         if insts_map[bb.id()].is_empty() {
             if self.psuedo_in.len() != in_.len() {
