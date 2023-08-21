@@ -1814,7 +1814,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
             if *lvalue.is_const() && is_indices_all_imme {
                 let mut offset = 0;
                 let shapes = lvalue.get_shape();
-                println!("shapes: {:?}", shapes);
+                // println!("shapes: {:?}", shapes);
                 for dimen in 0..shapes.len() {
                     let step = shapes[dimen + 1..].iter().product::<i32>() as usize;
                     assert!(step > 0);
@@ -1825,7 +1825,7 @@ impl<'input> SysYVisitorCompat<'input> for SysYAstVisitor<'_> {
                         .as_int()
                         .unwrap() as usize;
                     offset += step * index;
-                    println!("offset: {}", offset);
+                    // println!("offset: {}", offset);
                 }
                 return AstReturnContent::Exp(AstExp::SSAValue(SSARightValue::new_imme(
                     lvalue.init_value().as_ref().unwrap()[offset],

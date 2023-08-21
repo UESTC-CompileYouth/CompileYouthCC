@@ -302,7 +302,7 @@ pub fn merge_bb_func(f: &mut Function) {
         for bb_id in f.layout().clone().block_iter() {
             if bb_id == f.entry_bb_id()
                 || del.contains(&bb_id)
-                || f.layout().inst_iter(bb_id).count() > 3
+                || f.layout().inst_iter(bb_id).count() > 100
             {
                 continue;
             }
