@@ -43,7 +43,7 @@ fn check_ir(f: &Function) {
                         log::debug!("{}", bb0);
                     }
                     log::debug!("bb:{}", bb_id);
-                    panic!("phi instruction {} is not valid", instr_id);
+                    panic!("phi instruction {} is not valid: {:?}", instr_id, instr);
                 }
             } else if let Some(br_instr) = instr.instr().as_any().downcast_ref::<Branch>() {
                 if br_instr.label2.is_some() {
@@ -66,7 +66,7 @@ fn check_ir(f: &Function) {
                 }
             }
         }
-        assert!(f.layout().inst_iter(bb_id).next() != None);
+        assert!(f.layout().inst_iter(bb_id).next() != None); // empty block
         let last_instr_id = f
             .layout()
             .basic_blocks()
@@ -83,6 +83,38 @@ fn check_ir(f: &Function) {
     }
 }
 
+fn check_connection(f: &Function) {
+    for (bb_id, bb) in f.basic_blocks() {
+        for prev_bb_id in bb.prev_bb() {
+            let prev_bb = f
+                .basic_blocks()
+                .get(prev_bb_id)
+                .expect("cannot find prev bb");
+            assert!(
+                prev_bb.succ_bb().contains(bb_id),
+                "cannot find {} in bb {}'s successor",
+                bb_id,
+                prev_bb_id
+            );
+        }
+        for succ_bb_id in bb.succ_bb() {
+            let succ_bb = f
+                .basic_blocks()
+                .get(succ_bb_id)
+                .expect("cannot find prev bb");
+            assert!(
+                succ_bb.prev_bb().contains(bb_id),
+                "cannot find {} in bb {}'s previous",
+                bb_id,
+                succ_bb_id
+            );
+        }
+    }
+}
+
 pub fn check_module(module: &LLVMModule) {
-    module.for_each_user_func(check_ir);
+    module.for_each_user_func(|f| {
+        check_connection(f);
+        check_ir(f)
+    });
 }

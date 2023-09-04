@@ -30,10 +30,10 @@ impl<'a> LivenessAnalysis<'a> {
                 .map(|&id| (id, function.instructions().get(&id).unwrap()))
                 .collect();
 
-            println!("SHOW YOU !!!!");
-            insts.iter().for_each(|(id, i)| {
-                println!("{}: {:?}", id, i);
-            });
+            // println!("SHOW YOU !!!!");
+            // insts.iter().for_each(|(id, i)| {
+            //     println!("{}: {:?}", id, i);
+            // });
 
             // 构造block_liveness
             res.block_liveness_map

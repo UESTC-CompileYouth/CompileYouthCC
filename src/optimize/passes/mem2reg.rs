@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 fn mem2reg_for_func(func: &mut Function) -> HashSet<SSARightValue> {
     let mut mem2reg = HashMap::new();
     let mut value_regs = HashSet::new();
-
+    let mut need_delete_mem_obj = vec![];
     let func_addr = func as *const Function as usize;
     func.for_each_mut_instr_closure_mut(|instruction| {
         if let Some(alloc_instr) = instruction.instr().as_any().downcast_ref::<Alloca>() {
@@ -20,6 +20,7 @@ fn mem2reg_for_func(func: &mut Function) -> HashSet<SSARightValue> {
             let func = unsafe { &mut *(func_addr as *mut Function) }; // 无奈的选择
             let mem_obj = func.mem_scope().objects().get(addr.id()).unwrap();
             if mem_obj.is_promotable() {
+                need_delete_mem_obj.push(*mem_obj.id());
                 if !mem2reg.contains_key(addr) {
                     let value_reg = func.new_reg(addr.get_type());
                     value_regs.insert(value_reg.clone());
@@ -88,6 +89,9 @@ fn mem2reg_for_func(func: &mut Function) -> HashSet<SSARightValue> {
             // do nothing
         }
     });
+    for mem_obj_id in need_delete_mem_obj {
+        func.mem_scope_mut().objects_mut().remove(&mem_obj_id);
+    }
     value_regs
 }
 

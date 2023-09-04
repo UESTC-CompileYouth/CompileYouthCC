@@ -1,7 +1,7 @@
 use crate::common::constant::ADDRESS_SIZE;
 use crate::common::{immediate::Immediate, r#type::Type};
 use enum_as_inner::EnumAsInner;
-use getset::{Getters, Setters};
+use getset::{Getters, MutGetters, Setters};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 
@@ -46,9 +46,9 @@ impl Hash for SSARightValueInner {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Setters, Getters)]
+#[derive(Debug, PartialEq, Clone, Setters, Getters, MutGetters)]
 pub struct SSARightValue {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     inner: SSARightValueInner,
     // context
     #[getset(set = "pub")]
@@ -65,6 +65,20 @@ impl Hash for SSARightValue {
 }
 
 impl SSARightValue {
+    pub fn id_mut_opt(&mut self) -> Option<&mut i32> {
+        match &mut self.inner {
+            SSARightValueInner::Immediate(_) => None,
+            SSARightValueInner::Normal(id, _) => Some(id),
+            SSARightValueInner::Address(id, _, _, addr_type, _) => {
+                if *addr_type == AddrType::Local {
+                    Some(id)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
     /// for const value
     pub fn new_imme(imme: Immediate) -> Self {
         Self {
@@ -173,7 +187,7 @@ impl SSARightValue {
 
     pub fn id(&self) -> &i32 {
         match &self.inner {
-            SSARightValueInner::Immediate(_) => panic!("id: immediate"),
+            SSARightValueInner::Immediate(_) => panic!("IMMEDIATE!!"),
             SSARightValueInner::Normal(id, _) => id,
             SSARightValueInner::Address(id, _, _, _, _) => id,
         }
@@ -201,7 +215,7 @@ impl Display for SSARightValue {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Default, Getters, Setters)]
+#[derive(Debug, PartialEq, Clone, Default, Getters, MutGetters, Setters)]
 pub struct SSALeftValue {
     #[getset(get = "pub")]
     name: String,
@@ -209,11 +223,11 @@ pub struct SSALeftValue {
     is_arg: bool, // logical arg or arg on stack
     #[getset(get = "pub")]
     is_const: bool,
-    #[getset(get = "pub")]
+    #[getset(get = "pub", set = "pub")]
     is_global: bool,
     #[getset(get = "pub")]
     shape: Vec<i32>,
-    #[getset(get = "pub", set = "pub")]
+    #[getset(get = "pub", get_mut = "pub", set = "pub")]
     id: i32,
     #[getset(get = "pub", set = "pub")]
     ty: Type,
@@ -330,7 +344,7 @@ impl SSALeftValue {
         }
     }
 
-    pub fn new_const_array(
+    pub fn new_const(
         id: i32,
         ty: Type,
         name: String,
@@ -353,7 +367,7 @@ impl SSALeftValue {
     }
 
     pub fn is_promotable(&self) -> bool {
-        !self.is_global && self.shape.is_empty() && self.size() == 4 // && !self.is_arg
+        !self.is_global && self.shape.is_empty() && self.is_single_value()
     }
 
     pub fn set_global(&mut self) {
@@ -434,6 +448,10 @@ impl SSALeftValue {
 
     pub fn is_array_arg(&self) -> bool {
         self.is_arg && self.shape.len() > 0
+    }
+
+    pub fn is_single_value(&self) -> bool {
+        self.size() == 4
     }
 }
 

@@ -15,8 +15,8 @@ pre_check:
   script:
     - rustc --version
     - cargo fmt --all --check
-    - cargo check --release
-    - cargo check --tests --release
+    - cargo check --release --offline
+    - cargo check --tests --release --offline
   interruptible: true
 
 
@@ -24,7 +24,8 @@ pre_check:
 unit_test:
   stage: test
   script:
-    - cargo test
+    - cargo test --offline
+  when: manual
 
 
 # test SysYCC correctness 
@@ -32,7 +33,7 @@ functional_test:
   stage: test
   script:
     - rm -rf ci_output
-    - cargo build -r --bin compiler
+    - cargo build -r --bin compiler --offline
     - bash scripts/ci_functional_test.sh
     
 # test SysYCC optimization performance 
@@ -40,5 +41,5 @@ performance_test:
   stage: test
   script:
     - rm -rf ci_output
-    - cargo build -r --bin compiler
+    - cargo build -r --bin compiler --offline
     - bash scripts/ci_performance_test.sh

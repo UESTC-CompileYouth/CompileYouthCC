@@ -106,3 +106,65 @@ impl<'func_lifetime> LoopTree<'func_lifetime> {
         }
     }
 }
+
+pub fn construct_reachable_bbs_for_function(f: &Function) -> HashSet<IdBB> {
+    fn successor_dfs(
+        visited: &mut HashSet<i32>,
+        reachable: &mut HashSet<i32>,
+        current_bb: i32,
+        f: &Function,
+    ) {
+        if visited.contains(&current_bb) {
+            // predicate equivalence
+            assert!(reachable.contains(&current_bb));
+            return;
+        }
+        visited.insert(current_bb);
+        reachable.insert(current_bb);
+        for succ in f.bb(current_bb).unwrap().succ_bb() {
+            successor_dfs(visited, reachable, *succ, f);
+        }
+    }
+    let mut visited: HashSet<IdBB> = HashSet::new();
+    let mut reachable: HashSet<IdBB> = HashSet::new();
+    reachable.insert(f.entry_bb_id());
+    successor_dfs(&mut visited, &mut reachable, f.entry_bb_id(), f);
+    return reachable;
+}
+
+pub fn construct_returnable_bbs_for_function(
+    f: &Function,
+    reachable: &HashSet<IdBB>,
+) -> HashSet<IdBB> {
+    fn predecessor_dfs(
+        reachable: &HashSet<IdBB>,
+        visited: &mut HashSet<i32>,
+        returnable: &mut HashSet<i32>,
+        current_bb: i32,
+        f: &Function,
+    ) {
+        if !reachable.contains(&current_bb) {
+            return;
+        }
+        if visited.contains(&current_bb) {
+            assert!(returnable.contains(&current_bb));
+            return;
+        }
+        visited.insert(current_bb);
+        returnable.insert(current_bb);
+        for prev in f.bb(current_bb).unwrap().prev_bb() {
+            predecessor_dfs(reachable, visited, returnable, *prev, f);
+        }
+    }
+
+    let mut visited: HashSet<i32> = HashSet::new();
+    let mut returnable: HashSet<i32> = HashSet::new();
+    for bb in f.layout().block_iter() {
+        let last_instr_id = f.layout().block_node(bb).last_inst().unwrap();
+        let last_instr = f.instructions().get(&last_instr_id).unwrap();
+        if last_instr.is_ret() {
+            predecessor_dfs(reachable, &mut visited, &mut returnable, bb, f);
+        }
+    }
+    return returnable;
+}

@@ -1,33 +1,16 @@
 pub mod liveness;
-use crate::common::r#type::Type;
-
-use std::cmp::max;
-use std::fmt::{Debug, Formatter};
-
-use std::collections::{HashMap, HashSet};
-use std::fs::remove_dir;
-
-use itertools::Itertools;
-
 use self::liveness::LivenessAnalysis;
-
 use super::arch_info::{RegConvention, RegisterUsage, A0, A7, RA, SP};
 use super::function::Function;
 use super::instr::*;
 use super::register::Reg;
+use crate::common::r#type::Type;
+use itertools::Itertools;
+use std::cmp::max;
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug, Formatter};
 
 const MAX_USABLE_REG_CNT: usize = 27;
-// pub const REGS: [i32; 27] = [
-//     A0,
-//     A1,
-//     A2,
-//     A3,
-//     A4,
-//     A5,
-//     A6,
-//     A7,
-
-// ];
 
 #[derive(Debug, Clone)]
 pub struct Node {
@@ -817,9 +800,10 @@ pub(crate) fn backpatch_arg_stack_offset(func: &mut Function) {
 
 pub(crate) fn insert_prologue(function: &mut Function) {
     let sf = function.sf().clone();
-    let sf = sf.borrow();
+    let sf = sf.borrow_mut();
+    let total_size = sf.total_frame_size();
 
-    if sf.total_frame_size() == 0 {
+    if total_size == 0 {
         return;
     }
 
@@ -831,19 +815,16 @@ pub(crate) fn insert_prologue(function: &mut Function) {
         .sorted_by_key(|x| -(x.1 as i32))
         .collect_vec();
 
-    if let Some(block) = function.blocks_mut().get_mut(0) {
-        let insts = block.instrs_mut();
+    if let Some(entry_block) = function.blocks_mut().get_mut(0) {
+        let insts = entry_block.instrs_mut();
 
         let sp = Reg::new_int(SP);
         let offset = ImmeValueType::Direct(-(sf.total_frame_size() as i32));
         let ty = RegImmeType::Addi;
 
-        let mut insert_idx = 0;
-
         // addi sp, sp, -xx
         let build_sf = RegImmeInstr::new(sp, sp, offset, ty, None);
-        insts.insert(insert_idx, Box::new(build_sf));
-        insert_idx += 1;
+        insts.insert(0, Box::new(build_sf));
 
         for (reg_id, so_idx) in callee_saved_regs.iter() {
             let reg = if *reg_id > 0 {
@@ -854,14 +835,13 @@ pub(crate) fn insert_prologue(function: &mut Function) {
 
             let so = sf.get_stack_object(*so_idx);
 
-            let offset = ImmeValueType::Direct(*so.borrow().position());
+            let offset = ImmeValueType::Direct(*so.borrow().position() - total_size as i32);
             let store: Box<dyn InstrTrait> = if *reg_id > 0 {
                 Box::new(StoreInstr::new(sp, reg, offset, None, StoreType::Sd))
             } else {
                 Box::new(FStoreInstr::new(sp, reg, offset, None))
             };
-            insts.insert(insert_idx, store);
-            insert_idx += 1;
+            insts.insert(0, store);
         }
     }
 }
@@ -869,8 +849,9 @@ pub(crate) fn insert_prologue(function: &mut Function) {
 pub(crate) fn insert_epilogue(function: &mut Function) {
     let sf = function.sf().clone();
     let sf = sf.borrow();
+    let total_size = sf.total_frame_size();
 
-    if sf.total_frame_size() == 0 {
+    if total_size == 0 {
         return;
     }
 
@@ -904,7 +885,7 @@ pub(crate) fn insert_epilogue(function: &mut Function) {
     let offset = ImmeValueType::Direct(sf.total_frame_size() as i32);
     let ty = RegImmeType::Addi;
 
-    let mut insert_idx = ret_index;
+    let insert_idx = ret_index;
 
     // let load_ra = LoadInstr::new(ra, sp, 0, crate::instr::LoadType::Ld);
     // insts.insert(insert_idx, Box::new(load_ra));
@@ -917,7 +898,7 @@ pub(crate) fn insert_epilogue(function: &mut Function) {
             Reg::new_float(-*reg_id)
         };
         let so = sf.get_stack_object(*so_idx);
-        let offset = *so.borrow().position();
+        let offset = *so.borrow().position() - total_size as i32;
         let load: Box<dyn InstrTrait> = if *reg_id > 0 {
             Box::new(LoadInstr::new(reg, sp, offset, LoadType::Ld))
         } else {
@@ -929,7 +910,6 @@ pub(crate) fn insert_epilogue(function: &mut Function) {
             ))
         };
         insts.insert(insert_idx, load);
-        insert_idx += 1;
     }
 
     let release_sf = RegImmeInstr::new(sp, sp, offset, ty, None);
@@ -944,11 +924,11 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
         // collect_callee_saved_regs
         let mut regs = HashSet::new();
         // if there is a call, then it is not a leaf function
-        let mut is_leaf = true;
+        let mut _is_leaf = true;
         for block in func.blocks().iter() {
             for inst in block.instrs().iter() {
                 if inst.as_any().downcast_ref::<CallInstr>().is_some() {
-                    is_leaf = false;
+                    _is_leaf = false;
                 }
                 let t = inst.get_operands(reg_type);
                 let v = vec![t.0, t.1, t.2];
@@ -983,7 +963,9 @@ pub(crate) fn save_callee_saved_regs(func: &mut Function) {
             }
         }
 
-        if !is_leaf {
+        _is_leaf = false;
+
+        if !_is_leaf {
             func.callee_saved_regs_mut().insert(RA, sf.push_dword()); // reserved for ra
         }
     };
@@ -1399,23 +1381,28 @@ fn peephole_jump(func: &mut Function) -> bool {
             Box::new(JumpInstr::new_jump("impossible".to_string()));
 
         let mut block_to_remove_id = -1;
+        let entry_block_id = *func.entry_block_id();
 
         for block in func.blocks_mut().iter_mut() {
             let block_name = block.name().clone();
+            let block_id = *block.id();
 
-            name2id.insert(block_name.clone(), *block.id());
-            id2name.insert(*block.id(), block_name.clone());
+            name2id.insert(block_name.clone(), block_id);
+            id2name.insert(block_id, block_name.clone());
 
             if !simplified {
                 if let Some(inst) = block.instrs_mut().iter_mut().next() {
                     // the first inst is `j label`
                     if let Some(x) = inst.as_any().downcast_ref::<JumpInstr>() {
                         if matches!(x.ty(), JumpType::J) {
+                            block_to_remove_id = block_id;
+                            if block_to_remove_id == entry_block_id {
+                                continue;
+                            }
+
                             jump_map.insert(block_name.clone(), x.label().clone());
 
                             jump_to_push = Box::new(JumpInstr::new_jump(x.label().clone()));
-
-                            block_to_remove_id = *block.id();
 
                             changed = true;
                             simplified = true;
@@ -1425,6 +1412,9 @@ fn peephole_jump(func: &mut Function) -> bool {
             }
         }
 
+        if !simplified {
+            break;
+        }
         // jump simplification
         func.blocks_mut().iter_mut().for_each(|block| {
             for inst in block.instrs_mut().iter_mut() {
@@ -1499,10 +1489,6 @@ fn peephole_jump(func: &mut Function) -> bool {
 
         func.blocks_mut()
             .retain(|b| !jump_map.contains_key(b.name()));
-
-        if !simplified {
-            break;
-        }
     }
 
     // remove redundant jump, e.g. `j .L1; j .L2;` => `j .L1;`
@@ -1695,7 +1681,6 @@ pub fn peephole(func: &mut Function) -> bool {
 
     changed
 }
-
 #[cfg(test)]
 mod tests {
     use antlr_rust::{common_token_stream::CommonTokenStream, InputStream};
@@ -1706,7 +1691,7 @@ mod tests {
             program::Program,
             register_allocation::{
                 allocate_load_stack, backpatch_arg_stack_offset, insert_epilogue, insert_prologue,
-                register_allocate, save_callee_saved_regs, save_caller_saved_regs,
+                peephole, register_allocate, save_callee_saved_regs, save_caller_saved_regs,
                 InterferenceGraph,
             },
         },
@@ -1715,10 +1700,14 @@ mod tests {
             ast_visitor::SysYAstVisitor,
             llvm::llvm_module::LLVMModule,
         },
-        optimize::passes::{
-            bb_ops::remove_phi,
-            dce::{remove_unused_def, remove_useless_bb},
-            mem2reg::mem2reg,
+        optimize::{
+            gcm, gvn,
+            passes::{
+                bb_ops::remove_phi,
+                dce::{remove_unused_def, remove_useless_bb},
+                inline_func::inline_func,
+                mem2reg::mem2reg,
+            },
         },
     };
 
@@ -1773,8 +1762,8 @@ mod tests {
     }
     #[test]
     fn test() {
-        let contents =
-            std::fs::read_to_string("test/homemade/math.sy").expect("cannot open source file");
+        let contents = std::fs::read_to_string("test/homemade/func_inline.sy")
+            .expect("cannot open source file");
         let input = InputStream::new(contents.as_bytes());
 
         let lexer = SysYLexer::new(input);
@@ -1791,13 +1780,49 @@ mod tests {
         ast_visitor.visit_compUnit(&ctx);
         ast_visitor.return_content();
 
+        let enable_passes = vec!["gvn".to_string(), "gcm".to_string()];
+
+        // optimize_ir(&mut llvm_module, &enable_passes);
+
+        // remove_useless_bb(&mut llvm_module);
+        // mem2reg(&mut llvm_module);
+        // remove_unused_def(&mut llvm_module);
+        // println!("{}", llvm_module);
         remove_useless_bb(&mut llvm_module);
+        // mem2reg(&mut llvm_module);
+
+        // remove_phi(&mut llvm_module);
+        gvn(&mut llvm_module, &enable_passes);
+        gcm(&mut llvm_module, &enable_passes);
+        gvn(&mut llvm_module, &enable_passes);
+
+        // println!("SHOW EDGES: ");
+        // for (func_name, func) in llvm_module.functions().iter() {
+        //     println!("FUNC {func_name}");
+        //     for (bb_id, bb) in func.basic_blocks() {
+        //         bb.succ_bb().iter().for_each(|succ| {
+        //             println!("{} -> {}", bb_id, succ);
+        //         });
+        //     }
+        //     for (bb_id, bb) in func.basic_blocks() {
+        //         bb.prev_bb().iter().for_each(|prev| {
+        //             println!("{} <- {}", bb_id, prev);
+        //         });
+        //     }
+        // }
+
         mem2reg(&mut llvm_module);
         remove_unused_def(&mut llvm_module);
-
+        // println!("*************\n {}", llvm_module);
+        inline_func(&mut llvm_module);
+        println!("====== after inline_func =============\n {}", llvm_module);
+        gvn(&mut llvm_module, &enable_passes);
         remove_phi(&mut llvm_module);
+        // check_module(&llvm_module);
 
-        println!("{}", llvm_module);
+        // println!("=============\n {}", llvm_module);
+        // merge_BB(&mut llvm_module);
+        // println!("*************\n {}", llvm_module);
 
         // for b in main.layout().block_iter() {
         //     main.layout().inst_iter(b).for_each(|i| {
@@ -1809,7 +1834,7 @@ mod tests {
 
         // let main = llvm_module.functions.get_mut("main").unwrap();
         for func in p.functions_mut() {
-            println!("{}: ", func.name());
+            println!("F {}: ", func.name());
 
             println!("BEFORE REG ALLOC: ");
             // println!("{}", func);
@@ -1840,23 +1865,7 @@ mod tests {
             //     }
             // }
 
-            {
-                let mut _peephole_cnt = 0;
-                // while peephole(func) {
-                // println!("PEEPHOLE {}: ", peephole_cnt);
-                // peephole_cnt += 1;
-                // for b in func.blocks().iter() {
-                //     println!("{}:", b.name());
-                //     for i in b.instrs().iter() {
-                //         print!("\t{}", i.gen_asm());
-                //     }
-                // }
-                // if peephole_cnt == 3 {
-                //     break;
-                // }
-                // }
-            }
-
+            while peephole(func) {}
             insert_prologue(func);
             insert_epilogue(func);
         }

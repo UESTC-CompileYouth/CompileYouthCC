@@ -1,0 +1,15 @@
+int f1(int c, int d) {
+    int b = 2;
+    int a[8196];
+    a[8000] = c + b;
+    a[8001] = d;
+    int e = 3;
+    return a[8000] + e;
+}
+
+int f2() {
+    return f1(100, 200);
+}
+int main() {
+    return f2() + f2();
+}

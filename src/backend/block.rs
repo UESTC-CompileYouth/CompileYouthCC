@@ -69,6 +69,7 @@ impl Block {
             if let Some(alloc_instr) = llvm_instr.as_any().downcast_ref::<llvm::instr::Alloca>() {
                 let addr = alloc_instr.addr();
                 let reg = mapping_info.from_ssa_rvalue(addr);
+                // println!("!!! Alloca Addr: {:?} -> {:?}", addr, reg);
                 if addr.is_global() {
                     panic!("cannot alloca global variable");
                     // let symbol = addr.global_name().unwrap().to_string();
@@ -341,6 +342,7 @@ impl Block {
                 } else {
                     let rs1 = mapping_info.from_ssa_rvalue(addr);
                     if s1_ssa.is_addr() {
+                        // println!("!!! Store Double Src: {:?} -> {:?}", s1_ssa, rs);
                         risc_v_instrs.push(Box::new(StoreInstr::new(
                             rs1,
                             rs,
@@ -528,7 +530,9 @@ impl Block {
                 let true_target_block_id = *mapping_info
                     .block_mapping()
                     .get(&branch_instr.label1)
-                    .unwrap();
+                    .unwrap_or_else(|| {
+                        panic!("{}", branch_instr.label1);
+                    });
                 if let Some(cond) = &branch_instr.cond {
                     let rd = mapping_info.from_ssa_rvalue(&cond);
                     let false_target_block_id = *mapping_info

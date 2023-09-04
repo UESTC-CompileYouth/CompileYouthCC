@@ -40,9 +40,11 @@ fn parse_passes(cmdline_options: &CompilerOptions) -> Vec<String> {
         "gvn".to_string(),
         "gcm".to_string(),
         "func_inline".to_string(),
+        // "g2l".to_string(),
         "misc".to_string(),
         "peephole".to_string(),
         "asm".to_string(),
+        "sb".to_string(),
     ];
     for pass in cmdline_options.enable_passes.iter() {
         if !passes.contains(pass) {
@@ -59,7 +61,6 @@ fn parse_passes(cmdline_options: &CompilerOptions) -> Vec<String> {
 
 fn main() {
     let cmdline_options = CompilerOptions::from_args();
-
     {
         let env = env_logger::Env::new();
         let mut builder = env_logger::Builder::new();

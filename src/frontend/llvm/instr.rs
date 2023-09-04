@@ -2,13 +2,14 @@ use super::ssa::*;
 use crate::common::immediate::Immediate;
 use crate::common::r#type::Type;
 use derive_new::new;
-use getset::{CopyGetters, Getters, MutGetters};
+use getset::{CopyGetters, Getters, MutGetters, Setters};
 use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use strum_macros::EnumString;
 
 pub trait Instr: Any + Debug {
     fn as_any(&self) -> &dyn Any;
+    fn clone_box(&self) -> Box<dyn Instr>;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn try_as_reg_write_instr(&self) -> Option<&dyn RegWriteInstr> {
         None
@@ -58,6 +59,9 @@ pub trait Instr: Any + Debug {
 
         (kill, gen1, gen2)
     }
+
+    // label id + reg id
+    fn ids_mut(&mut self) -> Vec<&mut i32>;
 }
 
 pub trait RegWriteInstr: Instr + Debug {
@@ -167,6 +171,10 @@ impl Instruction {
     pub fn is_alloca(&self) -> bool {
         self.instr.as_any().downcast_ref::<Alloca>().is_some()
     }
+
+    pub fn set_bb_id(&mut self, bb_id: i32) {
+        self.bb_id = bb_id;
+    }
 }
 
 #[derive(PartialEq, Clone, new, Getters, MutGetters)]
@@ -207,12 +215,19 @@ impl Debug for GlobalDecl {
 }
 
 impl Instr for GlobalDecl {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        todo!()
     }
 }
 
@@ -235,6 +250,9 @@ impl Debug for Alloca {
 }
 
 impl Instr for Alloca {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -249,6 +267,14 @@ impl Instr for Alloca {
 
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        if let Some(id) = self.addr.id_mut_opt() {
+            return vec![id];
+        } else {
+            return vec![];
+        }
     }
 }
 
@@ -271,9 +297,9 @@ impl RegUseInstr for Alloca {
     }
 }
 
-#[derive(PartialEq, Clone, new, Getters, MutGetters)]
+#[derive(PartialEq, Clone, new, Getters, MutGetters, Setters)]
 pub struct Load {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub", set = "pub")]
     addr: SSARightValue,
     #[getset(get = "pub", get_mut = "pub")]
     pub d1: SSARightValue,
@@ -300,6 +326,9 @@ impl Debug for Load {
 }
 
 impl Instr for Load {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -327,6 +356,17 @@ impl Instr for Load {
     fn get_operands(&self) -> (i32, i32, i32) {
         (*self.d1.id(), 0, 0)
     }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.addr.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
+    }
 }
 
 impl RegWriteInstr for Load {
@@ -350,7 +390,7 @@ impl RegUseInstr for Load {
 
 #[derive(PartialEq, Clone, new, Getters, MutGetters)]
 pub struct Store {
-    #[getset(get = "pub")]
+    #[getset(get = "pub", get_mut = "pub")]
     addr: SSARightValue,
     #[getset(get = "pub", get_mut = "pub")]
     pub s1: SSARightValue,
@@ -377,6 +417,9 @@ impl Debug for Store {
 }
 
 impl Instr for Store {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -395,6 +438,17 @@ impl Instr for Store {
 
     fn get_operands(&self) -> (i32, i32, i32) {
         (0, *self.s1.id(), 0)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.addr.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -434,13 +488,24 @@ impl Mov {
 
 impl Debug for Mov {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        assert!(self.d1.get_type() == Type::Int);
+        assert!(
+            self.d1.get_type() == Type::Int,
+            "{} = mov i32 {}?",
+            self.d1,
+            self.s1
+        );
         assert!(self.s1.get_type() == Type::Int);
-        writeln!(f, "{} = mov i32 {}", self.d1, self.s1)
+        #[cfg(not(feature = "strict_llvm_15_output"))]
+        return writeln!(f, "{} = mov i32 {}", self.d1, self.s1);
+        #[cfg(feature = "strict_llvm_15_output")]
+        return writeln!(f, "{} = add i32 0, {}", self.d1, self.s1);
     }
 }
 
 impl Instr for Mov {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -467,6 +532,17 @@ impl Instr for Mov {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -511,6 +587,9 @@ impl Debug for FMov {
 }
 
 impl Instr for FMov {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -537,6 +616,17 @@ impl Instr for FMov {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -584,6 +674,9 @@ impl Debug for Add {
 }
 
 impl Instr for Add {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -610,6 +703,20 @@ impl Instr for Add {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -656,6 +763,9 @@ impl Debug for FAdd {
 }
 
 impl Instr for FAdd {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -682,6 +792,20 @@ impl Instr for FAdd {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -728,6 +852,9 @@ impl Debug for Sub {
 }
 
 impl Instr for Sub {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -754,6 +881,20 @@ impl Instr for Sub {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -800,6 +941,9 @@ impl Debug for FSub {
 }
 
 impl Instr for FSub {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -826,6 +970,20 @@ impl Instr for FSub {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -873,6 +1031,9 @@ impl Debug for Mul {
 }
 
 impl Instr for Mul {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -899,6 +1060,20 @@ impl Instr for Mul {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -945,6 +1120,9 @@ impl Debug for FMul {
 }
 
 impl Instr for FMul {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -971,6 +1149,20 @@ impl Instr for FMul {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1017,6 +1209,9 @@ impl Debug for Shl {
 }
 
 impl Instr for Shl {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1043,6 +1238,19 @@ impl Instr for Shl {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1089,6 +1297,9 @@ impl Debug for LShr {
 }
 
 impl Instr for LShr {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1115,6 +1326,20 @@ impl Instr for LShr {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1161,6 +1386,9 @@ impl Debug for AShr {
 }
 
 impl Instr for AShr {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1187,6 +1415,20 @@ impl Instr for AShr {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1234,6 +1476,9 @@ impl Debug for Div {
 }
 
 impl Instr for Div {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1260,6 +1505,20 @@ impl Instr for Div {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1306,6 +1565,9 @@ impl Debug for FDiv {
 }
 
 impl Instr for FDiv {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1332,6 +1594,20 @@ impl Instr for FDiv {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1378,6 +1654,9 @@ impl Debug for Mod {
 }
 
 impl Instr for Mod {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1404,6 +1683,20 @@ impl Instr for Mod {
 
     fn try_as_binary_instr(&self) -> Option<&dyn BinaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1447,6 +1740,9 @@ impl Debug for Neg {
 }
 
 impl Instr for Neg {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1473,6 +1769,17 @@ impl Instr for Neg {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1516,6 +1823,9 @@ impl Debug for Not {
 }
 
 impl Instr for Not {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1542,6 +1852,17 @@ impl Instr for Not {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1650,6 +1971,9 @@ impl Debug for Icmp {
 }
 
 impl Instr for Icmp {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1672,6 +1996,20 @@ impl Instr for Icmp {
 
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1719,6 +2057,9 @@ impl Debug for Fcmp {
 }
 
 impl Instr for Fcmp {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1741,6 +2082,20 @@ impl Instr for Fcmp {
 
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s2.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -1792,7 +2147,9 @@ impl Debug for Call {
             if i != 0 {
                 code += ", ";
             }
-            code += format!("{} {}", arg.get_type(), arg).as_str();
+            let ptr_num = arg.addr_shape().unwrap_or(vec![]).len();
+            let ptr_str = String::from("*").repeat(ptr_num);
+            code += format!("{}{} {}", arg.get_type().to_string(), ptr_str, arg).as_str();
         }
         code += ")";
         writeln!(f, "{}", code)
@@ -1800,6 +2157,9 @@ impl Debug for Call {
 }
 
 impl Instr for Call {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1822,6 +2182,21 @@ impl Instr for Call {
 
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(ret) = &mut self.ret {
+            if let Some(id) = ret.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        for arg in self.args.iter_mut() {
+            if let Some(id) = arg.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        ids
     }
 }
 
@@ -1861,6 +2236,9 @@ impl Debug for Ret {
 }
 
 impl Instr for Ret {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1875,6 +2253,16 @@ impl Instr for Ret {
 
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(value) = &mut self.value {
+            if let Some(id) = value.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        ids
     }
 }
 
@@ -2013,7 +2401,8 @@ impl Debug for Gep {
         assert!(self.s1.is_addr());
         assert!(self.d1.is_addr());
         assert!(self.s1.get_type() == self.d1.get_type());
-        writeln!(
+        #[cfg(not(feature = "strict_llvm_15_output"))]
+        return writeln!(
             f,
             "{} = getelementptr {}, {}* {}, i32 {}",
             self.d1,
@@ -2021,11 +2410,24 @@ impl Debug for Gep {
             address_type_string(&self.s1),
             self.s1,
             self.index
-        )
+        );
+        #[cfg(feature = "strict_llvm_15_output")]
+        return writeln!(
+            f,
+            "{} = getelementptr {}, {}* {}, i32 0, i32 {}",
+            self.d1,
+            address_type_string(&self.s1),
+            address_type_string(&self.s1),
+            self.s1,
+            self.index
+        );
     }
 }
 
 impl Instr for Gep {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2048,6 +2450,20 @@ impl Instr for Gep {
 
     fn try_as_reg_write_instr_mut(&mut self) -> Option<&mut dyn RegWriteInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.index.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -2095,14 +2511,21 @@ impl Debug for Phi {
         }
         let mut code = String::new();
         code += format!("{} = phi {}", self.d1, self.d1().get_type()).as_str();
-        for (reg, bid) in &self.uses {
-            code += format!(" [ {}, %{} ],", reg, bid).as_str();
+        let uses_len = self.uses.len();
+        for (idx, (reg, bid)) in self.uses.iter().enumerate() {
+            code += format!(" [ {}, %{} ]", reg, bid).as_str();
+            if idx != uses_len - 1 {
+                code += ",";
+            }
         }
         writeln!(f, "{}", code)
     }
 }
 
 impl Instr for Phi {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2125,6 +2548,20 @@ impl Instr for Phi {
 
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        for (reg, bb_id) in &mut self.uses {
+            if let Some(id) = reg.id_mut_opt() {
+                ids.push(id);
+            }
+            ids.push(bb_id);
+        }
+        ids
     }
 }
 
@@ -2161,9 +2598,18 @@ impl Branch {
             cond: None,
         }
     }
+    pub fn set_true_label(&mut self, label: i32) {
+        self.label1 = label;
+    }
+    pub fn set_false_label(&mut self, label: i32) {
+        self.label2 = Some(label);
+    }
 }
 
 impl Instr for Branch {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2178,6 +2624,20 @@ impl Instr for Branch {
 
     fn try_as_reg_use_instr_mut(&mut self) -> Option<&mut dyn RegUseInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(cond) = &mut self.cond {
+            if let Some(id) = cond.id_mut_opt() {
+                ids.push(id);
+            }
+        }
+        ids.push(&mut self.label1);
+        if let Some(label2) = &mut self.label2 {
+            ids.push(label2);
+        }
+        ids
     }
 }
 
@@ -2235,6 +2695,9 @@ impl Debug for Sitofp {
 }
 
 impl Instr for Sitofp {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2261,6 +2724,17 @@ impl Instr for Sitofp {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 
@@ -2304,6 +2778,9 @@ impl Debug for Fptosi {
 }
 
 impl Instr for Fptosi {
+    fn clone_box(&self) -> Box<dyn Instr> {
+        Box::new(self.clone())
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -2330,6 +2807,17 @@ impl Instr for Fptosi {
 
     fn try_as_unary_instr(&self) -> Option<&dyn UnaryInstr> {
         Some(self)
+    }
+
+    fn ids_mut(&mut self) -> Vec<&mut i32> {
+        let mut ids = vec![];
+        if let Some(id) = self.d1.id_mut_opt() {
+            ids.push(id);
+        }
+        if let Some(id) = self.s1.id_mut_opt() {
+            ids.push(id);
+        }
+        ids
     }
 }
 

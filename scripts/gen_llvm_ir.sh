@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-if (($# >= 1)); then
+if (($# >= 2)); then
 	pathorfile=$1
 	output_path=$2
 	if test -d $pathorfile; then

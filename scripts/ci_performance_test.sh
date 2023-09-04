@@ -5,7 +5,7 @@
 # sh scripts/ci_performance_test.sh
 
 compiler_path=target/release/compiler
-functional_test_path=test/performance
+functional_test_path=test/final_performance
 sysylib_path=lib
 output_path=ci_output
 riscv_gnu_toolchain_prefix=riscv64-linux-gnu-

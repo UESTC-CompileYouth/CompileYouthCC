@@ -10,7 +10,6 @@ pub struct BasicBlock {
     #[getset(get = "pub", set = "pub")]
     alias: String,
     #[new(value = "false")]
-    #[getset(get = "pub", set = "pub")]
     have_exit: bool,
     #[new(default)]
     #[getset(get = "pub", get_mut = "pub")]

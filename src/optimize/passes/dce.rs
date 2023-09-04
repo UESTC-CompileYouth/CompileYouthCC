@@ -28,6 +28,7 @@ fn remove_unused_def_func(func: &mut Function) {
     let def_vec = construct_def_vec(func);
     let mut used_instrs = HashSet::new();
     let mut queue = VecDeque::new();
+    let mut arg_not_delete = Vec::new();
     for node in func.layout().block_iter() {
         for instr_id in func.layout().inst_iter(node) {
             let instr = func.instructions().get(&instr_id).unwrap();
@@ -60,16 +61,39 @@ fn remove_unused_def_func(func: &mut Function) {
                 // not argument
                 if def_instr_id != 0 {
                     queue.push_back(def_instr_id);
+                } else {
+                    if !arg_not_delete.contains(&reg_id) {
+                        arg_not_delete.push(reg_id);
+                    }
                 }
             }
         }
     }
     let mut need_delete_instrs = Vec::new();
-    for (i, _) in func.instructions() {
+    let mut need_delete_mem_obj = vec![];
+    let func_addr = func as *const Function as usize;
+    for (i, instr) in func.instructions() {
         if !used_instrs.contains(i) {
             need_delete_instrs.push(*i);
+            if let Some(alloc_instr) = instr.instr().as_any().downcast_ref::<Alloca>() {
+                let addr = alloc_instr.addr();
+                let func = unsafe { &mut *(func_addr as *mut Function) }; // 无奈的选择
+                let mem_obj = func.mem_scope().objects().get(addr.id()).unwrap();
+                need_delete_mem_obj.push(*mem_obj.id());
+            }
         }
     }
+
+    for arg in func.arg_list().as_normal().unwrap().iter() {
+        if !arg_not_delete.contains(&(*arg.id() as usize)) {
+            need_delete_mem_obj.push(*arg.id());
+        }
+    }
+
+    for mem_obj_id in need_delete_mem_obj {
+        func.mem_scope_mut().objects_mut().remove(&mem_obj_id);
+    }
+
     for instr_id in need_delete_instrs {
         func.remove_inst(instr_id);
     }
@@ -100,11 +124,19 @@ fn remove_unreachable_bb_function(f: &mut Function) {
         .collect::<VecDeque<i32>>();
     while !unreachable_bbs.is_empty() {
         let current_bb = unreachable_bbs.pop_front().unwrap();
-        if f.bb(current_bb).unwrap().prev_bb().len() == 0 {
-            f.remove_bb(current_bb);
-        } else {
-            unreachable_bbs.push_back(current_bb);
+        {
+            // todo:: merge phi modification into remove_bb
+            for succ_blk in f.basic_blocks().get(&current_bb).unwrap().succ_bb().clone() {
+                for succ_instr_id in f.layout().inst_iter(succ_blk).collect::<Vec<_>>() {
+                    if let Some(remove_phi) =
+                        super::gcm::instr_id_mut_casting::<Phi>(succ_instr_id, f)
+                    {
+                        remove_phi.uses_mut().retain(|(_, id)| *id != current_bb);
+                    }
+                }
+            }
         }
+        f.remove_bb(current_bb);
     }
 }
 
@@ -128,44 +160,6 @@ fn remove_unreachable_bb(module: &mut LLVMModule) {
     module.for_each_user_func_mut(|f| remove_unreachable_bb_function(f));
 }
 
-fn remove_max_flow_unused_bb(module: &mut LLVMModule) {
-    module.for_each_user_func_mut(|f| {
-        if f.name() == "max_flow" {
-            let mut need_delete_bb_id = None;
-            for (bb_id, _) in f.layout().basic_blocks().iter() {
-                // empty bb
-                if f.layout().inst_iter(*bb_id).next() == None {
-                    need_delete_bb_id = Some(*bb_id);
-                }
-            }
-            if let Some(bb_id) = need_delete_bb_id {
-                let prev_bbs = f.bb(bb_id).unwrap().prev_bb().clone();
-                for prev_bb_id in prev_bbs {
-                    let prev_bb_last_instr_id = f
-                        .layout()
-                        .inst_iter(prev_bb_id)
-                        .last()
-                        .expect("prev bb is empty");
-                    let prev_bb_last_instr = f
-                        .instructions_mut()
-                        .get_mut(&prev_bb_last_instr_id)
-                        .unwrap();
-                    if let Some(branch) = prev_bb_last_instr
-                        .instr_mut()
-                        .as_any_mut()
-                        .downcast_mut::<Branch>()
-                    {
-                        branch.label2 = None;
-                        branch.cond = None;
-                    }
-                }
-                f.remove_bb(bb_id);
-            }
-        }
-    });
-}
-
 pub fn remove_useless_bb(module: &mut LLVMModule) {
     remove_unreachable_bb(module);
-    remove_max_flow_unused_bb(module);
 }
